@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Indstillinger</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; color: #020817; max-width: 520px; margin: 40px auto; padding: 0 16px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 14px; }
+    input { font: inherit; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; }
+    button { font: inherit; font-weight: 600; margin-top: 12px; padding: 9px 16px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; cursor: pointer; }
+    p { color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Adresse på din instans</h2>
+  <p>Udvidelsen viser appen fra denne adresse. Den er sat til den instans, du hentede udvidelsen fra.</p>
+  <label>Adresse <input id="endpoint" type="url" placeholder="https://app.kunde.dk" /></label>
+  <button id="save">Gem</button>
+  <p id="status"></p>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

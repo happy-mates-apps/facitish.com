@@ -1,0 +1,10 @@
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+webauthn==3.0.1
+boto3==1.43.108
+httpx==0.28.1
+python-multipart==0.0.32
+markdown==3.11
+nh3==0.3.7

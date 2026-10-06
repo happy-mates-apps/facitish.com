@@ -1,0 +1,56 @@
+name: deploy
+# Push to main: test, build one image, push it to OVHcloud Managed Private Registry,
+# migrate the container's own database and roll out. If a step fails the rollout stops,
+# and the running version stays in place (deploy/deploy.sh only swaps after /health answers).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: deploy-main
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      IMAGE: ${{ secrets.OVH_REGISTRY }}/gaer/app:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push
+        run: |
+          echo "${{ secrets.OVH_REGISTRY_PASSWORD }}" | docker login \
+            ${{ secrets.OVH_REGISTRY }} -u ${{ secrets.OVH_REGISTRY_USER }} --password-stdin
+          docker build --build-arg GAER_VERSION=${GITHUB_SHA::7} -t $IMAGE .
+          docker push $IMAGE
+
+      - name: Prepare SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          echo "SSH=ssh -i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=accept-new deploy@${{ secrets.HOST }}" >> $GITHUB_ENV
+          echo "SCP=scp -i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=accept-new" >> $GITHUB_ENV
+
+      - name: Ship deploy scripts and log in to the registry on the instance
+        run: |
+          $SSH "mkdir -p gaer"
+          $SCP deploy/deploy.sh deploy/Caddyfile deploy@${{ secrets.HOST }}:gaer/
+          echo "${{ secrets.OVH_REGISTRY_PASSWORD }}" | $SSH \
+            "docker login ${{ secrets.OVH_REGISTRY }} -u ${{ secrets.OVH_REGISTRY_USER }} --password-stdin"
+
+      # Migrations run on the instance: only its IP is allowed through the shared cluster's firewall.
+      - name: Migrate
+        run: $SSH "./gaer/deploy.sh migrate $IMAGE"
+
+      - name: Deploy
+        run: $SSH "./gaer/deploy.sh release $IMAGE"
+
+      - name: Smoke test
+        if: vars.DOMAIN != ''
+        run: curl -fsS --retry 5 --retry-delay 3 "https://${{ vars.DOMAIN }}/health"

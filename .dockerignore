@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.gaer
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+web/dist
+server/tests
+.env
+.env.*
+!.env.example

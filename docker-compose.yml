@@ -1,0 +1,51 @@
+# Local development: Postgres and MinIO (stands in for OVHcloud Object Storage).
+# The Python server and Vite run natively — see /gaer-dev.
+#
+#   docker compose up -d
+#   docker compose --profile app up --build    # the whole container, as in production
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: gaer
+      POSTGRES_PASSWORD: gaer
+      POSTGRES_DB: gaer
+    ports: ["5432:5432"]
+    volumes: [postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gaer"]
+      interval: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: gaer
+      MINIO_ROOT_PASSWORD: gaer-dev-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [minio:/data]
+
+  minio-bucket:
+    image: minio/mc
+    depends_on: [minio]
+    entrypoint: >
+      sh -c "until mc alias set local http://minio:9000 gaer gaer-dev-secret; do sleep 1; done;
+             mc mb --ignore-existing local/gaer"
+
+  app:
+    profiles: [app]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://gaer:gaer@postgres:5432/gaer
+      S3_ENDPOINT: http://minio:9000
+      ORIGIN: http://localhost:8000
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  postgres:
+  minio:
