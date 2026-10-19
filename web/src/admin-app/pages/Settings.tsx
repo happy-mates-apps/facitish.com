@@ -45,11 +45,11 @@ export default function Settings() {
         <div className="grid" style={{ "--min": "320px" } as React.CSSProperties}>
           <form className="card" onSubmit={(e) => { e.preventDefault(); act(() => api.put("/api/admin/settings", form), "Indstillingerne er gemt."); }}>
             <span className="eyebrow">Instans</span>
-            <label className="field">Navn<input value={form.app_name} onChange={(e) => setForm({ ...form, app_name: e.target.value })} required maxLength={80} /></label>
+            <label className="field">Navn<input data-deeplink="setting-app_name" value={form.app_name} onChange={(e) => setForm({ ...form, app_name: e.target.value })} required maxLength={80} /></label>
             <label className="field">SMS-afsender (højst 11 tegn, bogstaver og tal)
-              <input value={form.sms_sender} onChange={(e) => setForm({ ...form, sms_sender: e.target.value })} required maxLength={11} pattern="[A-Za-z0-9 ]+" />
+              <input data-deeplink="setting-sms_sender" value={form.sms_sender} onChange={(e) => setForm({ ...form, sms_sender: e.target.value })} required maxLength={11} pattern="[A-Za-z0-9 ]+" />
             </label>
-            <label className="field">E-mail til GDPR-forespørgsler<input type="email" value={form.gdpr_email} onChange={(e) => setForm({ ...form, gdpr_email: e.target.value })} /></label>
+            <label className="field">E-mail til GDPR-forespørgsler<input data-deeplink="setting-gdpr_email" type="email" value={form.gdpr_email} onChange={(e) => setForm({ ...form, gdpr_email: e.target.value })} /></label>
             <div><button className="btn btn-primary">Gem</button></div>
           </form>
           <div className="stack" style={{ "--gap": "16px" } as React.CSSProperties}>
