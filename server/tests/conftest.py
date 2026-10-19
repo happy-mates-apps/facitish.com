@@ -26,7 +26,7 @@ def _url(user: str, password: str | None, database: str) -> str:
 def _setup_database() -> None:
     with psycopg.connect(ADMIN_URL, autocommit=True) as conn:
         conn.execute(f'create database "{DB_NAME}"')
-        for suffix in ("app", "purge"):
+        for suffix in ("app", "purge", "mcp_ro"):
             role = f"{DB_NAME}_{suffix}"
             conn.execute(f"create role \"{role}\" login password '{ROLE_PASSWORD}'")
             conn.execute(f'grant connect on database "{DB_NAME}" to "{role}"')
@@ -35,7 +35,7 @@ def _setup_database() -> None:
 def _drop_database() -> None:
     with psycopg.connect(ADMIN_URL, autocommit=True) as conn:
         conn.execute(f'drop database if exists "{DB_NAME}" with (force)')
-        for suffix in ("app", "purge"):
+        for suffix in ("app", "purge", "mcp_ro"):
             conn.execute(f'drop role if exists "{DB_NAME}_{suffix}"')
 
 
@@ -43,11 +43,13 @@ _setup_database()
 OWNER_URL = urlunparse(urlparse(ADMIN_URL)._replace(path="/" + DB_NAME))
 APP_URL = _url(f"{DB_NAME}_app", ROLE_PASSWORD, DB_NAME)
 PURGE_URL = _url(f"{DB_NAME}_purge", ROLE_PASSWORD, DB_NAME)
+MCP_RO_URL = _url(f"{DB_NAME}_mcp_ro", ROLE_PASSWORD, DB_NAME)
 
 os.environ.update({
     "DATABASE_URL": APP_URL,
     "PURGE_DATABASE_URL": PURGE_URL,
     "MIGRATION_DATABASE_URL": OWNER_URL,
+    "MCP_DB_QUERY_URL": MCP_RO_URL,
     "STORAGE_BACKEND": "memory",
     "SMS_PROVIDER": "console",
     "RUN_MAINTENANCE": "0",
@@ -84,7 +86,8 @@ def clean_database():
     with psycopg.connect(OWNER_URL, autocommit=True) as conn:
         conn.execute("""truncate users, otp_codes, passkeys, sessions, webauthn_challenges, auth_log, audit_log,
                         files, settings, gdpr_requests, consents, analytics_events, clips, bridge_consents, ai_usage,
-                        features, feature_rings, feature_usage, app_store
+                        features, feature_rings, feature_usage, app_store,
+                        mcp_clients, mcp_tokens, mcp_drafts, mcp_log
                         restart identity cascade""")
         # The features seeded by migration 0006 (truncate cascades to them via features.created_by).
         from app.features_catalog import CATALOG

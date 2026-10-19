@@ -465,6 +465,7 @@ class RetentionIn(BaseModel):
     auth_log_days: int = Field(ge=30, le=3650)
     audit_log_days: int = Field(ge=30, le=3650)
     analytics_days: int = Field(ge=7, le=3650)
+    mcp_log_days: int = Field(default=90, ge=7, le=3650)
 
 
 @router.get("/retention")
@@ -475,6 +476,7 @@ async def retention_get():
         "auth_log_days": values["retention_auth_log_days"],
         "audit_log_days": values["retention_audit_log_days"],
         "analytics_days": values["retention_analytics_days"],
+        "mcp_log_days": values["retention_mcp_log_days"],
         "last_run": values["retention_last_run"],
         "logs": await retention.log_stats(),
     }
@@ -484,7 +486,8 @@ async def retention_get():
 async def retention_put(body: RetentionIn, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
         values = await settings_store.get_all(conn)
-        before = {k: values[f"retention_{k}"] for k in ("auth_log_days", "audit_log_days", "analytics_days")}
+        before = {k: values[f"retention_{k}"] for k in ("auth_log_days", "audit_log_days", "analytics_days",
+                                                                 "mcp_log_days")}
         after = body.model_dump()
         await settings_store.set_many(conn, {f"retention_{k}": v for k, v in after.items()})
         b, a = changed(before, after)
