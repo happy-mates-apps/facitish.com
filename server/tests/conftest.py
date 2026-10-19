@@ -75,8 +75,23 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="session", autouse=True)
 async def pools():
+    import asyncio
+
+    from app.main import mcp_sessions
     await db.open_pools()
+    # The MCP session managers live in their own task: setup and teardown of this fixture run in different tasks.
+    started, stop = asyncio.Event(), asyncio.Event()
+
+    async def run_mcp():
+        async with mcp_sessions(app):
+            started.set()
+            await stop.wait()
+
+    task = asyncio.create_task(run_mcp())
+    await started.wait()
     yield
+    stop.set()
+    await task
     await db.close_pools()
 
 
