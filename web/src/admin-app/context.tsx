@@ -1,4 +1,5 @@
-// State shared by the shell and the pages: period on Statistik, active impersonation and menu badges.
+// State shared by the shell and the pages: period on Statistik, active impersonation and menu badges
+// (missing features, pending MCP drafts).
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
 
@@ -12,6 +13,8 @@ type AdminState = {
   refreshImpersonation: () => Promise<void>;
   missingFeatures: number;
   setMissingFeatures: (n: number) => void;
+  pendingDrafts: number;
+  refreshDrafts: () => Promise<void>;
   health: Health;
 };
 
@@ -22,6 +25,16 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [impersonating, setImpersonating] = useState<Impersonated | null>(null);
   const [missingFeatures, setMissingFeatures] = useState(0);
   const [health, setHealth] = useState<Health>(null);
+  const [pendingDrafts, setPendingDrafts] = useState(0);
+
+  const refreshDrafts = useCallback(async () => {
+    try {
+      const r = await api.get<{ drafts: { status: string }[] }>("/api/admin/mcp/drafts");
+      setPendingDrafts(r.drafts.filter((d) => d.status === "pending").length);
+    } catch {
+      setPendingDrafts(0);
+    }
+  }, []);
 
   const refreshImpersonation = useCallback(async () => {
     try {
@@ -34,16 +47,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refreshImpersonation();
+    void refreshDrafts();
     api.get<{ missing: unknown[] }>("/api/admin/features").then((r) => setMissingFeatures(r.missing.length), () => {});
     const t0 = performance.now();
     fetch("/health", { credentials: "same-origin" })
       .then((r) => r.json())
       .then((h: { ok: boolean; version: string }) => setHealth({ ...h, ms: Math.round(performance.now() - t0) }))
       .catch(() => setHealth({ ok: false, version: "", ms: 0 }));
-  }, [refreshImpersonation]);
+  }, [refreshImpersonation, refreshDrafts]);
 
   return (
-    <AdminContext.Provider value={{ range, setRange, impersonating, refreshImpersonation, missingFeatures, setMissingFeatures, health }}>
+    <AdminContext.Provider value={{ range, setRange, impersonating, refreshImpersonation, missingFeatures, setMissingFeatures, pendingDrafts, refreshDrafts, health }}>
       {children}
     </AdminContext.Provider>
   );

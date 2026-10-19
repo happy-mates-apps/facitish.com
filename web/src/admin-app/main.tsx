@@ -26,6 +26,8 @@ import Web from "./pages/Web";
 import Integrations from "./pages/Integrations";
 import AiAdmin from "./pages/AiAdmin";
 import Settings from "./pages/Settings";
+import Mcp from "./pages/Mcp";
+import { AdminGo } from "./go";
 import "../styles.css";
 import "./admin.css";
 
@@ -62,6 +64,7 @@ createRoot(document.getElementById("root")!).render(
           <ToastProvider>
             <AdminProvider>
               <Routes>
+                <Route path="go" element={<AdminGo />} />
                 <Route element={<AdminShell />}>
                   <Route index element={<Stats />} />
                   <Route path="users" element={<Users />} />
@@ -77,6 +80,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="files" element={legacy(<AdminFiles />)} />
                   <Route path="ai" element={legacy(<AiAdmin />)} />
                   <Route path="integrations" element={legacy(<Integrations />)} />
+                  <Route path="mcp" element={<Mcp />} />
                   <Route path="gdpr" element={legacy(<Gdpr />)} />
                   <Route path="retention" element={legacy(<Retention />)} />
                   <Route path="consent" element={legacy(<Consent />)} />
