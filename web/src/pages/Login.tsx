@@ -34,7 +34,12 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const { user, scope, refresh, config } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? home;
+  // Where to go after login: state from RequireUser, or ?next= (same-site paths only) from /admin and MCP.
+  const next = new URLSearchParams(location.search).get("next");
+  const from = (location.state as { from?: string } | null)?.from
+    ?? (next && next.startsWith("/") && !next.startsWith("//") ? next : home);
+  // /admin is a separate app, so it needs a full page load.
+  const goFrom = () => (from === "/admin" || from.startsWith("/admin/") ? window.location.assign(from) : navigate(from, { replace: true }));
   const [step, setStep] = useState<Step>({ kind: "phone" });
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -45,8 +50,9 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   // Arriving with an enroll session (e.g. after a reload) goes straight to passkey creation.
   useEffect(() => {
     if (user && scope === "enroll" && step.kind === "phone") setStep({ kind: "enroll", reason: user.passkeys ? "new_device" : "grace_exhausted" });
-    if (user && scope === "full" && step.kind === "phone") navigate(from, { replace: true });
-  }, [user, scope, step.kind, navigate, from]);
+    if (user && scope === "full" && step.kind === "phone") goFrom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, scope, step.kind, from]);
 
   const run = async (fn: () => Promise<void>, passkey = false) => {
     setBusy(true);
@@ -76,7 +82,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
       await refresh();
       if (res.status === "logged_in") {
         if (supportsPasskey || res.became_admin) setStep({ kind: "offer", graceLeft: res.grace_left, admin: !!res.became_admin });
-        else navigate(from, { replace: true });
+        else goFrom();
       } else {
         setStep({ kind: "enroll", reason: res.reason });
       }
@@ -87,14 +93,14 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
     run(async () => {
       await registerPasskey();
       await refresh();
-      navigate(from, { replace: true });
+      goFrom();
     }, true);
 
   const passkeyLogin = () =>
     run(async () => {
       await loginWithPasskey();
       await refresh();
-      navigate(from, { replace: true });
+      goFrom();
     }, true);
 
   return (
@@ -166,7 +172,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
               <GracePills used={GRACE_LOGINS - step.graceLeft} />
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy}>Opret passkey nu</button>
-              <button className="btn btn-ghost btn-block" onClick={() => navigate(from, { replace: true })}>
+              <button className="btn btn-ghost btn-block" onClick={() => goFrom()}>
                 {step.graceLeft > 0 ? `Senere (${step.graceLeft} ${step.graceLeft === 1 ? "login" : "logins"} tilbage)` : "Senere"}
               </button>
             </div>

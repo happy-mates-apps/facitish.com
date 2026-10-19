@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config, db, retention
 from app.routes import admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public, web
+from app.mcp import oauth as mcp_oauth
 from app.security import bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -84,7 +85,7 @@ def create_app() -> FastAPI:
         return {"ok": True, "version": config.settings.version}
 
     for r in (auth.router, ai.router, me.router, files.router, clips.router, public.router, admin.router, app_store.router,
-              features.router, features.admin_router, impersonation.router, office.router,
+              features.router, features.admin_router, impersonation.router, mcp_oauth.router, office.router,
               web.router, files.memory_router):
         app.include_router(r)
 

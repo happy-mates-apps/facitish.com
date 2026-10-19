@@ -36,7 +36,7 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   const { user, scope, loading } = useAuth();
   if (loading) return null;
   if (!user || scope !== "full") {
-    window.location.replace("/login");
+    window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
     return null;
   }
   if (user.role !== "admin") {

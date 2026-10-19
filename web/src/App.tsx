@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Account from "./pages/Account";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
+import McpConsent from "./pages/McpConsent";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
+        <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
         <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
 
