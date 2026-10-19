@@ -71,9 +71,10 @@ def link_for(server: str, tool: str, values: dict, label: str | None = None) -> 
     return {"label": label or link["label"], "url": build(path, args, focus)}
 
 
-def links_for(server: str, tool: str, rows: list[dict], **extra) -> list[dict]:
-    """One link for the list plus one per row (max 20)."""
-    out = [link_for(server, tool, extra)] + [link_for(server, tool, {**extra, **r}, r.get("_label")) for r in rows[:20]]
+def links_for(server: str, tool: str, rows: list[dict], label: str | None = None, **extra) -> list[dict]:
+    """One link for the list plus one per row (max 20). `label` names the row field used as link text."""
+    out = [link_for(server, tool, extra)] + [link_for(server, tool, {**extra, **r}, str(r.get(label)) if label else None)
+                                              for r in rows[:20]]
     seen, unique = set(), []
     for x in out:
         if x and x["url"] not in seen:

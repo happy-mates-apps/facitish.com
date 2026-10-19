@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
 from app import db
@@ -217,6 +218,9 @@ async def invoke(server: str, name: str, raw_args: dict | None, caller: Caller) 
     except PermissionError as e:
         status = "forbidden"
         return {"error": str(e) or "Ikke tilladt"}, True
+    except HTTPException as e:  # shared code from routes/ raises these
+        status = "forbidden" if e.status_code == 403 else "error"
+        return {"error": str(e.detail)}, True
     finally:
         await log_call(server=server, user_id=caller.user_id, client_id=caller.client_id, method="tools/call", tool=name,
                        args=args if isinstance(args, dict) else None, ms=int((time.monotonic() - started) * 1000),

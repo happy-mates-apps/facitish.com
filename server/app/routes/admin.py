@@ -68,17 +68,56 @@ async def _ensure_not_last_admin(conn, user: dict) -> None:
             raise HTTPException(409, "Der skal være mindst én admin")
 
 
+# The user actions take a connection, so /api/admin and the MCP drafts (app/mcp/admin_server.py) share them.
+
+async def do_set_role(conn, user: dict, role: str, admin: Principal) -> None:
+    if user["role"] == role:
+        return
+    if role != "admin":
+        await _ensure_not_last_admin(conn, user)
+    await conn.execute("update users set role = %s, updated_at = now() where id = %s", (role, user["id"]))
+    await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"role": user["role"]}, after={"role": role})
+
+
+async def do_block(conn, user: dict, admin: Principal) -> int:
+    if user["id"] == admin.user_id:
+        raise HTTPException(409, "Du kan ikke spærre dig selv")
+    await _ensure_not_last_admin(conn, user)
+    await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user["id"],))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"blocked": False}, after={"blocked": True})
+    return await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="blocked", actor_id=admin.user_id)
+
+
+async def do_unblock(conn, user: dict, admin: Principal) -> None:
+    await conn.execute("update users set blocked_at = null, updated_at = now() where id = %s", (user["id"],))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"blocked": True}, after={"blocked": False})
+
+
+async def do_reset_passkeys(conn, user: dict, admin: Principal) -> int:
+    rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user["id"],))
+    await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
+                before={"passkeys": rows}, subject_user_id=user["id"], reason="admin.reset_passkeys")
+    await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user["id"], phone=user["phone"],
+                     count=len(rows), by=admin.user_id)
+    await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="passkeys_reset", actor_id=admin.user_id)
+    return len(rows)
+
+
+async def do_revoke_sessions(conn, user: dict, admin: Principal) -> int:
+    """Ends every session of the user, including MCP clients (their tokens hang on the session)."""
+    n = await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="admin", actor_id=admin.user_id)
+    await audit(conn, "session.revoked", actor_id=admin.user_id, meta=admin.meta, table="sessions",
+                subject_user_id=user["id"], count=n)
+    return n
+
+
 @router.patch("/users/{user_id}/role")
 async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        if user["role"] == body.role:
-            return {"ok": True}
-        if body.role != "admin":
-            await _ensure_not_last_admin(conn, user)
-        await conn.execute("update users set role = %s, updated_at = now() where id = %s", (body.role, user_id))
-        await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"role": user["role"]}, after={"role": body.role})
+        await do_set_role(conn, await _user_or_404(conn, user_id), body.role, admin)
     return {"ok": True}
 
 
@@ -114,24 +153,14 @@ async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends
 @router.post("/users/{user_id}/block")
 async def block_user(user_id: int, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        if user_id == admin.user_id:
-            raise HTTPException(409, "Du kan ikke spærre dig selv")
-        await _ensure_not_last_admin(conn, user)
-        await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"blocked": False}, after={"blocked": True})
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="blocked", actor_id=admin.user_id)
+        await do_block(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/unblock")
 async def unblock_user(user_id: int, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
-        await _user_or_404(conn, user_id)
-        await conn.execute("update users set blocked_at = null, updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"blocked": True}, after={"blocked": False})
+        await do_unblock(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
@@ -140,24 +169,14 @@ async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin)
     """Deletes all passkeys and sessions. The user logs in with a one-time code and must
     register a new passkey (grace logins are not given back)."""
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
-        await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
-                    before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
-        await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id, phone=user["phone"],
-                         count=len(rows), by=admin.user_id)
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset",
-                              actor_id=admin.user_id)
-    return {"ok": True, "deleted": len(rows)}
+        n = await do_reset_passkeys(conn, await _user_or_404(conn, user_id), admin)
+    return {"ok": True, "deleted": n}
 
 
 @router.post("/users/{user_id}/revoke-sessions")
 async def admin_revoke_sessions(user_id: int, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
-        await _user_or_404(conn, user_id)
-        n = await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="admin", actor_id=admin.user_id)
-        await audit(conn, "session.revoked", actor_id=admin.user_id, meta=admin.meta, table="sessions",
-                    subject_user_id=user_id, count=n)
+        n = await do_revoke_sessions(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True, "revoked": n}
 
 

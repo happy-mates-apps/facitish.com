@@ -359,8 +359,8 @@
    "params": [
     {
      "name": "fileId",
-     "type": "int",
-     "desc": "file id"
+     "type": "string",
+     "desc": "file id (uuid) from files_list"
     }
    ],
    "link": {

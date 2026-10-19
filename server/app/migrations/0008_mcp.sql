@@ -2,6 +2,10 @@
 -- normal Gær login. An authorized MCP client is a row in `sessions` (mcp_client_id set), so it shows under
 -- Konto → Sessioner, and revoking or blocking ends it like any other session.
 
+-- Clips saved through MCP (clip_create) get their own source.
+alter table clips drop constraint clips_source_check;
+alter table clips add constraint clips_source_check check (source in ('manual', 'extension', 'outlook', 'word', 'mobile', 'mcp'));
+
 -- Dynamic client registration (public clients, PKCE required).
 create table mcp_clients (
     id             text primary key,                    -- client_id, random
