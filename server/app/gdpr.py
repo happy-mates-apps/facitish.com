@@ -48,6 +48,11 @@ async def build_user_export(conn, user_id: int) -> dict:
         "audit_log": await rows("""select ts, action, table_name, row_id, before, after, host(ip) as ip from audit_log
                                    where (actor_user_id = %s or (table_name = 'users' and row_id = %s))
                                      and action <> 'admin.read' order by ts""", user_id, str(user_id)),
+        "feature_level": await rows("select ring, updated_at from feature_rings where user_id = %s", user_id),
+        "feature_usage": await rows("select ts, feature_key from feature_usage where user_id = %s order by ts limit 50000",
+                                    user_id),
+        "test_accounts": await rows("""select id, display_name, role, created_at from users
+                                       where impersonation_only and impersonation_owner_id = %s""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
                                   where user_id = %s order by ts""", user_id),
         "analytics_events": await rows("""select ts, kind, path, referrer, device, browser from analytics_events
@@ -59,7 +64,8 @@ async def build_user_export(conn, user_id: int) -> dict:
 README = """Indsigt i dine data
 
 data.json   alt, vi har gemt om dig: bruger, passkeys, sessioner, klip, filer (oversigt), tilladte domæner,
-            GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug og statistik knyttet til dig.
+            GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
+            testkonti du har oprettet og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet.
 
 Samtaler med AI'en bliver ikke gemt og er derfor ikke med.
@@ -97,7 +103,8 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
     if user is None:
         raise HTTPException(404, "Brugeren findes ikke")
     if user["role"] == "admin":
-        n = await db.fetch_one(conn, "select count(*) as n from users where role = 'admin' and blocked_at is null")
+        n = await db.fetch_one(conn, "select count(*) as n from users where role = 'admin' and blocked_at is null"
+                                   " and not impersonation_only")
         if n["n"] <= 1:
             raise HTTPException(409, "Den sidste administrator kan ikke slettes. Gør en anden til admin først.")
     return user
@@ -105,8 +112,8 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
-    """The right to be forgotten. Deletes the user (passkeys, sessions, clips, domain consents, AI usage and
-    one-time codes cascade), their files in Object Storage, the contact details on their GDPR requests, and
+    """The right to be forgotten. Deletes the user (passkeys, sessions, clips, domain consents, AI usage, one-time
+    codes, feature level and their test accounts cascade; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)

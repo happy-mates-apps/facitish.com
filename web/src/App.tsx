@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
+import { FeatureGate } from "./features";
 import ConsentBanner from "./ConsentBanner";
 import { trackPageview } from "./tracker";
 import Login from "./pages/Login";
@@ -8,25 +9,10 @@ import Home from "./pages/Home";
 import Account from "./pages/Account";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
-import AdminLayout from "./admin/AdminLayout";
-import AdminHome from "./admin/AdminHome";
-import Users from "./admin/Users";
-import AuthLog from "./admin/AuthLog";
-import AuditLog from "./admin/AuditLog";
-import Analytics from "./admin/Analytics";
-import Heatmaps from "./admin/Heatmaps";
-import Gdpr from "./admin/Gdpr";
-import Retention from "./admin/Retention";
-import Consent from "./admin/Consent";
-import AdminFiles from "./admin/AdminFiles";
-import Settings from "./admin/Settings";
-import Web from "./admin/Web";
-import Integrations from "./admin/Integrations";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
 import ExtensionChat from "./extension/ExtensionChat";
-import AiAdmin from "./admin/AiAdmin";
 import { Chat } from "./ai";
 import ClipsPage, { ClipsList, useClips } from "./clips";
 import OfficeShell from "./office/OfficeShell";
@@ -34,9 +20,15 @@ import { DocumentTool, OutlookTool, ToolLayout, WordTool } from "./office/Tools"
 import { MobileClips, MobileFiles, MobileHome, MobileLayout } from "./mobile/Mobile";
 
 function TopBar() {
-  const { user, scope, config, logout } = useAuth();
+  const { user, impersonator, scope, config, logout } = useAuth();
   const full = user && scope === "full";
   return (
+    <>
+    {impersonator && (
+      <div style={{ padding: "8px 16px", background: "#fffbeb", borderBottom: "1px solid rgba(245,158,11,0.4)", color: "#78350f", fontSize: 13, textAlign: "center" }}>
+        Du ser appen som testkontoen <strong>{user?.display_name}</strong>. Stop efterligningen i <a href="/admin/impersonation">/admin</a>.
+      </div>
+    )}
     <header className="topbar">
       <div className="topbar-inner">
         <Link to="/" className="brand">
@@ -44,10 +36,10 @@ function TopBar() {
           {config?.app_name ?? "Gær"}
         </Link>
         <nav className="nav">
-          {full && <NavLink to="/klip">Klip</NavLink>}
-          {full && <NavLink to="/filer">Filer</NavLink>}
+          {full && <FeatureGate feature="klip"><NavLink to="/klip">Klip</NavLink></FeatureGate>}
+          {full && <FeatureGate feature="filer"><NavLink to="/filer">Filer</NavLink></FeatureGate>}
           {full && <NavLink to="/konto">Konto</NavLink>}
-          {full && user.role === "admin" && <NavLink to="/admin">Admin</NavLink>}
+          {full && user.role === "admin" && <a href="/admin">Admin</a>}
           {user ? (
             <button
               className="btn btn-ghost btn-sm"
@@ -66,6 +58,7 @@ function TopBar() {
         </nav>
       </div>
     </header>
+    </>
   );
 }
 
@@ -108,8 +101,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
-        <Route path="/filer" element={<RequireUser><Files /></RequireUser>} />
-        <Route path="/klip" element={<RequireUser><ClipsPage /></RequireUser>} />
+        <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
+        <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>
@@ -134,22 +127,6 @@ export default function App() {
           <Route path="profil" element={<Account />} />
         </Route>
 
-        <Route path="/admin" element={<RequireUser admin><AdminLayout /></RequireUser>}>
-          <Route index element={<AdminHome />} />
-          <Route path="users" element={<Users />} />
-          <Route path="logs/auth" element={<AuthLog />} />
-          <Route path="logs/audit" element={<AuditLog />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="heatmaps" element={<Heatmaps />} />
-          <Route path="gdpr" element={<Gdpr />} />
-          <Route path="retention" element={<Retention />} />
-          <Route path="consent" element={<Consent />} />
-          <Route path="files" element={<AdminFiles />} />
-          <Route path="web" element={<Web />} />
-          <Route path="ai" element={<AiAdmin />} />
-          <Route path="integrations" element={<Integrations />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {!pathname.startsWith("/extension") && !pathname.startsWith("/office-addin") && <ConsentBanner />}

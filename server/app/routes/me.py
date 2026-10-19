@@ -135,6 +135,13 @@ class PhoneVerifyIn(PhoneIn):
     code: str = Field(min_length=4, max_length=8)
 
 
+def _not_test_account(p: Principal) -> None:
+    """A test account (/admin → Efterligning) never gets a real phone number, so it can never log in on its own;
+    it is deleted from /admin, not from the app."""
+    if p.impersonator_id is not None:
+        raise HTTPException(403, "Ikke muligt for en testkonto")
+
+
 def _new_phone(raw: str, current: str) -> str:
     try:
         phone = normalize_phone(raw)
@@ -147,6 +154,7 @@ def _new_phone(raw: str, current: str) -> str:
 
 @router.post("/phone/start")
 async def change_phone_start(body: PhoneIn, p: Principal = Depends(current_user)):
+    _not_test_account(p)
     """Rectification of the phone number: a code is sent to the new number to prove it belongs to the user."""
     phone = _new_phone(body.phone, p.phone)
     async with db.connection() as conn:
@@ -163,6 +171,7 @@ async def change_phone_start(body: PhoneIn, p: Principal = Depends(current_user)
 
 @router.post("/phone/verify")
 async def change_phone_verify(body: PhoneVerifyIn, p: Principal = Depends(current_user)):
+    _not_test_account(p)
     phone = _new_phone(body.phone, p.phone)
     async with db.connection() as conn:
         await consume_code(conn, phone, body.code, p.meta, purpose="phone_change", user_id=p.user_id)
@@ -184,6 +193,7 @@ class DeleteAccountIn(BaseModel):
 
 @router.post("/delete")
 async def delete_my_account(body: DeleteAccountIn, response: Response, p: Principal = Depends(current_user)):
+    _not_test_account(p)
     """The right to be forgotten, done by the user. The phone number must be typed as confirmation."""
     try:
         if normalize_phone(body.confirm_phone) != p.phone:

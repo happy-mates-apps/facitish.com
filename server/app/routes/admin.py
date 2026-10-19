@@ -28,16 +28,18 @@ def _page(limit: int, offset: int) -> tuple[int, int]:
 # ── Users and roles ─────────────────────────────────────────────────────────
 
 @router.get("/users")
-async def list_users(q: str | None = None, limit: int = 100, offset: int = 0):
+async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, admin: Principal = Depends(require_admin)):
     limit, offset = _page(limit, offset)
-    where, params = "", []
+    # Test accounts are only shown to the admin who owns them.
+    where, params = "where (not u.impersonation_only or u.impersonation_owner_id = %s)", [admin.user_id]
     if q:
-        where = "where u.phone ilike %s or coalesce(u.display_name, '') ilike %s"
-        params = [f"%{q.strip()}%", f"%{q.strip()}%"]
+        where += " and (u.phone ilike %s or coalesce(u.display_name, '') ilike %s)"
+        params += [f"%{q.strip()}%", f"%{q.strip()}%"]
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""
             select u.id, u.phone, u.display_name, u.role, u.grace_logins_used, u.blocked_at, u.created_at,
-                   u.last_login_at,
+                   u.last_login_at, u.impersonation_only,
+                   (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
                    (select count(*) from sessions s where s.user_id = u.id and s.revoked_at is null
                         and s.expires_at > now()) as active_sessions,
@@ -59,8 +61,9 @@ async def _user_or_404(conn, user_id: int) -> dict:
 
 
 async def _ensure_not_last_admin(conn, user: dict) -> None:
-    if user["role"] == "admin":
-        n = await db.fetch_one(conn, "select count(*) as n from users where role = 'admin' and blocked_at is null")
+    if user["role"] == "admin" and not user["impersonation_only"]:
+        n = await db.fetch_one(conn, """select count(*) as n from users
+                                        where role = 'admin' and blocked_at is null and not impersonation_only""")
         if n["n"] <= 1:
             raise HTTPException(409, "Der skal være mindst én admin")
 
@@ -93,6 +96,8 @@ async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends
         raise HTTPException(400, "Ugyldigt telefonnummer")
     async with db.connection() as conn:
         user = await _user_or_404(conn, user_id)
+        if user["impersonation_only"]:
+            raise HTTPException(409, "En testkonto har intet telefonnummer")
         if phone == user["phone"]:
             return {"ok": True}
         if await db.fetch_one(conn, "select 1 from users where phone = %s", (phone,)):
@@ -304,8 +309,40 @@ async def analytics(days: int = 30):
         consent = await db.fetch_one(conn, f"""
             select count(*) filter (where statistics) as accepted, count(*) filter (where not statistics) as declined
             from consents where {since}""", (days,))
+        users, logins, logins_per_day = await _user_and_login_stats(conn, days)
+        features = await db.fetch_all(conn, """
+            select f.key, f.title, f.ring, count(*) as uses from feature_usage u join features f on f.key = u.feature_key
+            where u.ts > now() - make_interval(days => %s) group by f.key order by uses desc limit 10""", (days,))
     return {"days": days, "totals": totals, "per_day": per_day, "pages": pages, "sources": sources,
-            "devices": devices, "browsers": browsers, "flows": flows, "entries": entries, "consent": consent}
+            "devices": devices, "browsers": browsers, "flows": flows, "entries": entries, "consent": consent,
+            "users": users, "logins": logins, "logins_per_day": logins_per_day, "features": features}
+
+
+# A successful login is a passkey login or a login with a one-time code (grace login).
+LOGIN_OK = "result = 'ok' and event in ('passkey.login', 'grace.used')"
+LOGIN_FAILED = "result = 'fail' and event in ('passkey.login', 'otp.failed', 'otp.verified')"
+
+
+async def _user_and_login_stats(conn, days: int) -> tuple[dict, dict, list[dict]]:
+    """Key numbers for /admin → Statistik."""
+    users = await db.fetch_one(conn, """
+        select count(*) as total,
+               count(*) filter (where u.created_at > now() - make_interval(days => %(d)s)) as new,
+               count(*) filter (where u.last_login_at > now() - make_interval(days => %(d)s) and u.blocked_at is null) as active,
+               count(*) filter (where exists (select 1 from passkeys p where p.user_id = u.id)) as with_passkey,
+               count(*) filter (where not exists (select 1 from passkeys p where p.user_id = u.id)
+                                  and u.grace_logins_used >= %(g)s) as must_passkey
+        from users u where not u.impersonation_only""", {"d": days, "g": config.settings.grace_logins})
+    logins = await db.fetch_one(conn, f"""
+        select count(*) filter (where {LOGIN_OK} and event = 'passkey.login') as passkey,
+               count(*) filter (where {LOGIN_OK} and event = 'grace.used') as otp,
+               count(*) filter (where {LOGIN_FAILED}) as failed,
+               count(*) filter (where {LOGIN_FAILED} and ts > now() - interval '1 day') as failed_24h
+        from auth_log where ts > now() - make_interval(days => %s)""", (days,))
+    per_day = await db.fetch_all(conn, f"""
+        select date_trunc('day', ts)::date as day, count(*) as logins from auth_log
+        where {LOGIN_OK} and ts > now() - make_interval(days => %s) group by 1 order by 1""", (days,))
+    return users, logins, per_day
 
 
 @router.get("/heatmaps/pages")
