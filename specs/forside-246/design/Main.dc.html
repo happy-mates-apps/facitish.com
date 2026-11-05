@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>246</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020817}
+html{scroll-behavior:smooth}
+a{color:#94A3B8}a:hover{color:#F8FAFC}
+.num{transition:letter-spacing .6s ease, color .4s ease}
+.num:hover{letter-spacing:.02em}
+.num:focus-visible,.pill:focus-visible,.hint:focus-visible,.lng:focus-visible{outline:1px solid #60A5FA;outline-offset:6px}
+.appear{opacity:0;animation:hm-fade 2.4s ease .3s forwards}
+.late{opacity:0;animation:hm-fade 1.6s ease 6s forwards}
+.hint{opacity:0;animation:hm-fade 1.2s ease 4s forwards, hm-bounce 1.1s ease-in-out 5.4s infinite}
+.langs{opacity:0;animation:hm-fade 1.6s ease 3s forwards}
+.lng{transition:color .3s ease, border-color .3s ease}
+.lng:hover{color:#F8FAFC}
+.pill{transition:background-color .3s ease, border-color .3s ease, transform .15s ease}
+.pill:active{transform:scale(.97)}
+.pill-dark:hover{border-color:#94A3B8;background:#0F172A}
+.pill-blue:hover{background:#1D4ED8}
+.pill-light:hover{background:#E2E8F0;border-color:#94A3B8}
+a.pill-dark:hover{color:#F8FAFC}a.pill-light:hover{color:#020817}
+.float{opacity:0;animation:hm-fade 1.2s ease 4s forwards}
+.float:hover{background:#0F172A;border-color:#94A3B8}
+.float:focus-visible{outline:1px solid #60A5FA;outline-offset:4px}
+.bob{display:inline-flex;animation:hm-bounce 1.1s ease-in-out 5.4s infinite}
+.foot a{text-decoration:none;transition:color .3s ease}
+.foot a:hover .rb{opacity:1}
+@keyframes hm-fade{to{opacity:1}}
+@keyframes hm-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes hm-rise{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+@supports (animation-timeline: view()){
+.reveal{animation:hm-rise linear both;animation-timeline:view();animation-range:entry 5% cover 30%}
+}
+@media (prefers-reduced-motion: reduce){
+.appear,.late,.hint,.langs,.reveal,.float,.bob{animation:none;opacity:1}
+html{scroll-behavior:auto}
+}
+</style>
+</helmet>
+<main lang="{{ lang }}" style="font-family: Inter, system-ui, sans-serif; color: #F8FAFC; background: #020817; font-feature-settings: 'tnum' 1;">
+
+<section id="top" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; padding: 2rem 1rem; box-sizing: border-box;">
+<nav class="langs" aria-label="Sprog / Language" style="position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.25rem;">
+<sc-for list="{{ langs }}" as="l" hint-placeholder-count="5">
+<button class="lng" onClick="{{ l.pick }}" aria-pressed="{{ l.on }}" style="min-width: 44px; min-height: 44px; padding: 0 0.5rem; border-radius: 9999px; border: 1px solid {{ l.border }}; background: transparent; color: {{ l.color }}; font-family: Inter, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.12em; cursor: pointer;">{{ l.code }}</button>
+</sc-for>
+</nav>
+<button class="num appear" onClick="{{ poke }}" aria-label="246" style="background: none; border: 0; padding: 0; margin: 0; cursor: pointer; color: #F8FAFC; font-family: Inter, system-ui, sans-serif; font-weight: 200; font-size: clamp(6rem, 26vw, 17rem); line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums;">246</button>
+<div style="height: 3rem; margin-top: 1.5rem; display: flex; align-items: center; justify-content: center;">
+<sc-if value="{{ quiet }}" hint-placeholder-val="{{ true }}">
+<p class="late" style="margin: 0; font-size: 0.875rem; letter-spacing: 0.3em; color: #94A3B8;">{{ t.tap }}</p>
+</sc-if>
+<sc-if value="{{ talking }}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; font-size: 1.125rem; font-weight: 300; color: #CBD5E1; text-align: center;">{{ whisper }}</p>
+</sc-if>
+</div>
+</section>
+
+<section id="gulvet" style="padding: 6rem 1rem; border-top: 1px solid #0F172A;">
+<div style="max-width: 72rem; margin: 0 auto; display: flex; flex-direction: column; gap: 3rem;">
+<div class="reveal" style="max-width: 40rem; display: flex; flex-direction: column; gap: 1.25rem;">
+<p style="margin: 0; font-size: 0.8125rem; letter-spacing: 0.18em; color: #94A3B8;">Rain Man, 1988</p>
+<h2 style="margin: 0; font-size: clamp(1.75rem, 4.5vw, 3rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.02em;">{{ t.drop }}</h2>
+<p style="margin: 0; font-size: 1.125rem; line-height: 1.7; color: #CBD5E1;">{{ t.scatter }}</p>
+</div>
+
+<div class="reveal" style="position: relative; width: 100%; height: 30rem; border-radius: 16px; background: #0B1220; border: 1px solid #1E293B; overflow: hidden;">
+<sc-for list="{{ sticks }}" as="s" hint-placeholder-count="40">
+<div aria-hidden="true" style="position: absolute; left: {{ s.l }}%; top: {{ s.t }}%; width: {{ s.w }}px; height: 3px; border-radius: 3px; background: {{ s.c }}; transform: rotate({{ s.r }}deg); opacity: {{ s.o }};"></div>
+</sc-for>
+<sc-if value="{{ counted }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{ clusters }}" as="c" hint-placeholder-count="3">
+<div style="position: absolute; left: {{ c.l }}%; top: {{ c.t }}%; width: 0; height: 0;">
+<div aria-hidden="true" style="position: absolute; left: -7rem; top: -6rem; width: 14rem; height: 12rem; border-radius: 9999px; border: 1px dashed #60A5FA;"></div>
+<p style="position: absolute; left: -3rem; top: -1.25rem; width: 6rem; margin: 0; text-align: center; font-size: 2rem; font-weight: 600; color: #F8FAFC; text-shadow: 0 2px 12px #020817;">82</p>
+</div>
+</sc-for>
+</sc-if>
+</div>
+
+<div class="reveal" style="display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem;">
+<button class="pill pill-dark" onClick="{{ count }}" style="min-height: 44px; padding: 0 1.5rem; border-radius: 9999px; border: 1px solid #334155; background: transparent; color: #F8FAFC; font-family: Inter, system-ui, sans-serif; font-size: 0.9375rem; font-weight: 500; cursor: pointer;">{{ countLabel }}</button>
+<sc-if value="{{ counted }}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; font-size: 1.5rem; font-weight: 300; color: #F8FAFC;">82 + 82 + 82 = <strong style="font-weight: 600;">246</strong></p>
+</sc-if>
+</div>
+
+<p class="reveal" style="margin: 0; max-width: 40rem; font-size: 1.125rem; line-height: 1.7; color: #CBD5E1;">{{ t.knows }}</p>
+</div>
+</section>
+
+<section id="aesken" style="padding: 7rem 1rem; background: #F8FAFC; color: #020817;">
+<div style="max-width: 72rem; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 4rem; align-items: center;">
+<div class="reveal" style="flex: 1 1 22rem; min-width: 0; display: flex; flex-direction: column; gap: 1.25rem;">
+<p style="margin: 0; font-size: 0.8125rem; letter-spacing: 0.18em; color: #475569;">{{ t.workEyebrow }}</p>
+<h2 style="margin: 0; font-size: clamp(1.75rem, 4.5vw, 3rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.02em;">{{ t.boxSays }}</h2>
+<p style="margin: 0; font-size: 1.125rem; line-height: 1.7; color: #334155;">{{ t.turns }}</p>
+<div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; padding: 1.5rem; border-radius: 16px; background: #FFFFFF; border: 1px solid #E2E8F0;">
+<div style="display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: baseline; gap: 1rem;">
+<span style="font-size: 2rem; font-weight: 600; text-align: right;">{{ v1 }}</span>
+<span style="font-size: 1rem; color: #475569;">{{ t.row1 }}</span>
+</div>
+<div style="display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: baseline; gap: 1rem;">
+<span style="font-size: 2rem; font-weight: 600; text-align: right;">{{ v2 }}</span>
+<span style="font-size: 1rem; color: #475569;">{{ t.row2 }}</span>
+</div>
+<div style="display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: baseline; gap: 1rem; padding-top: 0.75rem; border-top: 1px solid #E2E8F0;">
+<span style="font-size: 2rem; font-weight: 700; text-align: right; color: #2563EB;">= 246</span>
+<span style="font-size: 1rem; color: #475569;">{{ t.row3 }}</span>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;">
+<button class="pill pill-blue" onClick="{{ showWork }}" style="min-height: 44px; padding: 0 1.75rem; border-radius: 9999px; border: 0; background: #2563EB; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 0.9375rem; font-weight: 500; cursor: pointer; box-shadow: 0 1px 2px rgba(2,8,23,.08);">{{ workLabel }}</button>
+</div>
+<sc-if value="{{ work }}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; font-size: 1.25rem; line-height: 1.6; font-weight: 500;">{{ t.right }}</p>
+</sc-if>
+</div>
+
+<div class="reveal" style="flex: 1 1 18rem; min-width: 0; display: flex; justify-content: center;">
+<div style="position: relative; width: 16rem; height: 20rem;">
+<div aria-hidden="true" style="position: absolute; left: -1rem; right: -1rem; bottom: -1rem; top: 2rem; border-radius: 24px; background: linear-gradient(90deg, #EF4444, #F59E0B, #3B82F6); filter: blur(28px); opacity: 0.25;"></div>
+<div style="position: relative; width: 100%; height: 100%; box-sizing: border-box; border-radius: 16px; background: #FFFFFF; border: 1px solid #E2E8F0; display: flex; flex-direction: column; overflow: hidden;">
+<div style="padding: 1.25rem 1.25rem 1rem; border-bottom: 1px solid #E2E8F0; display: flex; flex-direction: column; gap: 0.25rem;">
+<span style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.18em; color: #475569;">{{ t.boxLabel }}</span>
+<span style="font-size: 2.25rem; font-weight: 700; line-height: 1.1;">{{ t.boxCount }}</span>
+</div>
+<div style="position: relative; flex: 1 1 auto; background: #F1F5F9;">
+<div aria-hidden="true" style="position: absolute; left: 22%; top: 40%; width: 7rem; height: 4px; border-radius: 4px; background: #D9BC8C; transform: rotate(-8deg);"></div>
+<div aria-hidden="true" style="position: absolute; left: 30%; top: 52%; width: 7rem; height: 4px; border-radius: 4px; background: #CDAE7C; transform: rotate(5deg);"></div>
+<div aria-hidden="true" style="position: absolute; left: 18%; top: 63%; width: 7rem; height: 4px; border-radius: 4px; background: #D9BC8C; transform: rotate(-3deg);"></div>
+<div aria-hidden="true" style="position: absolute; left: 34%; top: 72%; width: 7rem; height: 4px; border-radius: 4px; background: #CDAE7C; transform: rotate(11deg);"></div>
+<sc-if value="{{ work }}" hint-placeholder-val="{{ false }}">
+<span style="position: absolute; right: 1rem; top: 1rem; padding: 0.25rem 0.75rem; border-radius: 9999px; background: #DBEAFE; color: #1E40AF; font-size: 0.8125rem; font-weight: 600;">{{ t.left }}</span>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section id="facit" style="padding: 8rem 1rem 7rem;">
+<div style="max-width: 44rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
+<h2 class="reveal" style="margin: 0; font-size: clamp(2rem, 5.5vw, 3.75rem); font-weight: 600; line-height: 1.1; letter-spacing: -0.02em;">{{ t.first }}</h2>
+<p class="reveal" style="margin: 0; font-size: 1.1875rem; line-height: 1.75; color: #CBD5E1;">{{ t.aloud }}</p>
+<p class="reveal" style="margin: 0; font-size: 1.1875rem; line-height: 1.75; color: #CBD5E1;">{{ t.minds }}</p>
+<p class="reveal" style="margin: 0; font-size: 1.1875rem; line-height: 1.75; color: #F8FAFC;">{{ t.ask }}<em style="font-style: normal; color: #60A5FA;">{{ t.how }}</em></p>
+</div>
+<p class="reveal" aria-hidden="true" style="margin: 7rem 0 0; text-align: center; font-weight: 200; font-size: clamp(3rem, 10vw, 6rem); letter-spacing: -0.04em; color: #475569;">246</p>
+<footer class="foot" style="margin-top: 5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; text-align: center;">
+<p style="margin: 0; max-width: 30rem; font-size: 0.9375rem; line-height: 1.6; color: #94A3B8;">{{ t.hm }}</p>
+<a href="https://happymates.ai" style="display: inline-flex; flex-direction: column; align-items: center; gap: 0.375rem; min-height: 44px; justify-content: center; font-size: 0.8125rem; letter-spacing: 0.08em;">
+<span>{{ t.more }}</span>
+<span class="rb" aria-hidden="true" style="display: block; width: 100%; height: 1px; background: linear-gradient(90deg, #EF4444, #F59E0B, #3B82F6); opacity: 0.35; transition: opacity .3s ease;"></span>
+</a>
+</footer>
+</section>
+
+<button class="pill float" onClick="{{ go }}" style="position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); z-index: 50; display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 1.25rem; border-radius: 9999px; border: 1px solid #334155; background: #020817; color: #F8FAFC; font-family: Inter, system-ui, sans-serif; font-size: 0.9375rem; font-weight: 500; cursor: pointer; box-shadow: 0 4px 16px rgba(2,8,23,.25);">
+<span>{{ goLabel }}</span>
+<sc-if value="{{ notEnd }}" hint-placeholder-val="{{ true }}">
+<span class="bob"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></span>
+</sc-if>
+<sc-if value="{{ atEnd }}" hint-placeholder-val="{{ false }}">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"></path></svg>
+</sc-if>
+</button>
+
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3900}}'>
+var FACIT_TEXT = {
+  da: {
+    tap: 'tryk', scroll: 'Scroll videre',
+    lines: ['', '246.', 'Præcis 246.', 'Det er facit.', 'Mellemregningen? Den ligger længere nede.'],
+    drop: 'En servitrice taber en æske tandstikkere.',
+    scatter: 'De spreder sig ud over gulvet. Raymond kigger — et halvt sekund. Så siger han tre tal. Og så ét til.',
+    countOn: 'Tæl dem', countOff: 'Skjul',
+    knows: 'Han tæller ikke. Han ved det. Ingen andre i rummet kan tjekke ham — så de må enten tro på ham eller lade være.',
+    workEyebrow: 'Mellemregningen',
+    boxSays: 'Men der står 250 på æsken.',
+    turns: 'Servitricen vender æsken. 250 stk. står der. Så kigger hun ned i den.',
+    row1: 'står der på æsken', row2: 'ligger stadig i æsken', row3: 'ligger på gulvet',
+    workOn: 'Vis mellemregningen', workOff: 'Skjul mellemregningen',
+    right: 'Han havde ret. Han gad bare ikke vise regnestykket.',
+    boxLabel: 'TANDSTIKKERE', boxCount: '250 stk.', left: '4 tilbage',
+    first: 'Facit først. Forklaringen — måske.',
+    aloud: 'Raymond regnede ikke forkert. Han regnede bare ikke højt.',
+    minds: 'Sådan arbejder mange autistiske hjerner: svaret står klart, og mellemregningen føles overflødig — den var jo åbenlys. Det er ikke uhøflighed. Det er bare en anden vej til det samme facit.',
+    ask: 'Det eneste, det kræver, er én, der gider spørge: ', how: 'hvordan ved du det?',
+    hm: 'Hos Happy Mates arbejder vi med at integrere autister — og andre, der måske er lidt skæve.',
+    more: 'Læs mere på happymates.ai', next: 'Videre', top: 'Forfra'
+  },
+  en: {
+    tap: 'tap', scroll: 'Keep scrolling',
+    lines: ['', '246.', 'Exactly 246.', 'That’s the answer.', 'The working? It’s further down.'],
+    drop: 'A waitress drops a box of toothpicks.',
+    scatter: 'They scatter across the floor. Raymond looks — for half a second. Then he says three numbers. And then one more.',
+    countOn: 'Count them', countOff: 'Hide',
+    knows: 'He doesn’t count. He knows. Nobody else in the room can check him — so they either believe him or they don’t.',
+    workEyebrow: 'The working',
+    boxSays: 'But the box says 250.',
+    turns: 'The waitress turns the box over. 250, it says. Then she looks inside.',
+    row1: 'on the box', row2: 'still in the box', row3: 'on the floor',
+    workOn: 'Show the working', workOff: 'Hide the working',
+    right: 'He was right. He just couldn’t be bothered to show his working.',
+    boxLabel: 'TOOTHPICKS', boxCount: '250 pcs', left: '4 left',
+    first: 'The answer first. The explanation — maybe.',
+    aloud: 'Raymond didn’t get it wrong. He just didn’t think out loud.',
+    minds: 'That’s how many autistic minds work: the answer is clear, and the working feels redundant — it was obvious, after all. It isn’t rudeness. It’s just a different route to the same answer.',
+    ask: 'All it takes is someone who bothers to ask: ', how: 'how do you know?',
+    hm: 'At Happy Mates we work to include autistic people — and others who might be a little offbeat.',
+    more: 'Read more at happymates.ai', next: 'Continue', top: 'Start over'
+  },
+  de: {
+    tap: 'tippen', scroll: 'Weiterscrollen',
+    lines: ['', '246.', 'Genau 246.', 'Das ist das Ergebnis.', 'Der Rechenweg? Der kommt weiter unten.'],
+    drop: 'Eine Kellnerin lässt eine Schachtel Zahnstocher fallen.',
+    scatter: 'Sie verteilen sich über den Boden. Raymond schaut hin — eine halbe Sekunde. Dann sagt er drei Zahlen. Und dann noch eine.',
+    countOn: 'Zähl sie', countOff: 'Ausblenden',
+    knows: 'Er zählt nicht. Er weiß es. Niemand sonst im Raum kann es nachprüfen — also glauben sie ihm oder eben nicht.',
+    workEyebrow: 'Der Rechenweg',
+    boxSays: 'Aber auf der Schachtel steht 250.',
+    turns: 'Die Kellnerin dreht die Schachtel um. 250 Stück steht darauf. Dann schaut sie hinein.',
+    row1: 'steht auf der Schachtel', row2: 'liegen noch in der Schachtel', row3: 'liegen auf dem Boden',
+    workOn: 'Rechenweg zeigen', workOff: 'Rechenweg ausblenden',
+    right: 'Er hatte recht. Er hatte nur keine Lust, den Rechenweg zu zeigen.',
+    boxLabel: 'ZAHNSTOCHER', boxCount: '250 Stück', left: '4 übrig',
+    first: 'Erst das Ergebnis. Die Erklärung — vielleicht.',
+    aloud: 'Raymond hat sich nicht verrechnet. Er hat nur nicht laut gerechnet.',
+    minds: 'So arbeiten viele autistische Köpfe: Die Antwort ist klar, und der Rechenweg fühlt sich überflüssig an — er war ja offensichtlich. Das ist keine Unhöflichkeit. Es ist nur ein anderer Weg zum selben Ergebnis.',
+    ask: 'Es braucht nur jemanden, der nachfragt: ', how: 'Woher weißt du das?',
+    hm: 'Bei Happy Mates integrieren wir Autistinnen und Autisten — und andere, die vielleicht ein bisschen schräg sind.',
+    more: 'Mehr auf happymates.ai', next: 'Weiter', top: 'Von vorn'
+  },
+  sv: {
+    tap: 'tryck', scroll: 'Scrolla vidare',
+    lines: ['', '246.', 'Exakt 246.', 'Det är facit.', 'Uträkningen? Den ligger längre ner.'],
+    drop: 'En servitris tappar en ask tandpetare.',
+    scatter: 'De sprids över golvet. Raymond tittar — en halv sekund. Sen säger han tre tal. Och sen ett till.',
+    countOn: 'Räkna dem', countOff: 'Dölj',
+    knows: 'Han räknar inte. Han vet. Ingen annan i rummet kan kontrollera honom — så de får antingen tro på honom eller låta bli.',
+    workEyebrow: 'Uträkningen',
+    boxSays: 'Men det står 250 på asken.',
+    turns: 'Servitrisen vänder på asken. 250 st. står det. Sen tittar hon ner i den.',
+    row1: 'står på asken', row2: 'ligger kvar i asken', row3: 'ligger på golvet',
+    workOn: 'Visa uträkningen', workOff: 'Dölj uträkningen',
+    right: 'Han hade rätt. Han brydde sig bara inte om att visa uträkningen.',
+    boxLabel: 'TANDPETARE', boxCount: '250 st.', left: '4 kvar',
+    first: 'Facit först. Förklaringen — kanske.',
+    aloud: 'Raymond räknade inte fel. Han räknade bara inte högt.',
+    minds: 'Så fungerar många autistiska hjärnor: svaret är klart, och uträkningen känns överflödig — den var ju självklar. Det är inte oartigt. Det är bara en annan väg till samma facit.',
+    ask: 'Det enda som krävs är någon som orkar fråga: ', how: 'hur vet du det?',
+    hm: 'På Happy Mates arbetar vi med att integrera autister — och andra som kanske är lite udda.',
+    more: 'Läs mer på happymates.ai', next: 'Vidare', top: 'Från början'
+  },
+  no: {
+    tap: 'trykk', scroll: 'Scroll videre',
+    lines: ['', '246.', 'Nøyaktig 246.', 'Det er fasit.', 'Utregningen? Den ligger lenger ned.'],
+    drop: 'En servitør mister en eske tannpirkere.',
+    scatter: 'De sprer seg utover gulvet. Raymond ser — et halvt sekund. Så sier han tre tall. Og så ett til.',
+    countOn: 'Tell dem', countOff: 'Skjul',
+    knows: 'Han teller ikke. Han vet det. Ingen andre i rommet kan sjekke ham — så de må enten tro på ham eller la være.',
+    workEyebrow: 'Utregningen',
+    boxSays: 'Men det står 250 på esken.',
+    turns: 'Servitøren snur esken. 250 stk. står det. Så ser hun ned i den.',
+    row1: 'står på esken', row2: 'ligger fortsatt i esken', row3: 'ligger på gulvet',
+    workOn: 'Vis utregningen', workOff: 'Skjul utregningen',
+    right: 'Han hadde rett. Han gadd bare ikke vise regnestykket.',
+    boxLabel: 'TANNPIRKERE', boxCount: '250 stk.', left: '4 igjen',
+    first: 'Fasit først. Forklaringen — kanskje.',
+    aloud: 'Raymond regnet ikke feil. Han regnet bare ikke høyt.',
+    minds: 'Slik jobber mange autistiske hjerner: svaret er klart, og utregningen føles overflødig — den var jo opplagt. Det er ikke uhøflighet. Det er bare en annen vei til samme fasit.',
+    ask: 'Det eneste som trengs, er én som gidder å spørre: ', how: 'hvordan vet du det?',
+    hm: 'Hos Happy Mates jobber vi med å inkludere autister — og andre som kanskje er litt skjeve.',
+    more: 'Les mer på happymates.ai', next: 'Videre', top: 'Forfra'
+  }
+};
+var FACIT_LANGS = [
+  { id: 'da', code: 'DA', html: 'da' },
+  { id: 'en', code: 'EN', html: 'en' },
+  { id: 'de', code: 'DE', html: 'de' },
+  { id: 'sv', code: 'SV', html: 'sv' },
+  { id: 'no', code: 'NO', html: 'nb' }
+];
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    var start = 'da';
+    try {
+      var nav = (navigator.language || 'da').toLowerCase().slice(0, 2);
+      if (nav === 'nb' || nav === 'nn') nav = 'no';
+      if (FACIT_TEXT[nav]) start = nav;
+    } catch (e) {}
+    this.state = { n: 0, counted: false, work: false, lang: start, sec: 0 };
+    this.ids = ['top', 'gulvet', 'aesken', 'facit'];
+    var me = this;
+    this.onScroll = function () {
+      try {
+        var mid = window.innerHeight * 0.4;
+        var sec = 0;
+        me.ids.forEach(function (id, i) {
+          var el = document.getElementById(id);
+          if (el && el.getBoundingClientRect().top <= mid) sec = i;
+        });
+        var doc = document.documentElement;
+        if (window.innerHeight + window.scrollY >= doc.scrollHeight - 8) sec = me.ids.length - 1;
+        if (sec !== me.state.sec) me.setState({ sec: sec });
+      } catch (e) {}
+    };
+    var seed = 246;
+    function rnd() {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+    var centers = [{ l: 20, t: 52 }, { l: 50, t: 38 }, { l: 79, t: 58 }];
+    var sticks = [];
+    for (var k = 0; k < 3; k++) {
+      for (var i = 0; i < 82; i++) {
+        var a = rnd() * Math.PI * 2;
+        var d = Math.sqrt(rnd());
+        var l = centers[k].l + Math.cos(a) * d * 13;
+        var t = centers[k].t + Math.sin(a) * d * 30;
+        sticks.push({
+          l: Math.max(1, Math.min(95, l)).toFixed(2),
+          t: Math.max(2, Math.min(96, t)).toFixed(2),
+          r: Math.round(rnd() * 180),
+          w: 22 + Math.round(rnd() * 14),
+          c: rnd() > 0.5 ? '#E2C79A' : '#C9A877',
+          o: (0.7 + rnd() * 0.3).toFixed(2)
+        });
+      }
+    }
+    this.sticks = sticks;
+    this.centers = centers;
+  }
+  componentDidMount() {
+    window.addEventListener('scroll', this.onScroll, { passive: true });
+    window.addEventListener('resize', this.onScroll);
+    this.onScroll();
+  }
+  componentWillUnmount() {
+    window.removeEventListener('scroll', this.onScroll);
+    window.removeEventListener('resize', this.onScroll);
+  }
+  renderVals() {
+    var self = this;
+    var s = this.state;
+    var t = FACIT_TEXT[s.lang] || FACIT_TEXT.da;
+    var n = s.n;
+    var cur = FACIT_LANGS.filter(function (x) { return x.id === s.lang; })[0] || FACIT_LANGS[0];
+    return {
+      t: t,
+      lang: cur.html,
+      langs: FACIT_LANGS.map(function (x) {
+        var on = x.id === s.lang;
+        return {
+          code: x.code,
+          on: on ? 'true' : 'false',
+          color: on ? '#F8FAFC' : '#94A3B8',
+          border: on ? '#334155' : 'transparent',
+          pick: function () { self.setState({ lang: x.id }); }
+        };
+      }),
+      atEnd: s.sec >= 3,
+      notEnd: s.sec < 3,
+      goLabel: s.sec >= 3 ? t.top : t.next,
+      go: function () {
+        var i = self.state.sec;
+        var id = i >= self.ids.length - 1 ? 'top' : self.ids[i + 1];
+        var el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.scrollBy({ top: window.innerHeight * 0.9, behavior: 'smooth' });
+      },
+      sticks: this.sticks,
+      clusters: this.centers,
+      quiet: n === 0,
+      talking: n > 0,
+      whisper: t.lines[Math.min(n, t.lines.length - 1)],
+      poke: function () { self.setState({ n: Math.min(self.state.n + 1, 4) }); },
+      counted: s.counted,
+      countLabel: s.counted ? t.countOff : t.countOn,
+      count: function () { self.setState({ counted: !self.state.counted }); },
+      work: s.work,
+      v1: s.work ? '250' : '?',
+      v2: s.work ? '− 4' : '− ?',
+      workLabel: s.work ? t.workOff : t.workOn,
+      showWork: function () { self.setState({ work: !self.state.work }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
