@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>facitish</title>
+<meta name="description" content="facitish — næsten facit. Kommer snart.">
+<style>
+  :root { --bg:#faf8f3; --fg:#1d1b18; --muted:#6b665d; --accent:#c2562b; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151412; --fg:#f2efe8; --muted:#a39d92; --accent:#e9875c; } }
+  * { box-sizing:border-box; margin:0; }
+  body { min-height:100vh; display:grid; place-items:center; padding:24px 16px;
+         background:var(--bg); color:var(--fg);
+         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:560px; }
+  h1 { font-size:clamp(2.6rem, 9vw, 4.5rem); letter-spacing:-0.03em; line-height:1; }
+  h1 span { color:var(--accent); }
+  .pron { color:var(--muted); margin-top:.6rem; font-style:italic; }
+  p.def { margin-top:1.6rem; font-size:1.15rem; line-height:1.55; }
+  p.soon { margin-top:2.2rem; color:var(--muted); font-size:.95rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>facit<span>ish</span></h1>
+  <p class="pron">[ˈfaːsit-ish] · adj.</p>
+  <p class="def">Næsten facit. Svaret, der er godt nok til at komme videre — uden at foregive at være det endelige.</p>
+  <p class="def" lang="en">Almost the answer key. Close enough to move on, honest enough not to pretend it's final.</p>
+  <p class="soon">Kommer snart · Coming soon</p>
+</main>
+</body>
+</html>
