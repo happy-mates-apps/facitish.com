@@ -71,7 +71,7 @@ export default function Web() {
           <div className="card">
             <span className="eyebrow">{draft.id ? "Redigér side" : "Ny side"}</span>
             <div className="filters">
-              <label className="field">Adresse (/w/…)<input value={draft.slug} placeholder="tom = forside" onChange={(e) => setDraft({ ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} /></label>
+              <label className="field">Adresse (/w/…)<input value={draft.slug} placeholder="fx priser — forsiden /w/ er fast (246)" onChange={(e) => setDraft({ ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} /></label>
               <label className="field">Sprog
                 <select value={draft.lang} onChange={(e) => setDraft({ ...draft, lang: e.target.value as "da" | "en" })}><option value="da">Dansk</option><option value="en">Engelsk</option></select>
               </label>
