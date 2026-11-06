@@ -1,0 +1,44 @@
+# Postgres and Garage (S3-compatible object storage) on the instance, next to the app container on the
+# Docker network "gaer". Started by .github/workflows/deploy.yml before migrate. Values come from
+# ~/gaer/infra.env and ~/gaer/garage.toml (created by deploy/bootstrap-upcloud.sh; not passed to the app).
+# No ports are published: only containers on "gaer" reach them, and Garage is exposed to browsers through
+# Caddy on s3.<DOMAIN> (presigned download links).
+
+name: gaer
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: gaer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run bootstrap-upcloud.sh first}
+    volumes: [postgres:/var/lib/postgresql/data]
+    networks: [gaer]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 20
+
+  garage:
+    image: dxflrs/garage:v2.1.0
+    container_name: gaer-garage
+    restart: unless-stopped
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    networks: [gaer]
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      retries: 20
+
+networks:
+  gaer:
+    external: true
+
+volumes:
+  postgres:
+  garage-meta:
+  garage-data:
