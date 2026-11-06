@@ -112,21 +112,25 @@ Push til `main` → `.github/workflows/deploy.yml`:
 
 1. Test (Python mod Postgres, build af frontend)
 2. Byg ét image, tagget med commit-sha
-3. Push til OVHcloud Managed Private Registry
-4. Migrér containerens egen database (kører på instansen, som er den eneste med adgang til clusteren)
+3. Push til GitHub Container Registry (`ghcr.io/happy-mates-apps/facitish.com`)
+4. Start Postgres og Garage (S3) på serveren (`deploy/infra.compose.yml`) og migrér databasen
 5. Start den nye version ved siden af den gamle. Svarer `/health` inden for 60 sekunder, skiftes der; ellers
    bliver den gamle stående. `deploy.sh rollback` starter den forrige version.
 
-Opret GitHub-secrets `OVH_REGISTRY` (registry-adresse), `OVH_REGISTRY_USER`,
-`OVH_REGISTRY_PASSWORD`, `HOST` (instansens adresse) og `SSH_KEY` (privat deploy-nøgle)
-under repositoryets **Settings → Environments → production → Environment secrets**, eller som
-repository-secrets under **Settings → Secrets and variables → Actions**. Alle fem er påkrævet;
-workflowet stopper med navnet på hvert manglende secret, før det logger ind eller ændrer noget.
-Variablen `DOMAIN` er valgfri (til smoke test). Instansens `~/gaer/.env` laves ud fra
-`deploy/.env.example`. Når secrets er oprettet, start deploy-workflowet igen via **Actions → deploy → Run workflow**.
+facitish.com kører på en UpCloud-server (Docker) i stedet for OVHcloud: Postgres og Garage kører som
+containere på serveren, Caddy udsteder TLS for `facitish.com`, `www.` (redirect) og `s3.` (download-links).
+GitHub-secrets: `HOST` (serverens adresse) og `SSH_KEY` (privat nøgle til brugeren `deploy`). Registry-login
+sker med workflowets `GITHUB_TOKEN`. Variablen `DOMAIN` er valgfri (til smoke test).
 
-> Afvigelse fra produktsiden: `DATABASE_URL` er ikke et GitHub-secret. Migrationerne kører på instansen,
-> så den fælles cluster kun skal åbne for instansernes IP'er og ikke for GitHubs runners.
+Ny server, én gang som `deploy` i `~/gaer` (efter `scp deploy/* deploy@<host>:gaer/`):
+
+```sh
+./bootstrap-upcloud.sh facitish.com facitish +45xxxxxxxx
+```
+
+Den genererer `.env`, `infra.env` og `garage.toml` med hemmeligheder (vises aldrig), opretter databasen med de
+tre brugere, S3-nøgle og bucket, og installerer en natlig `pg_dump` (`backup.sh`, 14 dage i `~/gaer/backups`).
+SMS (`OVH_*`) og `AI_API_KEY` udfyldes bagefter i `.env`; derefter `./deploy.sh release "$(cat .current_image)"`.
 
 ## Browserudvidelse og Office
 

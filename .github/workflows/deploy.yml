@@ -1,6 +1,6 @@
 name: deploy
-# Push to main: test, build one image, push it to OVHcloud Managed Private Registry,
-# migrate the container's own database and roll out. If a step fails the rollout stops,
+# Push to main: test, build one image, push it to GitHub Container Registry,
+# start Postgres + MinIO on the UpCloud instance, migrate and roll out. If a step fails the rollout stops,
 # and the running version stays in place (deploy/deploy.sh only swaps after /health answers).
 
 on:
@@ -9,6 +9,10 @@ on:
   workflow_dispatch:
 
 concurrency: deploy-main
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   test:
@@ -19,18 +23,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      IMAGE: ${{ secrets.OVH_REGISTRY }}/gaer/app:${{ github.sha }}
+      REGISTRY: ghcr.io
+      IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+      REGISTRY_USER: ${{ github.actor }}
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Validate deployment secrets
         env:
-          OVH_REGISTRY: ${{ secrets.OVH_REGISTRY }}
-          OVH_REGISTRY_USER: ${{ secrets.OVH_REGISTRY_USER }}
-          OVH_REGISTRY_PASSWORD: ${{ secrets.OVH_REGISTRY_PASSWORD }}
           HOST: ${{ secrets.HOST }}
           SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
           missing=0
-          for name in OVH_REGISTRY OVH_REGISTRY_USER OVH_REGISTRY_PASSWORD HOST SSH_KEY; do
+          for name in HOST SSH_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing required deployment secret: $name"
               missing=1
@@ -42,8 +46,7 @@ jobs:
 
       - name: Build and push
         run: |
-          echo "${{ secrets.OVH_REGISTRY_PASSWORD }}" | docker login \
-            ${{ secrets.OVH_REGISTRY }} -u ${{ secrets.OVH_REGISTRY_USER }} --password-stdin
+          echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
           docker build --build-arg GAER_VERSION=${GITHUB_SHA::7} -t $IMAGE .
           docker push $IMAGE
 
@@ -57,11 +60,15 @@ jobs:
       - name: Ship deploy scripts and log in to the registry on the instance
         run: |
           $SSH "mkdir -p gaer"
-          $SCP deploy/deploy.sh deploy/Caddyfile deploy@${{ secrets.HOST }}:gaer/
-          echo "${{ secrets.OVH_REGISTRY_PASSWORD }}" | $SSH \
-            "docker login ${{ secrets.OVH_REGISTRY }} -u ${{ secrets.OVH_REGISTRY_USER }} --password-stdin"
+          $SCP deploy/deploy.sh deploy/Caddyfile deploy/infra.compose.yml deploy/backup.sh deploy@${{ secrets.HOST }}:gaer/
+          echo "$REGISTRY_TOKEN" | $SSH "docker login $REGISTRY -u $REGISTRY_USER --password-stdin"
 
-      # Migrations run on the instance: only its IP is allowed through the shared cluster's firewall.
+      - name: Start Postgres and Garage
+        run: |
+          $SSH "docker network inspect gaer >/dev/null 2>&1 || docker network create gaer >/dev/null
+                cd gaer && docker compose --env-file infra.env -f infra.compose.yml up -d --wait"
+
+      # Migrations run on the instance: Postgres is only reachable on its Docker network.
       - name: Migrate
         run: $SSH "./gaer/deploy.sh migrate $IMAGE"
 

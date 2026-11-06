@@ -3,3 +3,15 @@
 	encode zstd gzip
 	reverse_proxy app:8000
 }
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+# Garage S3, so presigned download links (S3_ENDPOINT=https://s3.<DOMAIN>) work in the browser.
+s3.{$DOMAIN} {
+	request_body {
+		max_size 100MB
+	}
+	reverse_proxy gaer-garage:3900
+}
