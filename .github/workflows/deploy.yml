@@ -21,6 +21,23 @@ jobs:
     env:
       IMAGE: ${{ secrets.OVH_REGISTRY }}/gaer/app:${{ github.sha }}
     steps:
+      - name: Validate deployment secrets
+        env:
+          OVH_REGISTRY: ${{ secrets.OVH_REGISTRY }}
+          OVH_REGISTRY_USER: ${{ secrets.OVH_REGISTRY_USER }}
+          OVH_REGISTRY_PASSWORD: ${{ secrets.OVH_REGISTRY_PASSWORD }}
+          HOST: ${{ secrets.HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          missing=0
+          for name in OVH_REGISTRY OVH_REGISTRY_USER OVH_REGISTRY_PASSWORD HOST SSH_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required deployment secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - uses: actions/checkout@v4
 
       - name: Build and push

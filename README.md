@@ -117,8 +117,13 @@ Push til `main` → `.github/workflows/deploy.yml`:
 5. Start den nye version ved siden af den gamle. Svarer `/health` inden for 60 sekunder, skiftes der; ellers
    bliver den gamle stående. `deploy.sh rollback` starter den forrige version.
 
-GitHub-secrets: `OVH_REGISTRY`, `OVH_REGISTRY_USER`, `OVH_REGISTRY_PASSWORD`, `HOST`, `SSH_KEY`.
-Variabel: `DOMAIN` (til smoke test). Instansens `~/gaer/.env` laves ud fra `deploy/.env.example`.
+Opret GitHub-secrets `OVH_REGISTRY` (registry-adresse), `OVH_REGISTRY_USER`,
+`OVH_REGISTRY_PASSWORD`, `HOST` (instansens adresse) og `SSH_KEY` (privat deploy-nøgle)
+under repositoryets **Settings → Environments → production → Environment secrets**, eller som
+repository-secrets under **Settings → Secrets and variables → Actions**. Alle fem er påkrævet;
+workflowet stopper med navnet på hvert manglende secret, før det logger ind eller ændrer noget.
+Variablen `DOMAIN` er valgfri (til smoke test). Instansens `~/gaer/.env` laves ud fra
+`deploy/.env.example`. Når secrets er oprettet, start deploy-workflowet igen via **Actions → deploy → Run workflow**.
 
 > Afvigelse fra produktsiden: `DATABASE_URL` er ikke et GitHub-secret. Migrationerne kører på instansen,
 > så den fælles cluster kun skal åbne for instansernes IP'er og ikke for GitHubs runners.
