@@ -36,6 +36,11 @@ ensure_proxy() {
     --env-file .env caddy:2 >/dev/null
 }
 
+# The registry login from the workflow expires; a manual rollback can still use the local image.
+pull() {
+  docker pull "$1" || docker image inspect "$1" >/dev/null
+}
+
 healthy() {
   docker exec "$1" python -c \
     "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)" >/dev/null 2>&1
@@ -44,7 +49,7 @@ healthy() {
 release() {
   local image=$1
   ensure_network
-  docker pull "$image"
+  pull "$image"
   docker rm -f "$NEXT" >/dev/null 2>&1 || true
 
   log "starting $image"
@@ -79,7 +84,7 @@ case "${1:-}" in
   migrate)
     image=${2:?image required}
     ensure_network
-    docker pull "$image"
+    pull "$image"
     log "migrating"
     docker run --rm --network "$NET" --env-file .env "$image" python -m app.migrate
     ;;
