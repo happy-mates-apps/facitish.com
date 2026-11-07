@@ -111,22 +111,19 @@ Ingen af dem kan forbinde til andre containeres databaser.
 Push til `main` → `.github/workflows/deploy.yml`:
 
 1. Test (Python mod Postgres, build af frontend)
-2. Byg ét image, tagget med commit-sha
-3. Push til OVHcloud Managed Private Registry
-4. Migrér containerens egen database (kører på instansen, som er den eneste med adgang til clusteren)
-5. Start den nye version ved siden af den gamle. Svarer `/health` inden for 60 sekunder, skiftes der; ellers
-   bliver den gamle stående. `deploy.sh rollback` starter den forrige version.
+2. Byg ét image, tagget med commit-sha, og push til GitHub Container Registry (`ghcr.io`)
+3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
+4. `deploy.sh release`: start Postgres, migrér databasen, start den nye version med `docker compose`.
+   Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.
+   `deploy.sh rollback` starter den forrige version.
 
-Opret GitHub-secrets `OVH_REGISTRY` (registry-adresse), `OVH_REGISTRY_USER`,
-`OVH_REGISTRY_PASSWORD`, `HOST` (instansens adresse) og `SSH_KEY` (privat deploy-nøgle)
-under repositoryets **Settings → Environments → production → Environment secrets**, eller som
-repository-secrets under **Settings → Secrets and variables → Actions**. Alle fem er påkrævet;
-workflowet stopper med navnet på hvert manglende secret, før det logger ind eller ændrer noget.
-Variablen `DOMAIN` er valgfri (til smoke test). Instansens `~/gaer/.env` laves ud fra
-`deploy/.env.example`. Når secrets er oprettet, start deploy-workflowet igen via **Actions → deploy → Run workflow**.
+Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen og `cloudflared`,
+som sender trafik ind via en Cloudflare Tunnel — serveren har ingen åbne web-porte.
 
-> Afvigelse fra produktsiden: `DATABASE_URL` er ikke et GitHub-secret. Migrationerne kører på instansen,
-> så den fælles cluster kun skal åbne for instansernes IP'er og ikke for GitHubs runners.
+GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
+til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).
+På serveren laves `~/gaer/.env` ud fra `deploy/.env.example` og `~/gaer/app.env` ud fra
+`deploy/app.env.example`.
 
 ## Browserudvidelse og Office
 

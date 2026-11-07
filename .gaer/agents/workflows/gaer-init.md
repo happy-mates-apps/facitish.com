@@ -23,8 +23,9 @@ Sets up a fresh fork of gaer-base for a customer, or a fresh local checkout.
      `python deploy/provision_database.py --admin-url "<cluster admin url>" --name <name>` → prints the three URLs.
    - Object Storage bucket `gaer-<name>` and S3 credentials in the OVHcloud console.
    - OVHcloud SMS service and API credentials (`OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`, `OVH_SMS_SERVICE`).
-   - Public Cloud instance with Docker and a `deploy` user; copy `deploy/.env.example` to `~/gaer/.env` and fill it in.
+   - UpCloud server with Docker and a `deploy` user; copy `deploy/.env.example` to `~/gaer/.env` and
+     `deploy/app.env.example` to `~/gaer/app.env` and fill them in.
      Set `BOOTSTRAP_ADMIN_PHONE` to the customer's admin number, so nobody else can become admin on the new instance.
-   - GitHub secrets: `OVH_REGISTRY`, `OVH_REGISTRY_USER`, `OVH_REGISTRY_PASSWORD`, `HOST`, `SSH_KEY`. Variable `DOMAIN`.
-   - Point DNS for the domain at the instance. Caddy fetches the certificate on first deploy.
+   - GitHub environment `production`: secrets `HOST`, `SSH_KEY`, `SSH_KNOWN_HOSTS`. Variable `DOMAIN`. Images go to GHCR.
+   - Cloudflare Tunnel for the domain; its token is `TUNNEL_TOKEN` in `~/gaer/.env`.
 5. Never commit `.env` files or credentials.
