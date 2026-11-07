@@ -140,6 +140,7 @@ PROVIDERS = {
     "scaleway": dict(scaleway_secret_key="scw-x", scaleway_project_id="proj-1", scaleway_region="fr-par"),
     "mailjet": dict(mailjet_api_key="mj-key", mailjet_api_secret="mj-secret"),
     "brevo": dict(brevo_api_key="brevo-x"),
+    "lettermint": dict(lettermint_api_token="lm-x"),
 }
 
 
@@ -163,12 +164,28 @@ async def test_mail_providers_send_the_code(provider, settings, captured):
         assert str(request.url) == "https://api.mailjet.com/v3.1/send"
         assert request.headers["authorization"].startswith("Basic ")
         assert payload["Messages"][0]["To"] == [{"Email": "anna@example.com"}]
+    elif provider == "lettermint":
+        assert str(request.url) == "https://api.lettermint.co/v1/send"
+        assert request.headers["x-lettermint-token"] == "lm-x"
+        assert payload["to"] == ["anna@example.com"] and payload["from"] == '"Gær" <login@example.com>'
+        return
     else:
         assert str(request.url) == "https://api.brevo.com/v3/smtp/email"
         assert request.headers["api-key"] == "brevo-x"
         assert payload["to"] == [{"email": "anna@example.com"}] and "123456" in payload["textContent"]
     sender = payload.get("from") or payload.get("sender") or payload["Messages"][0]["From"]
     assert "login@example.com" in sender.values()
+
+
+async def test_demo_mode_logs_the_code_and_never_returns_it(make_client, settings, caplog, owner_conn):
+    settings(demo_mode=True, environment="production", mail_provider="ahasend", ahasend_api_key=None)
+    client = make_client()
+    assert (await client.get("/api/public/config")).json()["demo_mode"] is True
+    r = await client.post("/api/auth/otp/start", json={"email": "anna@example.com"})
+    assert r.status_code == 200 and "dev_code" not in r.json()
+    code = next(m.split(": ")[1].split(" ")[0] for m in caplog.messages if m.startswith("DEMO_MODE mail to anna@"))
+    r = await client.post("/api/auth/otp/verify", json={"email": "anna@example.com", "code": code})
+    assert r.status_code == 200 and r.json()["became_admin"] is True
 
 
 def test_mail_config_lists_what_is_missing(settings):

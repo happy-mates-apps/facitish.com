@@ -21,6 +21,9 @@ def otp_message(code: str, app_name: str, minutes: int) -> str:
 
 
 async def send_sms(phone: str, message: str, sender: str) -> None:
+    if config.settings.demo_mode:
+        log.warning("DEMO_MODE SMS to %s: %s", phone, message)
+        return
     provider = config.settings.sms_provider
     if provider == "console":
         if config.settings.is_production:

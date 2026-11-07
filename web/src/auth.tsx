@@ -23,6 +23,7 @@ export type PublicConfig = {
   consent_decline: string;
   first_user: boolean;
   sms_login: boolean;
+  demo_mode: boolean;
 };
 
 type AuthState = {
