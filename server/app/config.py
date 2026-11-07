@@ -39,6 +39,9 @@ class Settings:
 
     # Login: one-time codes are sent by e-mail. SMS_LOGIN=1 also lets users log in with a phone number.
     sms_login: bool = field(default_factory=lambda: _env("SMS_LOGIN", "0") == "1")
+    # Demo: codes are written to the server log instead of being sent (also in production), never to the browser.
+    # For trying an instance before mail is set up. Only whoever can read the server log can log in.
+    demo_mode: bool = field(default_factory=lambda: _env("DEMO_MODE", "0") == "1")
 
     # Login policy
     default_country_code: str = field(default_factory=lambda: _env("DEFAULT_COUNTRY_CODE", "+45"))
@@ -60,7 +63,7 @@ class Settings:
     ovh_consumer_key: str | None = field(default_factory=lambda: _env("OVH_CONSUMER_KEY"))
     ovh_sms_service: str | None = field(default_factory=lambda: _env("OVH_SMS_SERVICE"))
 
-    # E-mail: "ahasend" (default), "scaleway", "mailjet", "brevo" or "console" (prints the mail, dev only)
+    # E-mail: "ahasend" (default), "scaleway", "mailjet", "brevo", "lettermint" or "console" (prints the mail, dev only)
     mail_provider: str = field(default_factory=lambda: _env("MAIL_PROVIDER", "ahasend"))
     mail_from: str | None = field(default_factory=lambda: _env("MAIL_FROM"))
     mail_from_name: str | None = field(default_factory=lambda: _env("MAIL_FROM_NAME"))  # falls back to the app name
@@ -72,6 +75,7 @@ class Settings:
     mailjet_api_key: str | None = field(default_factory=lambda: _env("MAILJET_API_KEY"))
     mailjet_api_secret: str | None = field(default_factory=lambda: _env("MAILJET_API_SECRET"))
     brevo_api_key: str | None = field(default_factory=lambda: _env("BREVO_API_KEY"))
+    lettermint_api_token: str | None = field(default_factory=lambda: _env("LETTERMINT_API_TOKEN"))
 
     # Object Storage: "s3" (OVHcloud Object Storage, MinIO locally) or "memory" (tests)
     storage_backend: str = field(default_factory=lambda: _env("STORAGE_BACKEND", "s3"))

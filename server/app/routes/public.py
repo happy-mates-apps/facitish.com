@@ -35,6 +35,7 @@ async def public_config():
     # True only when the next person to log in becomes admin (new instance, no bootstrap contact).
     out["first_user"] = first_user
     out["sms_login"] = config.settings.sms_login
+    out["demo_mode"] = config.settings.demo_mode
     out["logo_url"] = "/api/public/logo" if values["logo_key"] else None
     out.pop("logo_key")
     return out

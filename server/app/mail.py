@@ -4,6 +4,7 @@
     scaleway  Scaleway Transactional Email    SCALEWAY_SECRET_KEY, SCALEWAY_PROJECT_ID, SCALEWAY_REGION
     mailjet   Mailjet                         MAILJET_API_KEY, MAILJET_API_SECRET
     brevo     Brevo                           BREVO_API_KEY
+    lettermint Lettermint                     LETTERMINT_API_TOKEN (a Project API token)
     console   prints the mail (development only)
 
 All need MAIL_FROM, an address on a domain verified with the provider.
@@ -28,6 +29,7 @@ REQUIRED = {
     "scaleway": ("scaleway_secret_key", "scaleway_project_id"),
     "mailjet": ("mailjet_api_key", "mailjet_api_secret"),
     "brevo": ("brevo_api_key",),
+    "lettermint": ("lettermint_api_token",),
     "console": (),
 }
 
@@ -35,6 +37,8 @@ REQUIRED = {
 def missing_config() -> list[str]:
     """Environment variables the chosen provider still needs. Empty when mail can be sent."""
     s = config.settings
+    if s.demo_mode:
+        return []
     if s.mail_provider not in REQUIRED:
         return ["MAIL_PROVIDER"]
     missing = [name.upper() for name in REQUIRED[s.mail_provider] if not getattr(s, name)]
@@ -59,6 +63,9 @@ def otp_mail(code: str, app_name: str, minutes: int) -> tuple[str, str, str]:
 
 async def send_mail(to: str, subject: str, text: str, html_body: str, sender_name: str) -> None:
     s = config.settings
+    if s.demo_mode:
+        log.warning("DEMO_MODE mail to %s: %s", to, subject)
+        return
     if s.mail_provider == "console":
         if s.is_production:
             raise MailError("MAIL_PROVIDER=console is not allowed in production")
@@ -123,4 +130,15 @@ async def _brevo(client, s, sender, to, subject, text, html_body) -> None:
     _check(response, "Brevo")
 
 
-SENDERS = {"ahasend": _ahasend, "scaleway": _scaleway, "mailjet": _mailjet, "brevo": _brevo}
+async def _lettermint(client, s, sender, to, subject, text, html_body) -> None:
+    """https://lettermint.co/docs/quickstart"""
+    name = sender["name"].replace('"', "")
+    response = await client.post(
+        "https://api.lettermint.co/v1/send", headers={"x-lettermint-token": s.lettermint_api_token},
+        json={"from": f'"{name}" <{sender["email"]}>', "to": [to], "subject": subject, "text": text,
+              "html": html_body})
+    _check(response, "Lettermint")
+
+
+SENDERS = {"ahasend": _ahasend, "scaleway": _scaleway, "mailjet": _mailjet, "brevo": _brevo,
+           "lettermint": _lettermint}
