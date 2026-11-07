@@ -11,10 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import config, db, gdpr, retention, settings_store
+from app import config, db, gdpr, mail, retention, settings_store
 from app.logs import audit, auth_event, changed
+from app.routes.auth import parse_email, parse_phone
 from app.routes.files import delete_file, save_upload
-from app.security import bootstrap_admin_phone, mask_phone, normalize_phone, phone_hash
+from app.security import bootstrap_admin_email, bootstrap_admin_phone, mask_contact, normalize_email, normalize_phone, phone_hash
 from app.sessions import Principal, require_admin, revoke_sessions
 from app.storage import get_storage
 
@@ -33,12 +34,12 @@ async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, ad
     # Test accounts are only shown to the admin who owns them.
     where, params = "where (not u.impersonation_only or u.impersonation_owner_id = %s)", [admin.user_id]
     if q:
-        where += " and (u.phone ilike %s or coalesce(u.display_name, '') ilike %s)"
-        params += [f"%{q.strip()}%", f"%{q.strip()}%"]
+        where += " and (u.email ilike %s or u.phone ilike %s or coalesce(u.display_name, '') ilike %s)"
+        params += [f"%{q.strip()}%"] * 3
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""
-            select u.id, u.phone, u.display_name, u.role, u.grace_logins_used, u.blocked_at, u.created_at,
-                   u.last_login_at, u.impersonation_only,
+            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used, u.blocked_at,
+                   u.created_at, u.last_login_at, u.impersonation_only,
                    (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
                    (select count(*) from sessions s where s.user_id = u.id and s.revoked_at is null
@@ -68,6 +69,11 @@ async def _ensure_not_last_admin(conn, user: dict) -> None:
             raise HTTPException(409, "Der skal være mindst én admin")
 
 
+def _ensure_not_super_admin(user: dict) -> None:
+    if user["super_admin"]:
+        raise HTTPException(409, "Superadministratoren kan ikke mistes eller spærres")
+
+
 @router.patch("/users/{user_id}/role")
 async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
@@ -75,6 +81,7 @@ async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(requir
         if user["role"] == body.role:
             return {"ok": True}
         if body.role != "admin":
+            _ensure_not_super_admin(user)
             await _ensure_not_last_admin(conn, user)
         await conn.execute("update users set role = %s, updated_at = now() where id = %s", (body.role, user_id))
         await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
@@ -86,29 +93,40 @@ class AdminPhoneIn(BaseModel):
     phone: str = Field(max_length=32)
 
 
-@router.patch("/users/{user_id}/phone")
-async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends(require_admin)):
-    """Rectification by an admin, e.g. when a user lost the old number. The user's sessions are revoked
-    and passkeys are kept; the next login with a code goes to the new number."""
-    try:
-        phone = normalize_phone(body.phone)
-    except ValueError:
-        raise HTTPException(400, "Ugyldigt telefonnummer")
+class AdminEmailIn(BaseModel):
+    email: str = Field(max_length=254)
+
+
+async def _set_contact(user_id: int, channel: str, contact: str, admin: Principal) -> dict:
+    """Rectification by an admin, e.g. when a user lost access to the old address or number. The user's sessions
+    are revoked and passkeys are kept; the next login with a code goes to the new contact."""
     async with db.connection() as conn:
         user = await _user_or_404(conn, user_id)
         if user["impersonation_only"]:
-            raise HTTPException(409, "En testkonto har intet telefonnummer")
-        if phone == user["phone"]:
+            raise HTTPException(409, "En testkonto har ingen e-mail eller telefonnummer")
+        if contact == user[channel]:
             return {"ok": True}
-        if await db.fetch_one(conn, "select 1 from users where phone = %s", (phone,)):
-            raise HTTPException(409, "Nummeret bruges allerede af en anden bruger")
-        await conn.execute("update users set phone = %s, updated_at = now() where id = %s", (phone, user_id))
+        if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
+            raise HTTPException(409, "E-mailadressen bruges allerede af en anden bruger" if channel == "email"
+                                else "Nummeret bruges allerede af en anden bruger")
+        await conn.execute(f"update users set {channel} = %s, updated_at = now() where id = %s", (contact, user_id))
         await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"phone": user["phone"]}, after={"phone": phone}, reason="rectification")
-        await auth_event(conn, "phone.changed", ok=True, meta=admin.meta, user_id=user_id, phone=phone,
+                    before={channel: user[channel]}, after={channel: contact}, reason="rectification")
+        await auth_event(conn, f"{channel}.changed", ok=True, meta=admin.meta, user_id=user_id, contact=contact,
                          by=admin.user_id)
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="phone_changed", actor_id=admin.user_id)
+        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason=f"{channel}_changed",
+                              actor_id=admin.user_id)
     return {"ok": True}
+
+
+@router.patch("/users/{user_id}/email")
+async def set_email(user_id: int, body: AdminEmailIn, admin: Principal = Depends(require_admin)):
+    return await _set_contact(user_id, "email", parse_email(body.email), admin)
+
+
+@router.patch("/users/{user_id}/phone")
+async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends(require_admin)):
+    return await _set_contact(user_id, "phone", parse_phone(body.phone), admin)
 
 
 @router.post("/users/{user_id}/block")
@@ -117,6 +135,7 @@ async def block_user(user_id: int, admin: Principal = Depends(require_admin)):
         user = await _user_or_404(conn, user_id)
         if user_id == admin.user_id:
             raise HTTPException(409, "Du kan ikke spærre dig selv")
+        _ensure_not_super_admin(user)
         await _ensure_not_last_admin(conn, user)
         await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user_id,))
         await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
@@ -144,8 +163,8 @@ async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin)
         rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
         await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
                     before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
-        await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id, phone=user["phone"],
-                         count=len(rows), by=admin.user_id)
+        await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id,
+                         contact=user["email"] or user["phone"], count=len(rows), by=admin.user_id)
         await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset",
                               actor_id=admin.user_id)
     return {"ok": True, "deleted": len(rows)}
@@ -167,11 +186,12 @@ def _auth_filters(user_id, phone, device, ip, event, result, date_from, date_to)
     where, params = [], []
     if user_id:
         where.append("user_id = %s"); params.append(user_id)
-    if phone:
+    if phone:  # the full e-mail address or phone number
         try:
-            where.append("phone_hash = %s"); params.append(phone_hash(normalize_phone(phone)))
+            contact = normalize_email(phone) if "@" in phone else normalize_phone(phone)
         except ValueError:
-            raise HTTPException(400, "Ugyldigt telefonnummer")
+            raise HTTPException(400, "Ugyldig e-mailadresse eller telefonnummer")
+        where.append("phone_hash = %s"); params.append(phone_hash(contact))
     if device:
         where.append("device ilike %s"); params.append(f"%{device}%")
     if ip:
@@ -388,7 +408,7 @@ async def gdpr_list(status: str | None = None):
     where, params = ("where g.status = %s", [status]) if status else ("", [])
     async with db.connection() as conn:
         return await db.fetch_all(conn, f"""
-            select g.*, u.phone as user_phone, u.display_name as user_name,
+            select g.*, coalesce(u.email, u.phone) as user_phone, u.display_name as user_name,
                    (g.status in ('received', 'in_progress') and g.due_at < now()) as overdue
             from gdpr_requests g left join users u on u.id = g.user_id {where}
             order by (g.status in ('received', 'in_progress')) desc, g.due_at""", params)
@@ -413,10 +433,13 @@ async def gdpr_update(request_id: int, body: GdprPatch, admin: Principal = Depen
         before = await _gdpr_or_404(conn, request_id)
         after = {"status": body.status or before["status"], "notes": before["notes"] if body.notes is None else body.notes,
                  "user_id": before["user_id"]}
-        if body.user_phone:
-            user = await db.fetch_one(conn, "select id from users where phone = %s", (normalize_phone(body.user_phone),))
+        if body.user_phone:  # e-mail address or phone number
+            if "@" in body.user_phone:
+                user = await db.fetch_one(conn, "select id from users where email = %s", (parse_email(body.user_phone),))
+            else:
+                user = await db.fetch_one(conn, "select id from users where phone = %s", (parse_phone(body.user_phone),))
             if user is None:
-                raise HTTPException(404, "Ingen bruger med det telefonnummer")
+                raise HTTPException(404, "Ingen bruger med den e-mail eller det telefonnummer")
             after["user_id"] = user["id"]
         done = after["status"] in ("completed", "rejected")
         await conn.execute("""
@@ -533,7 +556,7 @@ async def consent_overview(limit: int = 100, offset: int = 0):
             select count(*) filter (where statistics) as accepted,
                    count(*) filter (where not statistics) as declined from latest""")
         records = await db.fetch_all(conn, """
-            select c.id, c.ts, c.visitor_id, c.user_id, u.phone as user_phone, c.statistics, c.version, c.device
+            select c.id, c.ts, c.visitor_id, c.user_id, coalesce(u.email, u.phone) as user_phone, c.statistics, c.version, c.device
             from consents c left join users u on u.id = c.user_id
             order by c.ts desc limit %s offset %s""", (limit, offset))
         total = await db.fetch_one(conn, "select count(*) as n from consents")
@@ -567,11 +590,11 @@ async def files_overview(user_id: int | None = None, limit: int = 200, offset: i
     async with db.connection() as conn:
         totals = await db.fetch_one(conn, "select count(*) as files, coalesce(sum(size_bytes), 0) as bytes from files")
         per_user = await db.fetch_all(conn, """
-            select f.user_id, u.phone, u.display_name, count(*) as files, sum(f.size_bytes) as bytes
+            select f.user_id, coalesce(u.email, u.phone) as phone, u.display_name, count(*) as files, sum(f.size_bytes) as bytes
             from files f left join users u on u.id = f.user_id
-            group by f.user_id, u.phone, u.display_name order by bytes desc limit 100""")
+            group by f.user_id, u.email, u.phone, u.display_name order by bytes desc limit 100""")
         items = await db.fetch_all(conn, f"""
-            select f.id, f.user_id, u.phone, f.filename, f.content_type, f.size_bytes, f.created_at
+            select f.id, f.user_id, coalesce(u.email, u.phone) as phone, f.filename, f.content_type, f.size_bytes, f.created_at
             from files f left join users u on u.id = f.user_id {where}
             order by f.created_at desc limit %s offset %s""", params + [limit, offset])
     return {"totals": totals, "per_user": per_user, "items": items}
@@ -601,8 +624,10 @@ async def settings_get():
         "app_name": values["app_name"], "sms_sender": values["sms_sender"], "gdpr_email": values["gdpr_email"],
         "logo_url": "/api/public/logo" if values["logo_key"] else None,
         "environment": {"version": s.version, "env": s.environment, "sms_provider": s.sms_provider,
+                        "sms_login": s.sms_login, "mail_provider": s.mail_provider,
+                        "mail_missing": mail.missing_config(),
                         "storage": s.storage_backend, "rp_id": s.rp_id, "grace_logins": s.grace_logins,
-                        "bootstrap_admin": mask_phone(bootstrap_admin_phone())},
+                        "bootstrap_admin": mask_contact(bootstrap_admin_email() or bootstrap_admin_phone())},
     }
 
 
@@ -731,7 +756,7 @@ async def ai_overview():
     async with db.connection() as conn:
         default = await settings_store.get(conn, "ai_default_monthly_tokens")
         users = await db.fetch_all(conn, """
-            select u.id, u.phone, u.display_name, u.ai_monthly_tokens,
+            select u.id, coalesce(u.email, u.phone) as phone, u.display_name, u.ai_monthly_tokens,
                    coalesce(sum(a.prompt_tokens + a.completion_tokens), 0) as used,
                    count(a.id) as requests
             from users u left join ai_usage a on a.user_id = u.id and a.ts >= date_trunc('month', now())

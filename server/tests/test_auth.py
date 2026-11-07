@@ -164,7 +164,9 @@ async def test_bootstrap_phone_existing_user_is_promoted_once(make_client, boots
     assert (await otp_login(make_client(), "99887766"))["became_admin"] is True
     assert owner_conn.execute("select role from users where phone = '+4599887766'").fetchone()[0] == "admin"
     change = owner_conn.execute("select before, after, detail from audit_log where action = 'role.changed'").fetchone()
-    assert change[:2] == ({"role": "user"}, {"role": "admin"}) and change[2]["reason"] == "bootstrap_admin_phone"
+    # The first user is still the super admin, so the promoted number is a normal admin.
+    assert change[:2] == ({"role": "user"}, {"role": "admin", "super_admin": False})
+    assert change[2]["reason"] == "bootstrap_admin_phone"
 
 
 def test_invalid_bootstrap_phone_is_rejected(bootstrap):

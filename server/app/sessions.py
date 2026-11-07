@@ -23,12 +23,18 @@ REAL_ONLY_PATHS = ("/api/admin", "/api/impersonation")
 class Principal:
     session_id: int
     user_id: int
-    phone: str
+    email: str | None
+    phone: str | None
     role: str
     scope: str
     display_name: str | None
     meta: RequestMeta
     impersonator_id: int | None = None  # set when an admin is viewing the app as this test account
+    super_admin: bool = False
+
+    @property
+    def contact(self) -> str | None:
+        return self.email or self.phone
 
     @property
     def is_admin(self) -> bool:
@@ -109,8 +115,8 @@ async def _session_row(conn, token: str, impersonator_id: int | None = None) -> 
         where = "s.impersonator_id = %s and u.impersonation_only and u.impersonation_owner_id = %s"
         params = (token_hash(token), impersonator_id, impersonator_id)
     row = await db.fetch_one(conn, f"""
-        select s.id as session_id, s.scope, s.last_seen_at, u.id as user_id, u.phone, u.role,
-               u.display_name, u.blocked_at
+        select s.id as session_id, s.scope, s.last_seen_at, u.id as user_id, u.email, u.phone, u.role,
+               u.super_admin, u.display_name, u.blocked_at
         from sessions s join users u on u.id = s.user_id
         where s.token_hash = %s and s.revoked_at is null and s.expires_at > now() and {where}""", params)
     if row is None or row["blocked_at"] is not None:
@@ -134,11 +140,12 @@ async def _load(request: Request) -> Principal | None:
             imp = await _session_row(conn, imp_token, impersonator_id=row["user_id"])
             if imp is not None:
                 meta.impersonator_id = row["user_id"]
-                return Principal(session_id=imp["session_id"], user_id=imp["user_id"], phone=imp["phone"], role=imp["role"],
-                                 scope=imp["scope"], display_name=imp["display_name"], meta=meta,
-                                 impersonator_id=row["user_id"])
-    return Principal(session_id=row["session_id"], user_id=row["user_id"], phone=row["phone"],
-                     role=row["role"], scope=row["scope"], display_name=row["display_name"], meta=meta)
+                return Principal(session_id=imp["session_id"], user_id=imp["user_id"], email=imp["email"],
+                                 phone=imp["phone"], role=imp["role"], scope=imp["scope"],
+                                 display_name=imp["display_name"], meta=meta, impersonator_id=row["user_id"])
+    return Principal(session_id=row["session_id"], user_id=row["user_id"], email=row["email"], phone=row["phone"],
+                     role=row["role"], scope=row["scope"], display_name=row["display_name"], meta=meta,
+                     super_admin=row["super_admin"])
 
 
 async def optional_principal(request: Request) -> Principal | None:

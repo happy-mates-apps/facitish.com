@@ -94,7 +94,8 @@ async def admin_features():
             from features f left join feature_usage u on u.feature_key = f.key and u.ts > now() - interval '30 days'
             group by f.key order by f.builtin desc, f.created_at, f.key""")
         levels = await db.fetch_all(conn, """
-            select r.user_id, r.ring, u.display_name, u.phone from feature_rings r join users u on u.id = r.user_id
+            select r.user_id, r.ring, u.display_name, coalesce(u.email, u.phone) as phone
+            from feature_rings r join users u on u.id = r.user_id
             order by r.updated_at""")
     known = {i["key"] for i in items}
     missing = [{"key": c.key, "title": c.title, "description": c.description, "area": c.area}
@@ -106,10 +107,10 @@ async def admin_features():
 async def admin_feature_usage(key: str):
     async with db.connection() as conn:
         return await db.fetch_all(conn, """
-            select u.user_id, us.display_name, us.phone, count(*) as n, max(u.ts) as last
+            select u.user_id, us.display_name, coalesce(us.email, us.phone) as phone, count(*) as n, max(u.ts) as last
             from feature_usage u left join users us on us.id = u.user_id
             where u.feature_key = %s and u.ts > now() - interval '30 days'
-            group by u.user_id, us.display_name, us.phone order by n desc limit 200""", (key,))
+            group by u.user_id, us.display_name, us.email, us.phone order by n desc limit 200""", (key,))
 
 
 class FeatureIn(BaseModel):

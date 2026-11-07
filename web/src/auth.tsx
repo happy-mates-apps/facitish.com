@@ -4,9 +4,11 @@ import { api } from "./api";
 
 export type User = {
   id: number;
-  phone: string;
+  email: string | null;
+  phone: string | null;
   display_name: string | null;
   role: "user" | "admin";
+  super_admin: boolean;
   passkeys: number;
   grace_left: number;
 };
@@ -20,6 +22,7 @@ export type PublicConfig = {
   consent_accept: string;
   consent_decline: string;
   first_user: boolean;
+  sms_login: boolean;
 };
 
 type AuthState = {

@@ -13,7 +13,7 @@ export default function ExtensionAccount() {
     <div className="stack">
       <div className="card">
         <span className="eyebrow">Logget ind som</span>
-        <strong>{user?.display_name || user?.phone}</strong>
+        <strong>{user?.display_name || user?.email || user?.phone}</strong>
         <div className="row">
           <button className="btn btn-outline btn-sm" onClick={async () => {
             if (await isExtension()) await extension.openUrl(window.location.origin);
