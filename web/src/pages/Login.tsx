@@ -115,6 +115,9 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                   Instansen er ny og har ingen brugere. Du bliver den første bruger og dermed <strong>superadministrator</strong>.
                 </Alert>
               )}
+              {config?.demo_mode && (
+                <Alert kind="info">Demo: koden bliver ikke sendt, men skrevet i serverens log.</Alert>
+              )}
               {channel === "email" ? (
                 <label className="field">
                   E-mail

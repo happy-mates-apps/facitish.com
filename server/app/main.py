@@ -49,7 +49,9 @@ async def lifespan(_: FastAPI):
     bootstrap = bootstrap_admin_email() or (bootstrap_admin_phone() if config.settings.sms_login else None)
     if config.settings.is_production and not bootstrap:
         log.warning("BOOTSTRAP_ADMIN_EMAIL is not set: the first person to log in on a new instance becomes super admin")
-    if missing := mail.missing_config():
+    if config.settings.demo_mode:
+        log.warning("DEMO_MODE is on: login codes are written to this log instead of being sent")
+    elif missing := mail.missing_config():
         log.warning("e-mail is not configured, login codes cannot be sent: missing %s", ", ".join(missing))
     await db.open_pools()
     task = asyncio.create_task(retention.maintenance_loop()) if retention.enabled() else None
