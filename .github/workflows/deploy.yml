@@ -25,7 +25,7 @@ jobs:
       name: production
       url: https://${{ vars.DOMAIN }}
     env:
-      IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+      IMAGE: ghcr.io/${{ github.repository_owner }}/facitish:${{ github.sha }}
       REMOTE: deploy@${{ secrets.HOST }}
     steps:
       - name: Validate deployment secrets
@@ -50,7 +50,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build --build-arg GAER_VERSION=${GITHUB_SHA::7} -t "$IMAGE" .
+          docker build --build-arg GAER_VERSION=${GITHUB_SHA::7} \
+            --label org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} -t "$IMAGE" .
           docker push "$IMAGE"
 
       - name: Prepare SSH
