@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 import { api, errorText } from "../api";
 import { passkeyErrorText, registerPasskey, useAuth } from "../auth";
 import { Alert, fmtDate, Loading, PageHeader, useLoad } from "../ui";
-import PhoneChange from "./PhoneChange";
+import ContactChange from "./ContactChange";
 
 type Passkey = { id: number; name: string; created_at: string; last_used_at: string | null };
 type Session = { id: number; created_at: string; last_seen_at: string; ip: string | null; user_agent: string; current: boolean };
 
 export default function Account() {
-  const { user, refresh } = useAuth();
+  const { user, refresh, config } = useAuth();
   const [name, setName] = useState(user?.display_name ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +39,8 @@ export default function Account() {
       <div className="grid" style={{ "--min": "320px" } as React.CSSProperties}>
         <div className="card">
           <span className="eyebrow">Profil</span>
-          <PhoneChange />
+          <ContactChange kind="email" />
+          {(config?.sms_login || user?.phone) && <ContactChange kind="phone" />}
           <label className="field">
             Navn
             <input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />

@@ -82,7 +82,7 @@ export default function Privacy() {
         <div><button className="btn btn-primary">Send anmodning</button></div>
       </form>
 
-      {loggedIn && <MyData phone={user!.phone} />}
+      {loggedIn && <MyData contact={user!.email || user!.phone || ""} />}
 
       {loggedIn && !!mine.data?.length && (
         <div className="table-wrap">
@@ -102,7 +102,7 @@ export default function Privacy() {
 
 
 /** Self-service: download all own data, or delete the account (the right to be forgotten). */
-function MyData({ phone }: { phone: string }) {
+function MyData({ contact }: { contact: string }) {
   const { refresh } = useAuth();
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +113,7 @@ function MyData({ phone }: { phone: string }) {
     setBusy(true);
     setError(null);
     try {
-      await api.post("/api/me/delete", { confirm_phone: confirm });
+      await api.post("/api/me/delete", { confirm });
       await refresh().catch(() => undefined);
       window.location.href = "/w/";
     } catch (e) {
@@ -133,11 +133,11 @@ function MyData({ phone }: { phone: string }) {
         <span className="eyebrow" style={{ color: "#b91c1c" }}>Slet din konto</span>
         <p className="small">
           Sletter din bruger, dine filer, klip, passkeys og log-data om dig. Kun en anonym notits om, at en konto er
-          slettet, bliver tilbage. Skriv dit telefonnummer for at bekræfte.
+          slettet, bliver tilbage. Skriv {contact.includes("@") ? "din e-mailadresse" : "dit telefonnummer"} for at bekræfte.
         </p>
-        <input type="tel" placeholder={phone} value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        <input placeholder={contact} value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         <Alert>{error}</Alert>
-        <div><button className="btn btn-danger" disabled={busy || confirm.replace(/\D/g, "").length < 6} onClick={remove}>Slet min konto</button></div>
+        <div><button className="btn btn-danger" disabled={busy || confirm.trim().length < 6} onClick={remove}>Slet min konto</button></div>
       </div>
     </div>
   );

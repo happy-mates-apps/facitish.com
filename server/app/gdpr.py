@@ -21,8 +21,9 @@ async def build_user_export(conn, user_id: int) -> dict:
     async def rows(sql, *params):
         return await db.fetch_all(conn, sql, params)
 
-    user = await db.fetch_one(conn, """select id, phone, display_name, role, grace_logins_used, blocked_at,
-                                              created_at, updated_at, last_login_at from users where id = %s""", (user_id,))
+    user = await db.fetch_one(conn, """select id, email, phone, display_name, role, super_admin, grace_logins_used,
+                                              blocked_at, created_at, updated_at, last_login_at
+                                       from users where id = %s""", (user_id,))
     if user is None:
         raise HTTPException(404, "Brugeren findes ikke")
     visitor_ids = [r["visitor_id"] for r in await rows(
@@ -117,6 +118,8 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)
+        if user["super_admin"] and actor_id != user_id:
+            raise HTTPException(409, "Superadministratoren kan kun slette sin egen konto")
         files = await db.fetch_all(conn, "delete from files where user_id = %s returning storage_key", (user_id,))
         await conn.execute("""update gdpr_requests set contact = 'slettet', message = '',
                               status = case when status in ('received', 'in_progress') and kind = 'erasure'
@@ -134,5 +137,5 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
             pass  # the row is gone; an orphaned object is found by the storage overview
     counts = await retention.purge_user(user_id, logs=list(retention.LOGS),
                                         actor_id=actor_id if actor_id != user_id else None, meta=meta,
-                                        reason=reason, phone=user["phone"])
+                                        reason=reason, contacts=[user["email"], user["phone"]])
     return {"files": len(files), "purged": counts}

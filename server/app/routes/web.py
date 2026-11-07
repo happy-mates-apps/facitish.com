@@ -24,10 +24,10 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "web_static")
 LANGS = ("da", "en")
 TEXT = {
     "da": {"login": "Log ind", "privacy": "Privatliv", "other": "English", "missing": "Siden findes ikke",
-           "card_title": "Log ind", "card_text": "Brug dit telefonnummer. Du får en engangskode på SMS.",
+           "card_title": "Log ind", "card_text": "Brug din e-mailadresse. Du får en engangskode på mail.",
            "first": "Instansen er ny og har ingen brugere endnu. Den første, der logger ind, bliver administrator."},
     "en": {"login": "Log in", "privacy": "Privacy", "other": "Dansk", "missing": "Page not found",
-           "card_title": "Log in", "card_text": "Use your phone number. We'll text you a one-time code.",
+           "card_title": "Log in", "card_text": "Use your e-mail address. We'll e-mail you a one-time code.",
            "first": "This instance is new and has no users yet. The first person to log in becomes the administrator."},
 }
 PLACEHOLDER = {

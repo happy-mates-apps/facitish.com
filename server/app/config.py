@@ -22,7 +22,7 @@ class Settings:
     purge_database_url: str | None = field(default_factory=lambda: _env("PURGE_DATABASE_URL"))
     migration_database_url: str | None = field(default_factory=lambda: _env("MIGRATION_DATABASE_URL"))
 
-    # Secret used for HMAC of one-time codes and phone numbers in logs. Must be long and random in prod.
+    # Secret used for HMAC of one-time codes and e-mail addresses/phone numbers in logs. Must be long and random in prod.
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", "dev-secret-change-me"))
     environment: str = field(default_factory=lambda: _env("GAER_ENV", "development"))
     version: str = field(default_factory=lambda: _env("GAER_VERSION", "dev"))
@@ -32,9 +32,13 @@ class Settings:
     rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Gær"))
     origin: str = field(default_factory=lambda: _env("ORIGIN", "http://localhost:5173"))
 
-    # Optional: the only phone number that may become the first admin. Without it, whoever logs in first
-    # on a new instance becomes admin. Set it in production so nobody else can claim a fresh instance.
+    # Optional: the only e-mail address (or, with SMS login, phone number) that may become the first admin.
+    # Without them, whoever logs in first on a new instance becomes super admin. Set one in production.
+    bootstrap_admin_email: str | None = field(default_factory=lambda: _env("BOOTSTRAP_ADMIN_EMAIL"))
     bootstrap_admin_phone: str | None = field(default_factory=lambda: _env("BOOTSTRAP_ADMIN_PHONE"))
+
+    # Login: one-time codes are sent by e-mail. SMS_LOGIN=1 also lets users log in with a phone number.
+    sms_login: bool = field(default_factory=lambda: _env("SMS_LOGIN", "0") == "1")
 
     # Login policy
     default_country_code: str = field(default_factory=lambda: _env("DEFAULT_COUNTRY_CODE", "+45"))
@@ -55,6 +59,19 @@ class Settings:
     ovh_application_secret: str | None = field(default_factory=lambda: _env("OVH_APPLICATION_SECRET"))
     ovh_consumer_key: str | None = field(default_factory=lambda: _env("OVH_CONSUMER_KEY"))
     ovh_sms_service: str | None = field(default_factory=lambda: _env("OVH_SMS_SERVICE"))
+
+    # E-mail: "ahasend" (default), "scaleway", "mailjet", "brevo" or "console" (prints the mail, dev only)
+    mail_provider: str = field(default_factory=lambda: _env("MAIL_PROVIDER", "ahasend"))
+    mail_from: str | None = field(default_factory=lambda: _env("MAIL_FROM"))
+    mail_from_name: str | None = field(default_factory=lambda: _env("MAIL_FROM_NAME"))  # falls back to the app name
+    ahasend_api_key: str | None = field(default_factory=lambda: _env("AHASEND_API_KEY"))
+    ahasend_account_id: str | None = field(default_factory=lambda: _env("AHASEND_ACCOUNT_ID"))
+    scaleway_secret_key: str | None = field(default_factory=lambda: _env("SCALEWAY_SECRET_KEY"))
+    scaleway_project_id: str | None = field(default_factory=lambda: _env("SCALEWAY_PROJECT_ID"))
+    scaleway_region: str = field(default_factory=lambda: _env("SCALEWAY_REGION", "fr-par"))
+    mailjet_api_key: str | None = field(default_factory=lambda: _env("MAILJET_API_KEY"))
+    mailjet_api_secret: str | None = field(default_factory=lambda: _env("MAILJET_API_SECRET"))
+    brevo_api_key: str | None = field(default_factory=lambda: _env("BREVO_API_KEY"))
 
     # Object Storage: "s3" (OVHcloud Object Storage, MinIO locally) or "memory" (tests)
     storage_backend: str = field(default_factory=lambda: _env("STORAGE_BACKEND", "s3"))
