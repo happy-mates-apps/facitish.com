@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 from app import config, db, gdpr
 from app.logs import audit, auth_event, changed
-from app.routes.auth import check_send_limits, consume_code, issue_code
-from app.security import InvalidPhone, normalize_phone
+from app.routes.auth import check_send_limits, consume_code, dev_code_allowed, issue_code, parse_email, parse_phone
+from app.security import InvalidEmail, InvalidPhone, normalize_email, normalize_phone
 from app.sessions import Principal, clear_session_cookie, current_user, revoke_sessions
 
 router = APIRouter(prefix="/api/me", tags=["me"])
@@ -69,7 +69,7 @@ async def delete_passkey(passkey_id: int, p: Principal = Depends(current_user)):
             raise HTTPException(404, "Ikke fundet")
         await audit(conn, "delete", actor_id=p.user_id, meta=p.meta, table="passkeys", row_id=passkey_id,
                     before=row)
-        await auth_event(conn, "passkey.deleted", ok=True, meta=p.meta, user_id=p.user_id, phone=p.phone,
+        await auth_event(conn, "passkey.deleted", ok=True, meta=p.meta, user_id=p.user_id, contact=p.contact,
                          passkey_id=passkey_id)
     return {"ok": True}
 
@@ -108,13 +108,13 @@ async def create_gdpr_request(body: GdprIn, p: Principal = Depends(current_user)
     async with db.connection() as conn:
         row = await db.fetch_one(conn, """
             insert into gdpr_requests (user_id, kind, contact, message) values (%s, %s, %s, %s)
-            returning id, due_at""", (p.user_id, body.kind, p.phone, body.message))
+            returning id, due_at""", (p.user_id, body.kind, p.contact, body.message))
         await audit(conn, "gdpr.request", actor_id=p.user_id, meta=p.meta, table="gdpr_requests", row_id=row["id"],
                     after={"kind": body.kind, "status": "received"})
     return {"id": row["id"], "due_at": row["due_at"]}
 
 
-# ── Self-service GDPR: own data, phone number, delete account ──────────────
+# ── Self-service GDPR: own data, e-mail and phone number, delete account ─────
 
 @router.get("/export")
 async def export_my_data(p: Principal = Depends(current_user)):
@@ -127,6 +127,14 @@ async def export_my_data(p: Principal = Depends(current_user)):
         "Content-Disposition": f'attachment; filename="{gdpr.export_filename(p.user_id)}"'})
 
 
+class EmailIn(BaseModel):
+    email: str = Field(max_length=254)
+
+
+class EmailVerifyIn(EmailIn):
+    code: str = Field(min_length=4, max_length=8)
+
+
 class PhoneIn(BaseModel):
     phone: str = Field(max_length=32)
 
@@ -136,70 +144,99 @@ class PhoneVerifyIn(PhoneIn):
 
 
 def _not_test_account(p: Principal) -> None:
-    """A test account (/admin → Efterligning) never gets a real phone number, so it can never log in on its own;
-    it is deleted from /admin, not from the app."""
+    """A test account (/admin → Efterligning) never gets a real e-mail or phone number, so it can never log in on its
+    own; it is deleted from /admin, not from the app."""
     if p.impersonator_id is not None:
         raise HTTPException(403, "Ikke muligt for en testkonto")
 
 
-def _new_phone(raw: str, current: str) -> str:
-    try:
-        phone = normalize_phone(raw)
-    except InvalidPhone as e:
-        raise HTTPException(400, str(e))
-    if phone == current:
-        raise HTTPException(400, "Det er dit nuværende nummer")
-    return phone
+def _new_contact(channel: str, raw: str, p: Principal) -> str:
+    if channel == "phone" and not config.settings.sms_login:
+        raise HTTPException(400, "Login med SMS er ikke slået til")
+    contact = parse_email(raw) if channel == "email" else parse_phone(raw)
+    if contact == getattr(p, channel):
+        raise HTTPException(400, "Det er din nuværende e-mailadresse" if channel == "email" else "Det er dit nuværende nummer")
+    return contact
 
 
-@router.post("/phone/start")
-async def change_phone_start(body: PhoneIn, p: Principal = Depends(current_user)):
+def _taken(channel: str) -> HTTPException:
+    return HTTPException(409, "E-mailadressen bruges allerede af en anden bruger" if channel == "email"
+                         else "Nummeret bruges allerede af en anden bruger")
+
+
+async def _change_start(channel: str, raw: str, p: Principal) -> dict:
+    """Rectification of the e-mail or phone number: a code is sent to the new contact to prove it belongs to the user."""
     _not_test_account(p)
-    """Rectification of the phone number: a code is sent to the new number to prove it belongs to the user."""
-    phone = _new_phone(body.phone, p.phone)
+    contact = _new_contact(channel, raw, p)
+    purpose = f"{channel}_change"
     async with db.connection() as conn:
-        if await db.fetch_one(conn, "select 1 from users where phone = %s", (phone,)):
-            raise HTTPException(409, "Nummeret bruges allerede af en anden bruger")
-        await check_send_limits(conn, phone, p.meta, purpose="phone_change")
-        code = await issue_code(conn, phone, p.meta, purpose="phone_change", user_id=p.user_id)
-    s = config.settings
-    response = {"ok": True, "expires_in": s.otp_ttl_seconds}
-    if s.sms_provider == "console" and not s.is_production:
+        if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
+            raise _taken(channel)
+        await check_send_limits(conn, contact, p.meta, purpose=purpose)
+        code = await issue_code(conn, channel, contact, p.meta, purpose=purpose, user_id=p.user_id)
+    response = {"ok": True, "expires_in": config.settings.otp_ttl_seconds}
+    if dev_code_allowed(channel):
         response["dev_code"] = code
     return response
 
 
-@router.post("/phone/verify")
-async def change_phone_verify(body: PhoneVerifyIn, p: Principal = Depends(current_user)):
+async def _change_verify(channel: str, raw: str, code: str, p: Principal) -> str:
     _not_test_account(p)
-    phone = _new_phone(body.phone, p.phone)
+    contact = _new_contact(channel, raw, p)
     async with db.connection() as conn:
-        await consume_code(conn, phone, body.code, p.meta, purpose="phone_change", user_id=p.user_id)
-        if await db.fetch_one(conn, "select 1 from users where phone = %s", (phone,)):
-            raise HTTPException(409, "Nummeret bruges allerede af en anden bruger")
-        await conn.execute("update users set phone = %s, updated_at = now() where id = %s", (phone, p.user_id))
+        await consume_code(conn, contact, code, p.meta, purpose=f"{channel}_change", user_id=p.user_id)
+        if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
+            raise _taken(channel)
+        await conn.execute(f"update users set {channel} = %s, updated_at = now() where id = %s", (contact, p.user_id))
         await audit(conn, "update", actor_id=p.user_id, meta=p.meta, table="users", row_id=p.user_id,
-                    before={"phone": p.phone}, after={"phone": phone})
-        await auth_event(conn, "phone.changed", ok=True, meta=p.meta, user_id=p.user_id, phone=phone)
-        # Other devices were logged in under the old number: log them out.
+                    before={channel: getattr(p, channel)}, after={channel: contact})
+        await auth_event(conn, f"{channel}.changed", ok=True, meta=p.meta, user_id=p.user_id, contact=contact)
+        # Other devices were logged in under the old contact: log them out.
         await conn.execute("""update sessions set revoked_at = now()
                               where user_id = %s and id <> %s and revoked_at is null""", (p.user_id, p.session_id))
-    return {"ok": True, "phone": phone}
+    return contact
+
+
+@router.post("/email/start")
+async def change_email_start(body: EmailIn, p: Principal = Depends(current_user)):
+    return await _change_start("email", body.email, p)
+
+
+@router.post("/email/verify")
+async def change_email_verify(body: EmailVerifyIn, p: Principal = Depends(current_user)):
+    return {"ok": True, "email": await _change_verify("email", body.email, body.code, p)}
+
+
+@router.post("/phone/start")
+async def change_phone_start(body: PhoneIn, p: Principal = Depends(current_user)):
+    return await _change_start("phone", body.phone, p)
+
+
+@router.post("/phone/verify")
+async def change_phone_verify(body: PhoneVerifyIn, p: Principal = Depends(current_user)):
+    return {"ok": True, "phone": await _change_verify("phone", body.phone, body.code, p)}
 
 
 class DeleteAccountIn(BaseModel):
-    confirm_phone: str = Field(max_length=32)
+    confirm: str | None = Field(default=None, max_length=254)        # the user's e-mail address or phone number
+    confirm_phone: str | None = Field(default=None, max_length=32)   # older clients
+
+
+def _confirms(value: str, p: Principal) -> bool:
+    try:
+        if "@" in value:
+            return p.email is not None and normalize_email(value) == p.email
+        return p.phone is not None and normalize_phone(value) == p.phone
+    except (InvalidEmail, InvalidPhone):
+        return False
 
 
 @router.post("/delete")
 async def delete_my_account(body: DeleteAccountIn, response: Response, p: Principal = Depends(current_user)):
+    """The right to be forgotten, done by the user. The e-mail address (or phone number) must be typed as confirmation."""
     _not_test_account(p)
-    """The right to be forgotten, done by the user. The phone number must be typed as confirmation."""
-    try:
-        if normalize_phone(body.confirm_phone) != p.phone:
-            raise HTTPException(400, "Telefonnummeret passer ikke")
-    except InvalidPhone:
-        raise HTTPException(400, "Telefonnummeret passer ikke")
+    if not _confirms(body.confirm or body.confirm_phone or "", p):
+        raise HTTPException(400, "E-mailadressen passer ikke" if p.email else "Telefonnummeret passer ikke")
     result = await gdpr.erase_user(p.user_id, actor_id=p.user_id, meta=p.meta, reason="self_service")
     clear_session_cookie(response, p.meta.embedded)
     return {"ok": True, **result}

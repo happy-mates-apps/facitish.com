@@ -22,7 +22,7 @@ export default function AdminShell() {
   const { pathname } = useLocation();
   const say = useToast();
   const instance = config?.app_name ?? window.location.hostname;
-  const me = user?.display_name || user?.phone || "";
+  const me = user?.display_name || user?.email || user?.phone || "";
   const ext = useHappyAi();
 
   useEffect(() => handshake(true), []);

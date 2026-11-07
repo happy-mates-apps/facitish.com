@@ -34,7 +34,7 @@ TEXT = {
         "hm": "Hos Happy Mates arbejder vi med at integrere autister — og andre, der måske er lidt skæve.",
         "more": "Læs mere på happymates.ai", "next": "Videre", "top": "Forfra",
         "login": "Log ind", "card_title": "Log ind", "privacy": "Privatliv",
-        "card_text": "Brug dit telefonnummer. Du får en engangskode på SMS.",
+        "card_text": "Brug din e-mailadresse. Du får en engangskode på mail.",
         "first_user": "Instansen er ny og har ingen brugere endnu. Den første, der logger ind, bliver administrator.",
     },
     "en": {
@@ -58,7 +58,7 @@ TEXT = {
         "hm": "At Happy Mates we work to include autistic people — and others who might be a little offbeat.",
         "more": "Read more at happymates.ai", "next": "Continue", "top": "Start over",
         "login": "Log in", "card_title": "Log in", "privacy": "Privacy",
-        "card_text": "Use your phone number. We'll text you a one-time code.",
+        "card_text": "Use your e-mail address. We'll e-mail you a one-time code.",
         "first_user": "This instance is new and has no users yet. The first person to log in becomes the administrator.",
     },
     "de": {
@@ -82,7 +82,7 @@ TEXT = {
         "hm": "Bei Happy Mates integrieren wir Autistinnen und Autisten — und andere, die vielleicht ein bisschen schräg sind.",
         "more": "Mehr auf happymates.ai", "next": "Weiter", "top": "Von vorn",
         "login": "Anmelden", "card_title": "Anmelden", "privacy": "Datenschutz",
-        "card_text": "Mit deiner Telefonnummer. Du bekommst einen Einmalcode per SMS.",
+        "card_text": "Mit deiner E-Mail-Adresse. Du bekommst einen Einmalcode per E-Mail.",
         "first_user": "Diese Instanz ist neu und hat noch keine Nutzer. Wer sich zuerst anmeldet, wird Administrator.",
     },
     "sv": {
@@ -106,7 +106,7 @@ TEXT = {
         "hm": "På Happy Mates arbetar vi med att integrera autister — och andra som kanske är lite udda.",
         "more": "Läs mer på happymates.ai", "next": "Vidare", "top": "Från början",
         "login": "Logga in", "card_title": "Logga in", "privacy": "Integritet",
-        "card_text": "Använd ditt telefonnummer. Du får en engångskod via sms.",
+        "card_text": "Använd din e-postadress. Du får en engångskod via e-post.",
         "first_user": "Instansen är ny och har inga användare än. Den som loggar in först blir administratör.",
     },
     "no": {
@@ -130,7 +130,7 @@ TEXT = {
         "hm": "Hos Happy Mates jobber vi med å inkludere autister — og andre som kanskje er litt skjeve.",
         "more": "Les mer på happymates.ai", "next": "Videre", "top": "Forfra",
         "login": "Logg inn", "card_title": "Logg inn", "privacy": "Personvern",
-        "card_text": "Bruk telefonnummeret ditt. Du får en engangskode på SMS.",
+        "card_text": "Bruk e-postadressen din. Du får en engangskode på e-post.",
         "first_user": "Instansen er ny og har ingen brukere ennå. Den første som logger inn, blir administrator.",
     },
 }

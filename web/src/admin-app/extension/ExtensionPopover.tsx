@@ -43,7 +43,9 @@ export default function ExtensionPopover() {
   if (!popoverOpen) return null;
 
   const sel = selection.trim();
-  const match = sel ? users.find((u) => !u.impersonation_only && (norm(u.phone) === norm(sel) || norm(u.phone) === norm("+45" + sel)
+  const match = sel ? users.find((u) => !u.impersonation_only && (
+    (u.phone && (norm(u.phone) === norm(sel) || norm(u.phone) === norm("+45" + sel)))
+    || (u.email && u.email === sel.toLowerCase())
     || (u.display_name && u.display_name.toLowerCase() === sel.toLowerCase()))) : undefined;
   const pillTone = status === "connected" ? TONE.green : status === "outdated" ? TONE.orange : TONE.gray;
   const pill = status === "connected" ? `Forbundet · v${version}` : status === "outdated" ? `Forældet · v${version ?? "?"}` : "Ikke installeret";
