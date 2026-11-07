@@ -26,6 +26,6 @@ Sets up a fresh fork of gaer-base for a customer, or a fresh local checkout.
    - UpCloud server with Docker and a `deploy` user; copy `deploy/.env.example` to `~/gaer/.env` and
      `deploy/app.env.example` to `~/gaer/app.env` and fill them in.
      Set `BOOTSTRAP_ADMIN_PHONE` to the customer's admin number, so nobody else can become admin on the new instance.
-   - GitHub environment `production`: secrets `HOST`, `SSH_KEY`, `SSH_KNOWN_HOSTS`. Variable `DOMAIN`. Images go to GHCR.
+   - GitHub environment `production`: secrets `HOST`, `SSH_KEY`, `SSH_KNOWN_HOSTS`. Variable `DOMAIN`. The image is streamed to the server over SSH.
    - Cloudflare Tunnel for the domain; its token is `TUNNEL_TOKEN` in `~/gaer/.env`.
 5. Never commit `.env` files or credentials.

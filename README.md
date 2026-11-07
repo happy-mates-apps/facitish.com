@@ -111,7 +111,7 @@ Ingen af dem kan forbinde til andre containeres databaser.
 Push til `main` → `.github/workflows/deploy.yml`:
 
 1. Test (Python mod Postgres, build af frontend)
-2. Byg ét image, tagget med commit-sha, og push til GitHub Container Registry (`ghcr.io`)
+2. Byg ét image, tagget med commit-sha, og send det direkte til UpCloud-serveren over SSH (`docker save | docker load`)
 3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
 4. `deploy.sh release`: start Postgres, migrér databasen, start den nye version med `docker compose`.
    Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.

@@ -33,7 +33,7 @@ release() {
   local image=$1 previous
   previous=$(cat .current_image 2>/dev/null || true)
   export IMAGE=$image
-  compose pull --quiet app cloudflared
+  compose pull --quiet cloudflared
   compose up -d --wait postgres
 
   log "migrating"
@@ -43,6 +43,9 @@ release() {
   if start "$image"; then
     echo "$image" > .current_image
     if [ -n "$previous" ] && [ "$previous" != "$image" ]; then echo "$previous" > .previous_image; fi
+    # Images are loaded straight from CI; keep only the current and previous one.
+    docker images --format '{{.Repository}}:{{.Tag}}' "${image%%:*}" \
+      | grep -vxF -e "$image" -e "$previous" | xargs -r docker rmi >/dev/null 2>&1 || true
     docker image prune -f >/dev/null
     log "released $image"
     return 0
