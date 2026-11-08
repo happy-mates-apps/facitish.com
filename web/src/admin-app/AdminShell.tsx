@@ -64,7 +64,7 @@ export default function AdminShell() {
               {g.items.map((n) => {
                 const b = badge(n.badge);
                 return (
-                  <NavLink key={n.path} to={n.path} end={n.path === "/"} style={{ textDecoration: "none" }}>
+                  <NavLink key={n.path} to={n.path} end={n.path === "/" || n.path === "/data"} style={{ textDecoration: "none" }}>
                     {({ isActive }) => (
                       <span className={isActive ? undefined : "tg-nav"} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, width: "100%",
                         boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, font: `${isActive ? 600 : 400} 13px ${SANS}`,

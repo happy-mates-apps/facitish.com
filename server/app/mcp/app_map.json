@@ -32,6 +32,18 @@
     "/admin/consent": {
       "anchors": []
     },
+    "/admin/data": {
+      "anchors": []
+    },
+    "/admin/data/:id": {
+      "anchors": []
+    },
+    "/admin/data/connect": {
+      "anchors": []
+    },
+    "/admin/data/explore": {
+      "anchors": []
+    },
     "/admin/features": {
       "anchors": [
         "feature-import",
