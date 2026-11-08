@@ -90,7 +90,9 @@
       "anchors": [
         "user-block",
         "user-drawer",
+        "user-mfa",
         "user-passkeys",
+        "user-profile",
         "user-role",
         "user-sessions"
       ]
@@ -144,6 +146,7 @@
         "account-mcp",
         "account-profile",
         "account-ring",
+        "account-security",
         "account-sessions"
       ]
     },
@@ -166,6 +169,7 @@
         "account-mcp",
         "account-profile",
         "account-ring",
+        "account-security",
         "account-sessions"
       ]
     },

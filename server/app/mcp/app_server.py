@@ -1,13 +1,17 @@
 """Tools for /mcp — the app. Always as the signed-in user, and only their own rows (`where user_id = %s`).
-Clips and the ring level are written directly (with audit); deleting a clip and a GDPR export are drafts.
+Clips, the ring level and the profile (name, language, time zone) are written directly (with audit); deleting a clip
+and a GDPR export are drafts. Security (passkeys, authenticator apps, "Kræv passkey") is read only here.
 """
 
-from app import config, db, gdpr
+from fastapi import HTTPException
+
+from app import config, db, gdpr, mfa
 from app.logs import audit
 from app.mcp.common import absolute, limit, masked, store_file
 from app.mcp.links import link_for, links_for
 from app.mcp.registry import Caller, DraftPlan, ToolError, ToolOutput, draft, tool
 from app.routes.features import DEFAULT_LEVEL, _set_level, user_level
+from app.routes.me import LOCALES, ProfileIn, clean_profile, update_profile_fields
 from app.storage import get_storage
 
 S = "app"
@@ -38,13 +42,14 @@ async def _own_clip(conn, caller: Caller, clip_id: int, lock: bool = False) -> d
 @tool(S, "whoami")
 async def whoami(args, caller: Caller) -> ToolOutput:
     async with db.connection() as conn:
-        user = await db.fetch_one(conn, "select id, display_name, phone, role, created_at from users where id = %s",
+        user = await db.fetch_one(conn, "select id, display_name, email, phone, role, created_at from users where id = %s",
                                   (caller.user_id,))
         session = await db.fetch_one(conn, """
             select s.id, s.created_at, c.name as client from sessions s left join mcp_clients c on c.id = s.mcp_client_id
             where s.id = %s""", (caller.principal.session_id,))
         level = await user_level(conn, caller.user_id)
-    return ToolOutput({"user": {"id": user["id"], "displayName": user["display_name"], "phone": masked(user["phone"]),
+    return ToolOutput({"user": {"id": user["id"], "displayName": user["display_name"], "email": masked(user["email"]),
+                                "phone": masked(user["phone"]),
                                 "role": user["role"], "createdAt": user["created_at"]},
                        "ring": {"level": level, "name": RING_NAMES[level]}, "session": session},
                       links=[x for x in [link_for(S, "whoami", {})] if x])
@@ -81,6 +86,61 @@ async def me_set_ring(args, caller: Caller) -> ToolOutput:
         await _set_level(conn, caller.user_id, None if ring == DEFAULT_LEVEL else ring, caller.principal)
     return ToolOutput({"level": ring, "name": RING_NAMES[ring]}, links=[x for x in [link_for(S, "me_set_ring", {})] if x],
                       text=f"Dit niveau er nu ring {ring} · {RING_NAMES[ring]}")
+
+
+# ── Profile and security ────────────────────────────────────────────────────
+
+@tool(S, "profile_get")
+async def profile_get(args, caller: Caller) -> ToolOutput:
+    async with db.connection() as conn:
+        u = await db.fetch_one(conn, """select display_name, email, phone, locale, time_zone, avatar_file_id is not null
+                                        as has_avatar, created_at from users where id = %s""", (caller.user_id,))
+    return ToolOutput({"profile": {"displayName": u["display_name"], "email": masked(u["email"]), "phone": masked(u["phone"]),
+                                   "locale": u["locale"], "timeZone": u["time_zone"], "hasAvatar": u["has_avatar"],
+                                   "createdAt": u["created_at"]}, "locales": list(LOCALES)},
+                      links=[x for x in [link_for(S, "profile_get", {})] if x])
+
+
+@tool(S, "profile_update")
+async def profile_update(args, caller: Caller) -> ToolOutput:
+    """Name, language and time zone. E-mail, phone, avatar and security are changed in the app (they need a code,
+    a file or a second factor)."""
+    sent = {{"displayName": "display_name", "timeZone": "time_zone"}.get(k, k): args[k]
+            for k in ("displayName", "locale", "timeZone") if k in args}
+    if not sent:
+        raise ToolError("Angiv mindst ét af displayName, locale og timeZone")
+    try:
+        values = clean_profile(ProfileIn(**sent))
+    except HTTPException as e:
+        raise ToolError(str(e.detail))
+    async with db.connection() as conn:
+        await update_profile_fields(conn, caller.user_id, values, actor_id=caller.user_id, meta=caller.principal.meta)
+    return ToolOutput({"updated": values}, links=[x for x in [link_for(S, "profile_update", {})] if x],
+                      text="Profilen er gemt")
+
+
+@tool(S, "security_get")
+async def security_get(args, caller: Caller) -> ToolOutput:
+    """Read only: factors are added and removed in the browser (WebAuthn needs it, and a second factor is asked for)."""
+    async with db.connection() as conn:
+        user = await db.fetch_one(conn, "select role, mfa_required, grace_logins_used from users where id = %s",
+                                  (caller.user_id,))
+        f = await mfa.factors(conn, caller.user_id)
+        keys = await db.fetch_all(conn, """select name, kind, created_at, last_used_at from passkeys where user_id = %s
+                                           order by created_at""", (caller.user_id,))
+        apps = await db.fetch_all(conn, """select name, created_at, last_used_at from totp_factors
+                                           where user_id = %s and confirmed_at is not null order by created_at""",
+                                  (caller.user_id,))
+    s = config.settings
+    admin = user["role"] == "admin"
+    return ToolOutput({
+        "mfaRequired": user["mfa_required"], "factors": f, "methods": mfa.methods(f),
+        "passkeys": [k for k in keys if k["kind"] == "passkey"],
+        "securityKeys": [k for k in keys if k["kind"] == "security_key"], "authenticatorApps": apps,
+        "admin": {"graceLoginsLeft": max(0, s.grace_logins - user["grace_logins_used"]) if not f["total"] else 0,
+                  "mfaHours": s.admin_mfa_hours} if admin else None,
+        "changeIn": absolute("/konto#sikkerhed"),
+    }, links=[x for x in [link_for(S, "security_get", {})] if x])
 
 
 # ── Clips ───────────────────────────────────────────────────────────────────

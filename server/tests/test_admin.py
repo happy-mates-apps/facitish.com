@@ -36,7 +36,9 @@ async def test_role_change_and_last_admin_protection(make_client, owner_conn):
     assert (await admin.patch(f"/api/admin/users/{user_id}/role", json={"role": "admin"})).status_code == 200
     row = owner_conn.execute("select before, after from audit_log where action = 'role.changed'").fetchone()
     assert row == ({"role": "user"}, {"role": "admin"})
-    assert (await user.get("/api/admin/users")).status_code == 200
+    # The new admin logged in with a code before the promotion: /admin first needs a second factor.
+    r = await user.get("/api/admin/users")
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "mfa_setup_required"
 
 
 async def test_block_revokes_sessions(make_client):

@@ -1,4 +1,4 @@
-"""Small security helpers: phone numbers, codes, tokens and request metadata."""
+"""Small security helpers: e-mail addresses, phone numbers, codes, tokens and request metadata."""
 
 import hashlib
 import hmac
@@ -12,6 +12,27 @@ from app import config
 
 class InvalidPhone(ValueError):
     pass
+
+
+class InvalidEmail(ValueError):
+    pass
+
+
+EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def normalize_email(raw: str) -> str:
+    """Trimmed and lower-cased. Only the shape is checked; the one-time code proves the address works."""
+    email = (raw or "").strip().lower()
+    if len(email) > 254 or not EMAIL_RE.fullmatch(email):
+        raise InvalidEmail("Ugyldig e-mailadresse")
+    return email
+
+
+def bootstrap_admin_email() -> str | None:
+    """BOOTSTRAP_ADMIN_EMAIL normalized, or None. Raises InvalidEmail if it is set but invalid."""
+    raw = config.settings.bootstrap_admin_email
+    return normalize_email(raw) if raw else None
 
 
 def normalize_phone(raw: str) -> str:
@@ -40,13 +61,22 @@ def mask_phone(phone: str | None) -> str | None:
     return f"{phone[:cc_len]} •••• ••{phone[-2:]}"
 
 
+def mask_contact(contact: str | None) -> str | None:
+    """niels@example.com -> n•••@example.com; phone numbers as mask_phone."""
+    if not contact or "@" not in contact:
+        return mask_phone(contact)
+    local, domain = contact.split("@", 1)
+    return f"{local[:1]}•••@{domain}"
+
+
 def _hmac(value: str, purpose: str) -> str:
     key = f"{config.settings.secret_key}:{purpose}".encode()
     return hmac.new(key, value.encode(), hashlib.sha256).hexdigest()
 
 
-def phone_hash(phone: str | None) -> str | None:
-    return _hmac(phone, "phone") if phone else None
+def phone_hash(contact: str | None) -> str | None:
+    """HMAC of a login contact (phone number or e-mail address), stored in auth_log.phone_hash."""
+    return _hmac(contact, "phone") if contact else None
 
 
 def new_otp_code() -> str:

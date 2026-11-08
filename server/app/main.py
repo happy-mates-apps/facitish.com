@@ -10,12 +10,13 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import config, db, retention
-from app.routes import admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public, web
+from app import config, db, mail, retention
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
-from app.security import bootstrap_admin_phone
+from app.routes import (admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public,
+                        security, web)
+from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -48,10 +49,15 @@ def csp_for(path: str) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    bootstrap = bootstrap_admin_phone()  # raises on an invalid BOOTSTRAP_ADMIN_PHONE
+    log = logging.getLogger("gaer")
+    # Both raise on an invalid BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PHONE.
+    bootstrap = bootstrap_admin_email() or (bootstrap_admin_phone() if config.settings.sms_login else None)
     if config.settings.is_production and not bootstrap:
-        logging.getLogger("gaer").warning(
-            "BOOTSTRAP_ADMIN_PHONE is not set: the first person to log in on a new instance becomes admin")
+        log.warning("BOOTSTRAP_ADMIN_EMAIL is not set: the first person to log in on a new instance becomes super admin")
+    if config.settings.demo_mode:
+        log.warning("DEMO_MODE is on: login codes are written to this log instead of being sent")
+    elif missing := mail.missing_config():
+        log.warning("e-mail is not configured, login codes cannot be sent: missing %s", ", ".join(missing))
     await db.open_pools()
     task = asyncio.create_task(retention.maintenance_loop()) if retention.enabled() else None
     async with mcp_sessions(app):
@@ -97,8 +103,9 @@ def create_app() -> FastAPI:
             await conn.execute("select 1")
         return {"ok": True, "version": config.settings.version}
 
-    for r in (auth.router, ai.router, me.router, files.router, clips.router, public.router, admin.router, app_store.router,
-              features.router, features.admin_router, impersonation.router, mcp_oauth.router, mcp_hub.router, office.router,
+    for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router, admin.router,
+              app_store.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
+              mcp_hub.router, office.router,
               web.router, files.memory_router):
         app.include_router(r)
 

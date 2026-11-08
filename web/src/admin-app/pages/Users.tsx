@@ -3,10 +3,9 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { api } from "../../api";
-import { useLoad } from "../../ui";
+import { Empty, ErrorBox, PageTitle, Pill, useLoad } from "../ui";
 import { card, SANS, tableHead } from "../theme";
-import { Empty, ErrorBox, PageTitle, Pill } from "../ui";
-import { isTest, userView, type AdminUser, type UsersResponse } from "../users";
+import { factorCount, isTest, userView, type AdminUser, type UsersResponse } from "../users";
 import UserDrawer from "./UserDrawer";
 
 const FILTERS: [key: string, label: string, test: (u: AdminUser) => boolean][] = [
@@ -15,6 +14,7 @@ const FILTERS: [key: string, label: string, test: (u: AdminUser) => boolean][] =
   ["blocked", "Spærrede", (u) => !!u.blocked_at],
   ["nopk", "Uden passkey", (u) => u.passkeys === 0 && !isTest(u)],
   ["admins", "Admins", (u) => u.role === "admin"],
+  ["adminnomfa", "Admins uden MFA", (u) => u.role === "admin" && !isTest(u) && factorCount(u) === 0],
   ["test", "Testkonti", isTest],
 ];
 const COLS = "minmax(240px,1.6fr) 110px 170px 130px 100px 40px";
@@ -37,7 +37,7 @@ export default function Users() {
   const grace = data?.grace_logins ?? 3;
   const fn = (FILTERS.find((f) => f[0] === filter) ?? FILTERS[0])[2];
   const needle = q.trim().toLowerCase().replace(/^\+?45\s?/, "");
-  const rows = users.filter(fn).filter((u) => !needle || `${u.display_name ?? ""} ${u.phone}`.toLowerCase().replace(/\s/g, "").includes(needle.replace(/\s/g, "")));
+  const rows = users.filter(fn).filter((u) => !needle || `${u.display_name ?? ""} ${u.email ?? ""} ${u.phone ?? ""}`.toLowerCase().replace(/\s/g, "").includes(needle.replace(/\s/g, "")));
   const sel = users.find((u) => u.id === selected) ?? null;
 
   return (

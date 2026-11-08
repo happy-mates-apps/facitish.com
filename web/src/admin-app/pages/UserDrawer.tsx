@@ -1,12 +1,12 @@
 // The user drawer on /admin/users (screen 03): facts and actions for one user.
 import { useNavigate } from "react-router-dom";
-import { Ban, KeyRound, LockOpen, LogOut, Phone, ScrollText, ShieldCheck, ShieldOff, type LucideIcon } from "lucide-react";
+import { Ban, KeyRound, LockOpen, LogOut, Mail, Phone, ScrollText, ShieldAlert, ShieldCheck, ShieldOff, UserPen, type LucideIcon } from "lucide-react";
 import { api, errorText } from "../../api";
 import { useAuth } from "../../auth";
 import { useAdmin } from "../context";
 import { dateLabel, lastLabel, phoneLabel, RING, sectionLabel, SANS } from "../theme";
 import { CloseBtn, Drawer, Pill, useToast } from "../ui";
-import { isTest, userView, type AdminUser } from "../users";
+import { factorCount, isTest, userView, type AdminUser } from "../users";
 
 type Action = { label: string; hint: string; icon: LucideIcon; run: () => void; danger?: boolean; disabled?: boolean; anchor?: string };
 
@@ -22,6 +22,7 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
   const isMe = u.id === me?.id;
   const admins = users.filter((x) => x.role === "admin" && !isTest(x) && !x.blocked_at).length;
   const lastAdmin = admins <= 1 && !test;
+  const sup = !!u.super_admin;
 
   const run = (call: () => Promise<unknown>, done: string) => async () => {
     try {
@@ -35,22 +36,41 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
 
   const actions: Action[] = [
     u.role === "admin"
-      ? { anchor: "user-role", label: "Fjern admin", hint: lastAdmin ? "Der skal altid være mindst én admin" : "Brugeren mister adgang til /admin", icon: ShieldOff,
-          run: run(() => api.patch(`/api/admin/users/${u.id}/role`, { role: "user" }), "Admin-rollen er fjernet"), disabled: lastAdmin }
+      ? { anchor: "user-role", label: "Fjern admin", hint: sup ? "Superadministratoren er altid admin" : lastAdmin ? "Der skal altid være mindst én admin" : "Brugeren mister adgang til /admin", icon: ShieldOff,
+          run: run(() => api.patch(`/api/admin/users/${u.id}/role`, { role: "user" }), "Admin-rollen er fjernet"), disabled: lastAdmin || sup }
       : { anchor: "user-role", label: "Gør til admin", hint: "Giver adgang til /admin", icon: ShieldCheck,
           run: run(() => api.patch(`/api/admin/users/${u.id}/role`, { role: "admin" }), "Brugeren er nu admin") },
     u.blocked_at
       ? { anchor: "user-block", label: "Ophæv spærring", hint: "Brugeren kan logge ind igen", icon: LockOpen,
           run: run(() => api.post(`/api/admin/users/${u.id}/unblock`), "Spærringen er ophævet") }
-      : { anchor: "user-block", label: "Spær", hint: isMe ? "Du kan ikke spærre dig selv" : "Logges ud alle steder og kan ikke logge ind", icon: Ban, danger: true, disabled: isMe,
+      : { anchor: "user-block", label: "Spær", hint: isMe ? "Du kan ikke spærre dig selv" : sup ? "Superadministratoren kan ikke spærres" : "Logges ud alle steder og kan ikke logge ind", icon: Ban, danger: true, disabled: isMe || sup,
           run: run(() => api.post(`/api/admin/users/${u.id}/block`), "Brugeren er spærret og logget ud") },
-    { anchor: "user-passkeys", label: "Nulstil passkeys", hint: u.passkeys ? "Skal oprette ny passkey efter login med engangskode" : "Ingen passkeys", icon: KeyRound, disabled: !u.passkeys,
+    { anchor: "user-mfa", label: "Nulstil MFA", hint: isMe ? "Dine egne nøgler styrer du under Konto"
+        : u.role === "admin" && !me?.super_admin ? "Kun superadministratoren kan nulstille en admins MFA"
+        : factorCount(u) || u.mfa_required ? "Sletter passkeys, sikkerhedsnøgler og godkendelsesapps og slår “Kræv passkey” fra" : "Ingen nøgler",
+      icon: ShieldAlert, danger: true, disabled: isMe || test || (u.role === "admin" && !me?.super_admin) || (!factorCount(u) && !u.mfa_required),
+      run: () => {
+        if (confirm(`Nulstil MFA for ${v.name}? Brugeren logges ud alle steder og logger ind med engangskode næste gang.`))
+          void run(() => api.post(`/api/admin/users/${u.id}/reset-mfa`), "MFA er nulstillet")();
+      } },
+    { anchor: "user-passkeys", label: "Nulstil passkeys", hint: u.passkeys ? "Sletter passkeys og sikkerhedsnøgler; godkendelsesapps bevares" : "Ingen passkeys", icon: KeyRound,
+      disabled: !u.passkeys || isMe || (u.role === "admin" && !me?.super_admin),
       run: run(() => api.post(`/api/admin/users/${u.id}/reset-passkeys`), "Passkeys er nulstillet") },
+    { anchor: "user-profile", label: "Ret navn", hint: "Visningsnavn i appen og i /admin", icon: UserPen,
+      run: () => {
+        const name = prompt(`Nyt navn for ${v.name}`, u.display_name ?? "");
+        if (name !== null) void run(() => api.patch(`/api/admin/users/${u.id}/profile`, { display_name: name }), "Navnet er rettet")();
+      } },
     { anchor: "user-sessions", label: "Log ud alle steder", hint: u.active_sessions ? `${u.active_sessions} aktive sessioner` : "Ingen aktive sessioner", icon: LogOut,
       disabled: !u.active_sessions, run: run(() => api.post(`/api/admin/users/${u.id}/revoke-sessions`), "Brugeren er logget ud alle steder") },
+    { label: "Ret e-mail", hint: "Rettelse efter GDPR. Brugeren logges ud alle steder", icon: Mail, disabled: test,
+      run: () => {
+        const email = prompt(`Ny e-mailadresse for ${v.name}`, u.email ?? "");
+        if (email) void run(() => api.patch(`/api/admin/users/${u.id}/email`, { email }), "E-mailadressen er rettet")();
+      } },
     { label: "Ret telefonnummer", hint: "Rettelse efter GDPR. Brugeren logges ud alle steder", icon: Phone, disabled: test,
       run: () => {
-        const phone = prompt(`Nyt telefonnummer for ${phoneLabel(u.phone)}`, "");
+        const phone = prompt(`Nyt telefonnummer for ${v.name}`, "");
         if (phone) void run(() => api.patch(`/api/admin/users/${u.id}/phone`, { phone }), "Telefonnummeret er rettet")();
       } },
     { label: "Se auth-log", hint: `/admin/logs/auth?user_id=${u.id}`, icon: ScrollText, run: () => navigate(`/logs/auth?user_id=${u.id}`) },
@@ -58,10 +78,13 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
 
   const ring = u.feature_ring;
   const facts: [string, string][] = [
-    ["Telefon", test ? "—" : phoneLabel(u.phone)],
+    ["E-mail", test ? "—" : u.email || "—"],
+    ["Telefon", test ? "—" : phoneLabel(u.phone) || "—"],
     ["Oprettet", dateLabel(u.created_at)],
     ["Sidst logget ind", lastLabel(u.last_login_at)],
-    ["Engangskoder brugt", test ? "—" : `${u.grace_logins_used} af ${grace}`],
+    ["Nøgler", test ? "—" : `${u.passkeys} passkey/sikkerhedsnøgle · ${u.totp} godkendelsesapp`],
+    ["Kræv passkey", test ? "—" : u.mfa_required ? "Til" : "Fra"],
+    ...(u.role === "admin" && !test ? [["Engangskoder til /admin", factorCount(u) ? "Har anden faktor" : `${u.grace_logins_used} af ${grace} brugt`] as [string, string]] : []),
     ["Sessioner", String(u.active_sessions)],
     ["Feature-niveau", ring ? `Ring ${ring} · ${RING[ring][0]}` : "Ring 4 · standard"],
   ];

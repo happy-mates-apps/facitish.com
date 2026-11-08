@@ -105,9 +105,11 @@ class McpEndpoint:
                                headers={"WWW-Authenticate": f'Bearer error="insufficient_scope", scope="{needed}"'})(
                 scope, receive, send)
             return
-        principal = Principal(session_id=grant.session_id, user_id=grant.user_id, phone=grant.phone, role=grant.role,
+        principal = Principal(session_id=grant.session_id, user_id=grant.user_id, email=grant.email, phone=grant.phone,
+                              role=grant.role,
                               scope="full", display_name=grant.display_name,
-                              meta=RequestMeta(ip=client_ip(request), user_agent=user_agent(request)))
+                              meta=RequestMeta(ip=client_ip(request), user_agent=user_agent(request)),
+                              super_admin=grant.super_admin)
         scope["gaer_mcp_caller"] = Caller(server=self.server, principal=principal, client_id=grant.client_id)
         # The SDK binds each MCP session to the credential that opened it.
         scope["user"] = AuthenticatedUser(AccessToken(token="-", client_id=grant.client_id, scopes=[grant.scope],

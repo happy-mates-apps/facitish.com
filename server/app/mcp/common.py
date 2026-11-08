@@ -5,7 +5,7 @@ import uuid
 from app import config, db
 from app.logs import audit
 from app.mcp.registry import Caller
-from app.security import mask_phone
+from app.security import mask_contact
 from app.storage import get_storage
 
 
@@ -13,9 +13,9 @@ def absolute(url: str) -> str:
     return config.settings.origin.rstrip("/") + url if url.startswith("/") else url
 
 
-def masked(phone: str | None) -> str | None:
-    """Test accounts have no phone number; their placeholder address is shown as it is."""
-    return phone if phone and "@" in phone else mask_phone(phone)
+def masked(contact: str | None) -> str | None:
+    """An e-mail address or phone number, masked like in the logs (n•••@example.com, +45 •••• ••78)."""
+    return mask_contact(contact)
 
 
 def limit(value: int | None, default: int, maximum: int) -> int:

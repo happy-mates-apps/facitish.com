@@ -52,6 +52,8 @@ os.environ.update({
     "MCP_DB_QUERY_URL": MCP_RO_URL,
     "STORAGE_BACKEND": "memory",
     "SMS_PROVIDER": "console",
+    "SMS_LOGIN": "1",  # most tests log in with a phone number; test_email_login covers the default
+    "MAIL_PROVIDER": "console",
     "RUN_MAINTENANCE": "0",
     "RP_ID": "localhost",
     "ORIGIN": "http://localhost:5173",

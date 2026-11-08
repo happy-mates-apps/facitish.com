@@ -8,9 +8,9 @@ import pytest
 
 from app.mcp import db_tools
 from app.mcp.registry import CATALOG, ToolError, check_catalog
-from tests.helpers import full_user, otp_login
+from tests.helpers import SoftAuthenticator, full_user, otp_login, register_passkey
 from tests.mcp_client import McpClient
-from tests.mcp_helpers import mcp_token
+from tests.mcp_helpers import REDIRECT, mcp_token, pkce, register
 
 SPEC_CATALOG = pathlib.Path(__file__).parents[2] / "specs" / "mcp" / "catalog.json"
 
@@ -355,3 +355,60 @@ async def test_disabled_server_is_404(make_client, monkeypatch):
     monkeypatch.setattr(config, "settings", replace(config.settings, mcp_app_enabled=False))
     r = await c.post("/mcp", json={}, headers={"authorization": f"Bearer {t['access_token']}"})
     assert r.status_code == 404
+
+
+# ── Profile, security and MFA ───────────────────────────────────────────────
+
+async def test_profile_and_security_tools(make_client, owner_conn):
+    c = make_client()
+    await full_user(c, "11111111")
+    m = await _connect(c)
+    done, err = await m.call("profile_update", displayName="Niels", locale="en", timeZone="Europe/Copenhagen")
+    assert not err and done["updated"] == {"display_name": "Niels", "locale": "en", "time_zone": "Europe/Copenhagen"}
+    _, err = await m.call("profile_update", locale="fr")
+    assert err
+    profile, _ = await m.call("profile_get")
+    assert profile["profile"]["displayName"] == "Niels" and profile["profile"]["timeZone"] == "Europe/Copenhagen"
+    sec, err = await m.call("security_get")
+    assert not err and sec["methods"] == ["passkey"] and sec["mfaRequired"] is False and "secret" not in str(sec)
+    assert sec["admin"] == {"graceLoginsLeft": 0, "mfaHours": 12}
+    row = owner_conn.execute("select after from audit_log where action = 'update' and table_name = 'users' order by id desc").fetchone()
+    assert row[0]["locale"] == "en"
+
+
+async def test_admin_mcp_needs_a_fresh_second_factor(make_client, owner_conn):
+    admin = make_client()
+    await otp_login(admin, "11111111")  # a grace login: /admin works, an admin MCP token does not
+    client_id = await register(admin)
+    verifier, challenge = pkce()
+    consent = {"client_id": client_id, "redirect_uri": REDIRECT, "code_challenge": challenge,
+               "code_challenge_method": "S256", "scope": "mcp:admin", "state": "xyz", "approve": True}
+    r = await admin.post("/api/mcp/consent", json=consent)
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "stepup_required"
+    consent["scope"] = "mcp"
+    assert (await admin.post("/api/mcp/consent", json=consent)).status_code == 200
+
+
+async def test_admin_mfa_reset_and_profile_drafts(make_client, owner_conn):
+    admin, user = await _admin_and_user(make_client)
+    await register_passkey(user, SoftAuthenticator())
+    await user.put("/api/me/mfa", json={"required": True})
+    user_id = owner_conn.execute("select id from users where phone = '+4522222222'").fetchone()[0]
+    m = await _connect(admin, "mcp:admin")
+
+    got, _ = await m.call("user_get", userId=user_id)
+    assert got["user"]["mfaRequired"] is True and got["user"]["passkeys"] == 1
+
+    d, err = await m.call("user_profile_set", userId=user_id, displayName="Anna", timeZone="Europe/Oslo")
+    assert not err and d["impact"]["diff"]["time_zone"] == [None, "Europe/Oslo"]
+    await m.call("confirm_draft", draftId=d["draftId"], reason="rettelse efter henvendelse")
+    assert owner_conn.execute("select display_name, time_zone from users where id = %s", (user_id,)).fetchone() == ("Anna", "Europe/Oslo")
+
+    d, err = await m.call("user_reset_mfa", userId=user_id, reason="mistet telefon")
+    assert not err and "Nulstil MFA" in d["summary"]
+    done, err = await m.call("confirm_draft", draftId=d["draftId"], reason="mistet telefon")
+    assert not err and done["result"]["deleted"] == {"keys": 1, "apps": 0}
+    assert owner_conn.execute("select mfa_required from users where id = %s", (user_id,)).fetchone()[0] is False
+    me = (await admin.get("/api/auth/me")).json()["user"]["id"]
+    _, err = await m.call("user_reset_mfa", userId=me, reason="mig selv")
+    assert err

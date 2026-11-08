@@ -11,11 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import config, db, gdpr, retention, settings_store
+from app import config, db, gdpr, mail, mfa, retention, settings_store
 from app.logs import audit, auth_event, changed
+from app.routes.auth import parse_email, parse_phone
 from app.routes.files import delete_file, save_upload
-from app.security import bootstrap_admin_phone, mask_phone, normalize_phone, phone_hash
-from app.sessions import Principal, require_admin, revoke_sessions
+from app.routes.me import ProfileIn, avatar_response, clean_profile, update_profile_fields
+from app.security import bootstrap_admin_email, bootstrap_admin_phone, mask_contact, normalize_email, normalize_phone, phone_hash
+from app.sessions import Principal, require_admin, require_admin_stepup, revoke_sessions
 from app.storage import get_storage
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -33,14 +35,15 @@ async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, ad
     # Test accounts are only shown to the admin who owns them.
     where, params = "where (not u.impersonation_only or u.impersonation_owner_id = %s)", [admin.user_id]
     if q:
-        where += " and (u.phone ilike %s or coalesce(u.display_name, '') ilike %s)"
-        params += [f"%{q.strip()}%", f"%{q.strip()}%"]
+        where += " and (u.email ilike %s or u.phone ilike %s or coalesce(u.display_name, '') ilike %s)"
+        params += [f"%{q.strip()}%"] * 3
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""
-            select u.id, u.phone, u.display_name, u.role, u.grace_logins_used, u.blocked_at, u.created_at,
-                   u.last_login_at, u.impersonation_only,
+            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used, u.blocked_at,
+                   u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required,
                    (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
+                   (select count(*) from totp_factors t where t.user_id = u.id and t.confirmed_at is not null) as totp,
                    (select count(*) from sessions s where s.user_id = u.id and s.revoked_at is null
                         and s.expires_at > now()) as active_sessions,
                    (select coalesce(sum(size_bytes), 0) from files f where f.user_id = u.id) as file_bytes
@@ -68,12 +71,19 @@ async def _ensure_not_last_admin(conn, user: dict) -> None:
             raise HTTPException(409, "Der skal være mindst én admin")
 
 
-# The user actions take a connection, so /api/admin and the MCP drafts (app/mcp/admin_server.py) share them.
+def _ensure_not_super_admin(user: dict) -> None:
+    if user["super_admin"]:
+        raise HTTPException(409, "Superadministratoren kan ikke mistes eller spærres")
+
+
+# The user actions take a connection, so /api/admin and the MCP drafts (app/mcp/admin_server.py) share them,
+# including the rules (super admin, last admin, who may reset whom).
 
 async def do_set_role(conn, user: dict, role: str, admin: Principal) -> None:
     if user["role"] == role:
         return
     if role != "admin":
+        _ensure_not_super_admin(user)
         await _ensure_not_last_admin(conn, user)
     await conn.execute("update users set role = %s, updated_at = now() where id = %s", (role, user["id"]))
     await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
@@ -83,6 +93,7 @@ async def do_set_role(conn, user: dict, role: str, admin: Principal) -> None:
 async def do_block(conn, user: dict, admin: Principal) -> int:
     if user["id"] == admin.user_id:
         raise HTTPException(409, "Du kan ikke spærre dig selv")
+    _ensure_not_super_admin(user)
     await _ensure_not_last_admin(conn, user)
     await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user["id"],))
     await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
@@ -97,12 +108,19 @@ async def do_unblock(conn, user: dict, admin: Principal) -> None:
 
 
 async def do_reset_passkeys(conn, user: dict, admin: Principal) -> int:
-    rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user["id"],))
+    """Deletes all passkeys and sessions. "Kræv passkey" is switched off if no other factor is left."""
+    await _ensure_may_reset(user, admin)
+    user_id = user["id"]
+    rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
     await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
-                before={"passkeys": rows}, subject_user_id=user["id"], reason="admin.reset_passkeys")
-    await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user["id"], phone=user["phone"],
-                     count=len(rows), by=admin.user_id)
-    await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="passkeys_reset", actor_id=admin.user_id)
+                before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
+    await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id,
+                     contact=user["email"] or user["phone"], count=len(rows), by=admin.user_id)
+    if user["mfa_required"] and not (await mfa.factors(conn, user_id))["total"]:
+        await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
+        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                    before={"mfa_required": True}, after={"mfa_required": False}, reason="admin.reset_passkeys")
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset", actor_id=admin.user_id)
     return len(rows)
 
 
@@ -115,7 +133,7 @@ async def do_revoke_sessions(conn, user: dict, admin: Principal) -> int:
 
 
 @router.patch("/users/{user_id}/role")
-async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin)):
+async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         await do_set_role(conn, await _user_or_404(conn, user_id), body.role, admin)
     return {"ok": True}
@@ -125,56 +143,155 @@ class AdminPhoneIn(BaseModel):
     phone: str = Field(max_length=32)
 
 
-@router.patch("/users/{user_id}/phone")
-async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends(require_admin)):
-    """Rectification by an admin, e.g. when a user lost the old number. The user's sessions are revoked
-    and passkeys are kept; the next login with a code goes to the new number."""
-    try:
-        phone = normalize_phone(body.phone)
-    except ValueError:
-        raise HTTPException(400, "Ugyldigt telefonnummer")
+class AdminEmailIn(BaseModel):
+    email: str = Field(max_length=254)
+
+
+async def _set_contact(user_id: int, channel: str, contact: str, admin: Principal) -> dict:
+    """Rectification by an admin, e.g. when a user lost access to the old address or number. The user's sessions
+    are revoked and passkeys are kept; the next login with a code goes to the new contact."""
     async with db.connection() as conn:
         user = await _user_or_404(conn, user_id)
         if user["impersonation_only"]:
-            raise HTTPException(409, "En testkonto har intet telefonnummer")
-        if phone == user["phone"]:
+            raise HTTPException(409, "En testkonto har ingen e-mail eller telefonnummer")
+        if contact == user[channel]:
             return {"ok": True}
-        if await db.fetch_one(conn, "select 1 from users where phone = %s", (phone,)):
-            raise HTTPException(409, "Nummeret bruges allerede af en anden bruger")
-        await conn.execute("update users set phone = %s, updated_at = now() where id = %s", (phone, user_id))
+        if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
+            raise HTTPException(409, "E-mailadressen bruges allerede af en anden bruger" if channel == "email"
+                                else "Nummeret bruges allerede af en anden bruger")
+        await conn.execute(f"update users set {channel} = %s, updated_at = now() where id = %s", (contact, user_id))
         await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"phone": user["phone"]}, after={"phone": phone}, reason="rectification")
-        await auth_event(conn, "phone.changed", ok=True, meta=admin.meta, user_id=user_id, phone=phone,
+                    before={channel: user[channel]}, after={channel: contact}, reason="rectification")
+        await auth_event(conn, f"{channel}.changed", ok=True, meta=admin.meta, user_id=user_id, contact=contact,
                          by=admin.user_id)
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="phone_changed", actor_id=admin.user_id)
+        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason=f"{channel}_changed",
+                              actor_id=admin.user_id)
     return {"ok": True}
 
 
+@router.patch("/users/{user_id}/email")
+async def set_email(user_id: int, body: AdminEmailIn, admin: Principal = Depends(require_admin_stepup)):
+    return await _set_contact(user_id, "email", parse_email(body.email), admin)
+
+
+@router.patch("/users/{user_id}/phone")
+async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends(require_admin_stepup)):
+    return await _set_contact(user_id, "phone", parse_phone(body.phone), admin)
+
+
 @router.post("/users/{user_id}/block")
-async def block_user(user_id: int, admin: Principal = Depends(require_admin)):
+async def block_user(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         await do_block(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/unblock")
-async def unblock_user(user_id: int, admin: Principal = Depends(require_admin)):
+async def unblock_user(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         await do_unblock(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/reset-passkeys")
-async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin)):
-    """Deletes all passkeys and sessions. The user logs in with a one-time code and must
-    register a new passkey (grace logins are not given back)."""
+async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin_stepup)):
+    """Deletes all passkeys and sessions. The user logs in with a one-time code and can add a new passkey
+    (grace logins are not given back). "Kræv passkey" is switched off if no other factor is left."""
     async with db.connection() as conn:
         n = await do_reset_passkeys(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True, "deleted": n}
 
 
+async def _ensure_may_reset(user: dict, admin: Principal) -> None:
+    """Resetting another admin's factors could hand over that admin account, so only the super admin may do it.
+    Your own factors are managed under /konto."""
+    if user["id"] == admin.user_id:
+        raise HTTPException(409, "Dine egne nøgler styrer du under Konto")
+    if user["role"] == "admin" and not admin.super_admin:
+        raise HTTPException(403, "Kun superadministratoren kan nulstille en anden administrators MFA")
+
+
+@router.post("/users/{user_id}/reset-mfa")
+async def reset_mfa(user_id: int, admin: Principal = Depends(require_admin_stepup)):
+    """A user who lost every second factor: deletes passkeys, security keys and authenticator apps, switches
+    "Kræv passkey" off and logs the user out everywhere. The next login is with a one-time code."""
+    async with db.connection() as conn:
+        deleted = await do_reset_mfa(conn, await _user_or_404(conn, user_id), admin)
+    return {"ok": True, "deleted": deleted}
+
+
+async def do_reset_mfa(conn, user: dict, admin: Principal) -> dict:
+    """Shared with the MCP draft user_reset_mfa."""
+    await _ensure_may_reset(user, admin)
+    user_id = user["id"]
+    keys = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name, kind", (user_id,))
+    apps = await db.fetch_all(conn, "delete from totp_factors where user_id = %s returning id, name", (user_id,))
+    await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
+    await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                before={"passkeys": keys, "totp_factors": apps, "mfa_required": user["mfa_required"]},
+                after={"mfa_required": False}, subject_user_id=user_id, reason="admin.reset_mfa")
+    await auth_event(conn, "mfa.reset", ok=True, meta=admin.meta, user_id=user_id,
+                     contact=user["email"] or user["phone"], keys=len(keys), apps=len(apps), by=admin.user_id)
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="mfa_reset", actor_id=admin.user_id)
+    return {"keys": len(keys), "apps": len(apps)}
+
+
+@router.get("/users/{user_id}")
+async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
+    """One user's profile and security status (factors, MFA, grace logins, sessions). Never secrets."""
+    async with db.connection() as conn:
+        user = await db.fetch_one(conn, """
+            select id, email, phone, display_name, locale, time_zone, role, super_admin, mfa_required,
+                   grace_logins_used, blocked_at, created_at, updated_at, last_login_at, impersonation_only,
+                   impersonation_owner_id, avatar_file_id is not null as has_avatar
+            from users where id = %s""", (user_id,))
+        if user is None or (user["impersonation_only"] and user["impersonation_owner_id"] != admin.user_id):
+            raise HTTPException(404, "Brugeren findes ikke")
+        f = await mfa.factors(conn, user_id)
+        keys = await db.fetch_all(conn, """select id, name, kind, created_at, last_used_at from passkeys
+                                           where user_id = %s order by created_at""", (user_id,))
+        apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors
+                                           where user_id = %s and confirmed_at is not null order by created_at""",
+                                  (user_id,))
+        sessions = await db.fetch_all(conn, """
+            select id, created_at, last_seen_at, expires_at, host(ip) as ip, user_agent, mfa_at, grace from sessions
+            where user_id = %s and scope = 'full' and revoked_at is null and expires_at > now()
+            order by last_seen_at desc""", (user_id,))
+    has_avatar = user.pop("has_avatar")
+    s = config.settings
+    return {
+        "user": {**user, "avatar_url": f"/api/admin/users/{user_id}/avatar" if has_avatar else None},
+        "security": {
+            "factors": f,
+            "methods": mfa.methods(f),
+            "keys": keys,
+            "totp": apps,
+            "grace_logins": s.grace_logins,
+            "grace_left": max(0, s.grace_logins - user["grace_logins_used"]) if user["role"] == "admin" and not f["total"] else None,
+        },
+        "sessions": sessions,
+    }
+
+
+@router.patch("/users/{user_id}/profile")
+async def set_user_profile(user_id: int, body: ProfileIn, admin: Principal = Depends(require_admin)):
+    """Rectification of name, language and time zone. E-mail and phone have their own endpoints."""
+    values = clean_profile(body)
+    async with db.connection() as conn:
+        user = await _user_or_404(conn, user_id)
+        if user["impersonation_only"] and user["impersonation_owner_id"] != admin.user_id:
+            raise HTTPException(404, "Brugeren findes ikke")
+        await update_profile_fields(conn, user_id, values, actor_id=admin.user_id, meta=admin.meta)
+    return {"ok": True}
+
+
+@router.get("/users/{user_id}/avatar")
+async def get_user_avatar(user_id: int, admin: Principal = Depends(require_admin)):
+    return await avatar_response(user_id)
+
+
 @router.post("/users/{user_id}/revoke-sessions")
-async def admin_revoke_sessions(user_id: int, admin: Principal = Depends(require_admin)):
+async def admin_revoke_sessions(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         n = await do_revoke_sessions(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True, "revoked": n}
@@ -186,11 +303,12 @@ def _auth_filters(user_id, phone, device, ip, event, result, date_from, date_to)
     where, params = [], []
     if user_id:
         where.append("user_id = %s"); params.append(user_id)
-    if phone:
+    if phone:  # the full e-mail address or phone number
         try:
-            where.append("phone_hash = %s"); params.append(phone_hash(normalize_phone(phone)))
+            contact = normalize_email(phone) if "@" in phone else normalize_phone(phone)
         except ValueError:
-            raise HTTPException(400, "Ugyldigt telefonnummer")
+            raise HTTPException(400, "Ugyldig e-mailadresse eller telefonnummer")
+        where.append("phone_hash = %s"); params.append(phone_hash(contact))
     if device:
         where.append("device ilike %s"); params.append(f"%{device}%")
     if ip:
@@ -407,7 +525,7 @@ async def gdpr_list(status: str | None = None):
     where, params = ("where g.status = %s", [status]) if status else ("", [])
     async with db.connection() as conn:
         return await db.fetch_all(conn, f"""
-            select g.*, u.phone as user_phone, u.display_name as user_name,
+            select g.*, coalesce(u.email, u.phone) as user_phone, u.display_name as user_name,
                    (g.status in ('received', 'in_progress') and g.due_at < now()) as overdue
             from gdpr_requests g left join users u on u.id = g.user_id {where}
             order by (g.status in ('received', 'in_progress')) desc, g.due_at""", params)
@@ -432,10 +550,13 @@ async def gdpr_update(request_id: int, body: GdprPatch, admin: Principal = Depen
         before = await _gdpr_or_404(conn, request_id)
         after = {"status": body.status or before["status"], "notes": before["notes"] if body.notes is None else body.notes,
                  "user_id": before["user_id"]}
-        if body.user_phone:
-            user = await db.fetch_one(conn, "select id from users where phone = %s", (normalize_phone(body.user_phone),))
+        if body.user_phone:  # e-mail address or phone number
+            if "@" in body.user_phone:
+                user = await db.fetch_one(conn, "select id from users where email = %s", (parse_email(body.user_phone),))
+            else:
+                user = await db.fetch_one(conn, "select id from users where phone = %s", (parse_phone(body.user_phone),))
             if user is None:
-                raise HTTPException(404, "Ingen bruger med det telefonnummer")
+                raise HTTPException(404, "Ingen bruger med den e-mail eller det telefonnummer")
             after["user_id"] = user["id"]
         done = after["status"] in ("completed", "rejected")
         await conn.execute("""
@@ -466,7 +587,7 @@ async def gdpr_export(request_id: int, admin: Principal = Depends(require_admin)
 
 
 @router.post("/gdpr/{request_id}/erase")
-async def gdpr_erase(request_id: int, admin: Principal = Depends(require_admin)):
+async def gdpr_erase(request_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         req = await _gdpr_or_404(conn, request_id)
     if req["user_id"] is None:
@@ -525,7 +646,7 @@ class PurgeUserIn(BaseModel):
 
 
 @router.post("/retention/users/{user_id}")
-async def retention_purge_user(user_id: int, body: PurgeUserIn, admin: Principal = Depends(require_admin)):
+async def retention_purge_user(user_id: int, body: PurgeUserIn, admin: Principal = Depends(require_admin_stepup)):
     if not set(body.logs) <= set(retention.LOGS):
         raise HTTPException(400, f"Gyldige logs: {', '.join(retention.LOGS)}")
     return {"deleted": await retention.purge_user(user_id, logs=body.logs, actor_id=admin.user_id, meta=admin.meta,
@@ -555,7 +676,7 @@ async def consent_overview(limit: int = 100, offset: int = 0):
             select count(*) filter (where statistics) as accepted,
                    count(*) filter (where not statistics) as declined from latest""")
         records = await db.fetch_all(conn, """
-            select c.id, c.ts, c.visitor_id, c.user_id, u.phone as user_phone, c.statistics, c.version, c.device
+            select c.id, c.ts, c.visitor_id, c.user_id, coalesce(u.email, u.phone) as user_phone, c.statistics, c.version, c.device
             from consents c left join users u on u.id = c.user_id
             order by c.ts desc limit %s offset %s""", (limit, offset))
         total = await db.fetch_one(conn, "select count(*) as n from consents")
@@ -589,11 +710,11 @@ async def files_overview(user_id: int | None = None, limit: int = 200, offset: i
     async with db.connection() as conn:
         totals = await db.fetch_one(conn, "select count(*) as files, coalesce(sum(size_bytes), 0) as bytes from files")
         per_user = await db.fetch_all(conn, """
-            select f.user_id, u.phone, u.display_name, count(*) as files, sum(f.size_bytes) as bytes
+            select f.user_id, coalesce(u.email, u.phone) as phone, u.display_name, count(*) as files, sum(f.size_bytes) as bytes
             from files f left join users u on u.id = f.user_id
-            group by f.user_id, u.phone, u.display_name order by bytes desc limit 100""")
+            group by f.user_id, u.email, u.phone, u.display_name order by bytes desc limit 100""")
         items = await db.fetch_all(conn, f"""
-            select f.id, f.user_id, u.phone, f.filename, f.content_type, f.size_bytes, f.created_at
+            select f.id, f.user_id, coalesce(u.email, u.phone) as phone, f.filename, f.content_type, f.size_bytes, f.created_at
             from files f left join users u on u.id = f.user_id {where}
             order by f.created_at desc limit %s offset %s""", params + [limit, offset])
     return {"totals": totals, "per_user": per_user, "items": items}
@@ -623,8 +744,10 @@ async def settings_get():
         "app_name": values["app_name"], "sms_sender": values["sms_sender"], "gdpr_email": values["gdpr_email"],
         "logo_url": "/api/public/logo" if values["logo_key"] else None,
         "environment": {"version": s.version, "env": s.environment, "sms_provider": s.sms_provider,
+                        "sms_login": s.sms_login, "mail_provider": s.mail_provider,
+                        "mail_missing": mail.missing_config(),
                         "storage": s.storage_backend, "rp_id": s.rp_id, "grace_logins": s.grace_logins,
-                        "bootstrap_admin": mask_phone(bootstrap_admin_phone())},
+                        "bootstrap_admin": mask_contact(bootstrap_admin_email() or bootstrap_admin_phone())},
     }
 
 
@@ -753,7 +876,7 @@ async def ai_overview():
     async with db.connection() as conn:
         default = await settings_store.get(conn, "ai_default_monthly_tokens")
         users = await db.fetch_all(conn, """
-            select u.id, u.phone, u.display_name, u.ai_monthly_tokens,
+            select u.id, coalesce(u.email, u.phone) as phone, u.display_name, u.ai_monthly_tokens,
                    coalesce(sum(a.prompt_tokens + a.completion_tokens), 0) as used,
                    count(a.id) as requests
             from users u left join ai_usage a on a.user_id = u.id and a.ts >= date_trunc('month', now())

@@ -10,7 +10,7 @@ the registered tools and the catalog differ. Code: `server/app/mcp/`.
 
 | | `/mcp` | `/mcp/admin` |
 |---|---|---|
-| Who | full session | `role = 'admin'`, not a test account, not impersonating |
+| Who | full session | `role = 'admin'`, not a test account, not impersonating; consent needs a fresh second factor |
 | Data | caller's own rows only | whole instance |
 | Writes | own data directly; delete/export → draft | always draft → `confirm_draft` |
 
@@ -23,7 +23,19 @@ the registered tools and the catalog differ. Code: `server/app/mcp/`.
 | `drafts.py` | `mcp_drafts`, `confirm_draft` / `cancel_draft` / `list_drafts`; confirm re-plans and compares `state_hash` |
 | `app_server.py`, `admin_server.py`, `db_tools.py` | the tools; `db_query` runs as `<db>_mcp_ro` (`MCP_DB_QUERY_URL`) |
 | `links.py`, `app_map.json` | deep links `/go?path=…&focus=…` / `/admin/go`, only if path + anchor are in the map |
-| `hub.py` | `/api/admin/mcp/*` for the hub at `/admin/mcp` (overview, tools, invoke, drafts, events, SSE stream) |
+| `hub.py` | `/api/admin/mcp/*` for the hub at `/admin/mcp` (overview, tools, invoke, drafts, events, SSE stream); confirming a draft there uses `require_admin_stepup` |
+
+## Login and MFA (skill `gaer-auth`)
+- The consent page `/forbind` uses the normal login: e-mail + code, and the second factor when the user's rules ask
+  for one. A pending `mfa` session cannot consent.
+- `mcp:admin` is only granted right after a second factor (`mfa_at` within `STEPUP_MINUTES`, else `403` +
+  `X-Gaer-Error: stepup_required` — the app's step-up dialog handles it). The token then lives for weeks, so this is
+  the moment MFA is checked; admin tools reuse the `/api/admin` helpers (`do_*`) with the same rules (super admin,
+  last admin, who may reset whom).
+- Profile and security tools: `/mcp` has `profile_get`, `profile_update` (name, language, time zone) and the
+  read-only `security_get`; `/mcp/admin` has `user_get` (incl. MFA status), and the drafts `user_profile_set` and
+  `user_reset_mfa`. Factors are never added or removed over MCP — that needs the browser (WebAuthn) and a second
+  factor; link to `/konto#sikkerhed`.
 
 ## Adding a tool
 - Add it to `specs/mcp/catalog.json` and copy the file to `server/app/mcp/catalog.json`.
@@ -36,6 +48,7 @@ the registered tools and the catalog differ. Code: `server/app/mcp/`.
   `npm run app-map --prefix web` (the build fails with `--check` when a catalog link has no anchor).
 
 ## Never
-- A new login path — MCP authorizes through the normal phone + code + passkey login.
+- A new login path — MCP authorizes through the normal login (code, second factor where required).
+- Tools that add or remove passkeys, security keys or authenticator apps, or switch "Kræv passkey" on or off.
 - App tools that read or write another user's rows.
 - Tools that grant admin to yourself, write SQL, touch log tables or return a session token.

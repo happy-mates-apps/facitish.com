@@ -17,7 +17,7 @@ from app import config, db
 from app.mcp import drafts, oauth
 from app.mcp.registry import CATALOG, Caller, invoke, tool_list
 from app.mcp.transport import enabled
-from app.sessions import Principal, require_admin
+from app.sessions import Principal, require_admin, require_admin_stepup
 
 router = APIRouter(prefix="/api/admin/mcp", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -93,7 +93,7 @@ async def _draft_server(draft_id: str, admin: Principal) -> str:
 
 
 @router.post("/drafts/{draft_id}/confirm")
-async def confirm(draft_id: str, body: ConfirmIn, admin: Principal = Depends(require_admin)):
+async def confirm(draft_id: str, body: ConfirmIn, admin: Principal = Depends(require_admin_stepup)):
     server = await _draft_server(draft_id, admin)
     result, is_error = await invoke(server, "confirm_draft", {"draftId": draft_id, "reason": body.reason}, _caller(server, admin))
     if is_error:

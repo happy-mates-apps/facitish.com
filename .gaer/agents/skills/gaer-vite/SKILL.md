@@ -9,17 +9,31 @@ Vite + React 19 + TypeScript + react-router. No UI framework: `web/src/styles.cs
 tokens (`--hm-*`) and a few components (`.card`, `.btn`, `.pill`, `.eyebrow`, `.table-wrap`, `.grid`, `.glow`).
 
 ## Structure
-- `App.tsx` — routes. `RequireUser` (optionally `admin`, `login="/m/login"` …) guards pages.
+- `App.tsx` — routes of the app on `/`. `RequireUser` (optionally `login="/m/login"` …) guards pages.
 - `api.ts` — **all** API calls (`api.get/post/put/patch/del`). Adds `X-Gaer: 1` (CSRF) and `X-Gaer-Embedded`.
-- `auth.tsx` — `useAuth()` (user, scope, config, refresh, logout), passkey helpers.
+  `ApiError.code` carries MFA errors; `setStepUpHandler` lets each app's step-up dialog repeat a call.
+- `security.tsx` — second-factor form, step-up dialog (mounted in `App.tsx`) and the passkey nudge for the app on /.
+- `auth.tsx` — `useAuth()` (user incl. `mfa`, scope, config, refresh, logout), passkey/security key/TOTP helpers.
 - `ui.tsx` — `useLoad`, `PageHeader`, `Alert`, `Pager`, `Json`, formatting (`fmtDate`, `fmtBytes` …, da-DK).
-- `pages/` (app), `admin/` (one file per `/admin/*` section, listed in `admin/sections.ts`),
-  `mobile/` (`/m`), `extension/` (`/extension`), `office/` (`/office-addin` + tools), `bridge/` (postMessage clients).
+- `pages/` (app), `mobile/` (`/m`), `extension/` (`/extension`), `office/` (`/office-addin` + tools),
+  `bridge/` (postMessage clients).
+- `admin-app/` — the **separate** admin app on `/admin` (entry `web/admin.html`, routes in `admin-app/main.tsx`,
+  menu in `admin-app/nav.ts`). It has its own shell, components (`admin-app/ui.tsx`) and styles
+  (`admin-app/base.css` + `admin.css`).
 - `tracker.ts` + `ConsentBanner.tsx` — self-hosted analytics; only anonymous page views without consent.
 
+## Two apps, one build
+`/` (`index.html`) and `/admin` (`admin.html`) are separate Vite entries with separate bundles. They share
+only `api.ts`, `auth.tsx`, `bridge/` and `deeplink.tsx` (and the login cookie). Everything else stays on its own side:
+`admin-app/` may not import the rest of `src/`, the rest of `src/` may not import `admin-app/`, and the shared
+modules only import each other. `appBoundary()` in `web/vite.config.ts` fails `npm run dev` and
+`npm run build` on a forbidden import — copy what you need instead of importing across.
+
 ## Login screens
-`pages/Login.tsx`: phone → code → (offer passkey | passkey required). Shows grace-login pills. Reused for
-`/extension/login` and `/m/login` via `home` / `embedded` props. Do not add other login flows (see `gaer-auth`).
+`pages/Login.tsx`: e-mail → code → then either the second factor (users with "Kræv passkey") or an offer to create
+a passkey (with the /admin grace count for admins). Reused for `/extension/login` and `/m/login` via `home` /
+`embedded` props. Do not add other login flows (see `gaer-auth`). Profile, account security, the step-up dialog and
+the /admin MFA gate: skill `gaer-profile`.
 
 ## Conventions
 - Danish UI text. Short sentences.

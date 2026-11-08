@@ -1,4 +1,4 @@
-from tests.helpers import SoftAuthenticator, full_user, otp_login, passkey_login, register_passkey
+from tests.helpers import SoftAuthenticator, full_user, otp_login, passkey_login, register_passkey, stepup
 
 
 async def test_first_user_becomes_admin(make_client, owner_conn):
@@ -11,28 +11,43 @@ async def test_first_user_becomes_admin(make_client, owner_conn):
     assert actions.count("admin.first_user") == 1
 
 
-async def test_three_grace_logins_then_passkey_required(make_client, owner_conn):
+async def test_admin_grace_logins_then_mfa_for_admin(make_client, owner_conn):
+    # The first user is admin: three logins with a code may enter /admin (grace), and each one offers a passkey.
     for expected_left in (2, 1, 0):
         client = make_client()
         body = await otp_login(client, "12345678")
-        assert body == {"status": "logged_in", "grace_left": expected_left, "offer_passkey": True,
+        assert body == {"status": "logged_in", "offer_passkey": True, "admin": True, "admin_grace_left": expected_left,
                         "became_admin": expected_left == 2}
-        assert (await client.get("/api/me/sessions")).status_code == 200
+        assert (await client.get("/api/admin/users")).status_code == 200
 
+    # Grace used up: the app still works, /admin asks for a second factor to be set up.
     client = make_client()
     body = await otp_login(client, "12345678")
-    assert body == {"status": "passkey_required", "reason": "grace_exhausted"}
-    # The enroll session may only register a passkey.
-    assert (await client.get("/api/me/sessions")).status_code == 403
-    assert (await client.get("/api/auth/me")).json()["scope"] == "enroll"
-
-    await register_passkey(client, SoftAuthenticator())
-    assert (await client.get("/api/auth/me")).json()["scope"] == "full"
+    assert body["status"] == "logged_in" and body["admin_grace_left"] == 0
     assert (await client.get("/api/me/sessions")).status_code == 200
+    r = await client.get("/api/admin/users")
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "mfa_setup_required"
+
+    # No factor yet: the first passkey may be added right after the code, and it opens /admin.
+    await register_passkey(client, SoftAuthenticator())
+    assert (await client.get("/api/admin/users")).status_code == 200
+    me = (await client.get("/api/auth/me")).json()
+    assert me["scope"] == "full" and me["user"]["mfa"]["admin_ok"] is True
 
     events = [r[0] for r in owner_conn.execute("select event from auth_log order by id").fetchall()]
     assert events.count("grace.used") == 3
     assert "passkey.registered" in events
+
+
+async def test_normal_users_are_only_nudged(make_client, owner_conn):
+    await otp_login(make_client(), "11111111")  # the admin
+    for _ in range(5):
+        client = make_client()
+        body = await otp_login(client, "22222222")
+        assert body == {"status": "logged_in", "offer_passkey": True, "admin": False, "admin_grace_left": None,
+                        "became_admin": False}
+        assert (await client.get("/api/me/sessions")).status_code == 200
+    assert owner_conn.execute("select grace_logins_used from users where phone = '+4522222222'").fetchone()[0] == 0
 
 
 async def test_passkey_login_and_new_device(make_client, owner_conn):
@@ -43,12 +58,13 @@ async def test_passkey_login_and_new_device(make_client, owner_conn):
     assert r.status_code == 200 and r.json() == {"status": "logged_in"}
     assert (await client.get("/api/auth/me")).json()["scope"] == "full"
 
-    # New device: a one-time code only allows registering a new passkey and uses no grace login.
-    grace_before = owner_conn.execute("select grace_logins_used from users").fetchone()[0]
+    # New device: a one-time code logs in, but adding another passkey needs the existing one first.
     client = make_client()
-    assert await otp_login(client, "12345678") == {"status": "passkey_required", "reason": "new_device"}
+    assert (await otp_login(client, "12345678"))["offer_passkey"] is False
+    r = await client.post("/api/auth/passkey/register/options")
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "stepup_required"
+    assert (await stepup(client, authenticator)).status_code == 200
     await register_passkey(client, SoftAuthenticator())
-    assert owner_conn.execute("select grace_logins_used from users").fetchone()[0] == grace_before
     assert owner_conn.execute("select count(*) from passkeys").fetchone()[0] == 2
 
 
@@ -164,7 +180,9 @@ async def test_bootstrap_phone_existing_user_is_promoted_once(make_client, boots
     assert (await otp_login(make_client(), "99887766"))["became_admin"] is True
     assert owner_conn.execute("select role from users where phone = '+4599887766'").fetchone()[0] == "admin"
     change = owner_conn.execute("select before, after, detail from audit_log where action = 'role.changed'").fetchone()
-    assert change[:2] == ({"role": "user"}, {"role": "admin"}) and change[2]["reason"] == "bootstrap_admin_phone"
+    # The first user is still the super admin, so the promoted number is a normal admin.
+    assert change[:2] == ({"role": "user"}, {"role": "admin", "super_admin": False})
+    assert change[2]["reason"] == "bootstrap_admin_phone"
 
 
 def test_invalid_bootstrap_phone_is_rejected(bootstrap):

@@ -52,9 +52,10 @@ registered tools and the catalog differ.
 2. `/.well-known/oauth-authorization-server` → authorize, token and registration endpoints,
    `scopes_supported: ["mcp", "mcp:admin"]`, `code_challenge_methods_supported: ["S256"]`.
 3. `POST /mcp/register` — dynamic client registration (public clients, PKCE required).
-4. `GET /mcp/authorize` — if not signed in, redirect to `/login?next=…` (phone + code, passkey rules
-   unchanged — **no new login path**). Then a consent page in `web/src/pages/McpConsent.tsx` (Danish):
-   client name, scope, what it may do. `mcp:admin` is refused at consent unless the user is admin.
+4. `GET /mcp/authorize` — if not signed in, redirect to `/login?next=…` (e-mail + code, second factor where the
+   rules ask for one — **no new login path**). Then a consent page in `web/src/pages/McpConsent.tsx` (Danish):
+   client name, scope, what it may do. `mcp:admin` is refused at consent unless the user is admin **and** proved a
+   second factor within `STEPUP_MINUTES` (`403` + `X-Gaer-Error: stepup_required`; the app's step-up dialog asks for it).
 5. `POST /mcp/token` — code → access token (1 h) + refresh token (30 days). Tokens are random, only the
    SHA-256 is stored (table `mcp_tokens`, same pattern as `sessions`). Refresh rotates.
 6. Every request: token → `Principal` (reuse `sessions.Principal`, `scope='full'`) → for `/mcp/admin`,
@@ -149,7 +150,8 @@ claude mcp add --transport http gaer-admin https://<domæne>/mcp/admin
 ## Never
 
 - A tool that grants the admin role to yourself, edits log tables, writes SQL, or hands out a session token.
-- A way to sign in that skips the code or passkey rules (MCP uses the normal login).
+- A way to sign in that skips the code or the second-factor rules (MCP uses the normal login).
+- Tools that add or remove second factors or switch "Kræv passkey" — that needs the browser and a second factor.
 - App tools that read or change another user's data.
 
 ## Verify (`server/tests/test_mcp.py`)
@@ -163,4 +165,6 @@ claude mcp add --transport http gaer-admin https://<domæne>/mcp/admin
 - Every call writes `mcp_log`; the app user cannot UPDATE/DELETE it.
 - Revoking sessions or blocking a user invalidates their MCP tokens.
 - Every catalog `link` resolves in `app_map.json`.
+- `mcp:admin` consent without a recent second factor → `stepup_required`; `profile_update` validates like
+  `PATCH /api/me/profile`; `user_reset_mfa` follows the super-admin rule and never resets yourself.
 - `pytest server` and `npm run build --prefix web` pass.

@@ -4,6 +4,7 @@ import { useAuth } from "./auth";
 import { FeatureGate } from "./features";
 import { GoPage, useDeepLinkFocus } from "./deeplink";
 import ConsentBanner from "./ConsentBanner";
+import { StepUpDialog } from "./security";
 import { trackPageview } from "./tracker";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -64,12 +65,11 @@ function TopBar() {
   );
 }
 
-function RequireUser({ children, admin = false, login = "/login" }: { children: ReactNode; admin?: boolean; login?: string }) {
+function RequireUser({ children, login = "/login" }: { children: ReactNode; login?: string }) {
   const { user, scope, loading } = useAuth();
   const location = useLocation();
   if (loading) return null;
   if (!user || scope !== "full") return <Navigate to={login} replace state={{ from: location.pathname + location.search }} />;
-  if (admin && user.role !== "admin") return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -135,6 +135,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <StepUpDialog />
       {!pathname.startsWith("/extension") && !pathname.startsWith("/office-addin") && <ConsentBanner />}
     </>
   );

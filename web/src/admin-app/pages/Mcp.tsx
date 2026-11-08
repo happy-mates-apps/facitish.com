@@ -5,10 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PlugZap } from "lucide-react";
 import { api, errorText } from "../../api";
-import { useLoad } from "../../ui";
 import { useAdmin } from "../context";
 import { card, MONO, SANS } from "../theme";
-import { copyText, ErrorBox, PageTitle, useToast } from "../ui";
+import { copyText, ErrorBox, PageTitle, useLoad, useToast } from "../ui";
 
 type Server = "app" | "admin";
 type Tab = "overview" | "tools" | "drafts" | "monitor" | "connect";

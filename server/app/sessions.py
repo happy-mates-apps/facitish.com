@@ -1,8 +1,11 @@
 """Session cookies and the FastAPI dependencies that guard endpoints.
 
 Two scopes:
-  full    normal login
-  enroll  after a one-time code when a passkey is required: may only register a passkey
+  full  normal login
+  mfa   a login that still needs its second factor (users with "Kræv passkey"): may only call /api/auth/mfa/*
+
+A full session also records when it proved a second factor (mfa_at) and whether it is an admin grace login (grace).
+/admin needs one of them, see require_admin and app.mfa.
 """
 
 from dataclasses import dataclass
@@ -10,8 +13,9 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request, Response
 
-from app import config, db
+from app import config, db, mfa
 from app.logs import RequestMeta, audit, auth_event
+from app.mfa import mfa_error
 from app.security import client_ip, new_token, token_hash, user_agent
 
 COOKIE = "gaer_session"
@@ -23,12 +27,21 @@ REAL_ONLY_PATHS = ("/api/admin", "/api/impersonation")
 class Principal:
     session_id: int
     user_id: int
-    phone: str
+    email: str | None
+    phone: str | None
     role: str
     scope: str
     display_name: str | None
     meta: RequestMeta
     impersonator_id: int | None = None  # set when an admin is viewing the app as this test account
+    super_admin: bool = False
+    mfa_at: datetime | None = None       # when this session proved a second factor
+    grace: bool = False                  # an admin grace login without a second factor
+    created_at: datetime | None = None
+
+    @property
+    def contact(self) -> str | None:
+        return self.email or self.phone
 
     @property
     def is_admin(self) -> bool:
@@ -65,17 +78,21 @@ def clear_session_cookie(response: Response, embedded: bool) -> None:
         response.delete_cookie(COOKIE, path="/")
 
 
-async def create_session(conn, response: Response, user_id: int, scope: str, meta: RequestMeta) -> None:
+async def create_session(conn, response: Response, user_id: int, scope: str, meta: RequestMeta, *,
+                         mfa: bool = False, grace: bool = False) -> int:
+    """Always a new random token: a pending or code-only session is never upgraded in place."""
+    assert scope in ("full", "mfa")
     token = new_token()
     s = config.settings
-    lifetime = timedelta(days=s.session_days) if scope == "full" else timedelta(minutes=s.enroll_session_minutes)
+    lifetime = timedelta(days=s.session_days) if scope == "full" else timedelta(minutes=s.mfa_session_minutes)
     expires = datetime.now(timezone.utc) + lifetime
-    await conn.execute(
-        """insert into sessions (user_id, token_hash, scope, expires_at, ip, user_agent)
-           values (%s, %s, %s, %s, %s, %s)""",
-        (user_id, token_hash(token), scope, expires, meta.ip, meta.user_agent),
+    row = await db.fetch_one(conn,
+        """insert into sessions (user_id, token_hash, scope, expires_at, ip, user_agent, mfa_at, grace)
+           values (%s, %s, %s, %s, %s, %s, case when %s then now() end, %s) returning id""",
+        (user_id, token_hash(token), scope, expires, meta.ip, meta.user_agent, mfa, grace),
     )
     set_session_cookie(response, token, int(lifetime.total_seconds()), meta.embedded)
+    return row["id"]
 
 
 async def revoke_sessions(conn, *, meta: RequestMeta, user_id: int, session_id: int | None = None,
@@ -109,8 +126,9 @@ async def _session_row(conn, token: str, impersonator_id: int | None = None) -> 
         where = "s.impersonator_id = %s and u.impersonation_only and u.impersonation_owner_id = %s"
         params = (token_hash(token), impersonator_id, impersonator_id)
     row = await db.fetch_one(conn, f"""
-        select s.id as session_id, s.scope, s.last_seen_at, u.id as user_id, u.phone, u.role,
-               u.display_name, u.blocked_at
+        select s.id as session_id, s.scope, s.last_seen_at, s.mfa_at, s.grace, s.created_at,
+               u.id as user_id, u.email, u.phone, u.role,
+               u.super_admin, u.display_name, u.blocked_at
         from sessions s join users u on u.id = s.user_id
         where s.token_hash = %s and s.revoked_at is null and s.expires_at > now() and {where}""", params)
     if row is None or row["blocked_at"] is not None:
@@ -134,11 +152,13 @@ async def _load(request: Request) -> Principal | None:
             imp = await _session_row(conn, imp_token, impersonator_id=row["user_id"])
             if imp is not None:
                 meta.impersonator_id = row["user_id"]
-                return Principal(session_id=imp["session_id"], user_id=imp["user_id"], phone=imp["phone"], role=imp["role"],
-                                 scope=imp["scope"], display_name=imp["display_name"], meta=meta,
-                                 impersonator_id=row["user_id"])
-    return Principal(session_id=row["session_id"], user_id=row["user_id"], phone=row["phone"],
-                     role=row["role"], scope=row["scope"], display_name=row["display_name"], meta=meta)
+                return Principal(session_id=imp["session_id"], user_id=imp["user_id"], email=imp["email"],
+                                 phone=imp["phone"], role=imp["role"], scope=imp["scope"],
+                                 display_name=imp["display_name"], meta=meta, impersonator_id=row["user_id"])
+    return Principal(session_id=row["session_id"], user_id=row["user_id"], email=row["email"], phone=row["phone"],
+                     role=row["role"], scope=row["scope"], display_name=row["display_name"], meta=meta,
+                     super_admin=row["super_admin"], mfa_at=row["mfa_at"], grace=row["grace"],
+                     created_at=row["created_at"])
 
 
 async def optional_principal(request: Request) -> Principal | None:
@@ -146,7 +166,7 @@ async def optional_principal(request: Request) -> Principal | None:
 
 
 async def any_session(request: Request) -> Principal:
-    """Full or enroll session. Only the passkey registration endpoints accept enroll sessions."""
+    """Full or pending ('mfa') session. Only the second-factor endpoints (/api/auth/mfa/*) accept pending sessions."""
     principal = await _load(request)
     if principal is None:
         raise HTTPException(401, "Ikke logget ind")
@@ -155,17 +175,37 @@ async def any_session(request: Request) -> Principal:
 
 async def current_user(principal: Principal = Depends(any_session)) -> Principal:
     if principal.scope != "full":
-        raise HTTPException(403, "Opret en passkey for at fortsætte")
+        raise mfa_error("mfa_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp for at fortsætte")
     return principal
+
+
+def admin_mfa_ok(principal: Principal) -> bool:
+    """A second factor within ADMIN_MFA_HOURS, or a grace login younger than that."""
+    window = timedelta(hours=config.settings.admin_mfa_hours)
+    return mfa.within(principal.mfa_at, window) or (principal.grace and mfa.within(principal.created_at, window))
 
 
 async def require_admin(request: Request, principal: Principal = Depends(current_user)) -> Principal:
     """Everything in /admin is audited. Changes write their own detailed entries;
-    reads are logged here as admin.read with the path and query."""
+    reads are logged here as admin.read with the path and query.
+    After the grace logins /admin also needs a second factor (403 + X-Gaer-Error: mfa_required / mfa_setup_required)."""
     if not principal.is_admin:
         raise HTTPException(403, "Kræver admin-rollen")
-    if request.method == "GET":
-        async with db.connection() as conn:
+    async with db.connection() as conn:
+        if not admin_mfa_ok(principal):
+            if (await mfa.factors(conn, principal.user_id))["total"]:
+                raise mfa_error("mfa_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp")
+            raise mfa_error("mfa_setup_required",
+                            "Administrationen kræver en passkey, sikkerhedsnøgle eller godkendelsesapp. Opret en for at fortsætte.")
+        if request.method == "GET":
             await audit(conn, "admin.read", actor_id=principal.user_id, meta=principal.meta,
                         path=request.url.path, query=str(request.url.query) or None)
+    return principal
+
+
+async def require_admin_stepup(principal: Principal = Depends(require_admin)) -> Principal:
+    """Security actions in /admin (roles, contact details, blocking, MFA reset, erasure, impersonation …): a second
+    factor proven within STEPUP_MINUTES. A grace login is not enough."""
+    if not mfa.within(principal.mfa_at, timedelta(minutes=config.settings.stepup_minutes)):
+        raise mfa_error("stepup_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp først")
     return principal

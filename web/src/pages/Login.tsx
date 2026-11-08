@@ -2,30 +2,30 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { api, errorText } from "../api";
-import { loginWithPasskey, passkeyErrorText, registerPasskey, useAuth } from "../auth";
+import { loginWithPasskey, passkeyErrorText, registerPasskey, useAuth, type LoginResult, type MfaMethod } from "../auth";
+import { SecondFactor } from "../security";
 import { Alert } from "../ui";
 
+// After the code: users with "Kræv passkey" prove their second factor (step "mfa"); everybody else is logged in
+// and offered a passkey (step "offer"). Admins also see how many grace logins /admin has left.
 type Step =
   | { kind: "phone" }
   | { kind: "code"; devCode?: string }
-  | { kind: "offer"; graceLeft: number; admin: boolean }
-  | { kind: "enroll"; reason: "grace_exhausted" | "new_device" };
-
-type VerifyResult =
-  | { status: "logged_in"; grace_left: number; offer_passkey: boolean; became_admin?: boolean }
-  | { status: "passkey_required"; reason: "grace_exhausted" | "new_device" };
+  | { kind: "offer"; adminGraceLeft: number | null; becameAdmin: boolean }
+  | { kind: "mfa"; methods: MfaMethod[] };
 
 const GRACE_LOGINS = 3;
 
-function GracePills({ used }: { used: number }) {
+function GracePills({ left }: { left: number }) {
+  const used = GRACE_LOGINS - left;
   return (
-    <div className="grace-row" aria-label={`${used} af ${GRACE_LOGINS} logins med engangskode brugt`}>
+    <div className="grace-row" aria-label={`${used} af ${GRACE_LOGINS} logins til administrationen med engangskode brugt`}>
       {Array.from({ length: GRACE_LOGINS }, (_, i) => (
         <span key={i} className={`pill ${i < used ? "blue" : ""}`}>
           {i + 1} · engangskode
         </span>
       ))}
-      <span className="pill dark">Derefter passkey</span>
+      <span className="pill dark">Derefter nøgle til /admin</span>
     </div>
   );
 }
@@ -41,18 +41,28 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   // /admin is a separate app, so it needs a full page load.
   const goFrom = () => (from === "/admin" || from.startsWith("/admin/") ? window.location.assign(from) : navigate(from, { replace: true }));
   const [step, setStep] = useState<Step>({ kind: "phone" });
+  const [channel, setChannel] = useState<"email" | "phone">("email");
   const [phone, setPhone] = useState("");
+  const contact = channel === "email" ? { email: phone.trim() } : { phone };
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supportsPasskey = browserSupportsWebAuthn();
 
-  // Arriving with an enroll session (e.g. after a reload) goes straight to passkey creation.
+  // Arriving with a pending login (e.g. after a reload) goes straight to the second factor.
   useEffect(() => {
-    if (user && scope === "enroll" && step.kind === "phone") setStep({ kind: "enroll", reason: user.passkeys ? "new_device" : "grace_exhausted" });
+    if (user && scope === "mfa" && step.kind === "phone") setStep({ kind: "mfa", methods: user.mfa.methods });
     if (user && scope === "full" && step.kind === "phone") goFrom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, scope, step.kind, from]);
+
+  const after = async (res: LoginResult) => {
+    await refresh();
+    if (res.status === "mfa_required") setStep({ kind: "mfa", methods: res.methods });
+    else if ((res.offer_passkey && supportsPasskey) || res.became_admin || (res.admin_grace_left ?? null) !== null)
+      setStep({ kind: "offer", adminGraceLeft: res.admin_grace_left ?? null, becameAdmin: !!res.became_admin });
+    else goFrom();
+  };
 
   const run = async (fn: () => Promise<void>, passkey = false) => {
     setBusy(true);
@@ -69,7 +79,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const sendCode = (e?: FormEvent) => {
     e?.preventDefault();
     run(async () => {
-      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", { phone });
+      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", contact);
       setCode("");
       setStep({ kind: "code", devCode: res.dev_code });
     });
@@ -78,14 +88,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const verify = (e: FormEvent) => {
     e.preventDefault();
     run(async () => {
-      const res = await api.post<VerifyResult>("/api/auth/otp/verify", { phone, code });
-      await refresh();
-      if (res.status === "logged_in") {
-        if (supportsPasskey || res.became_admin) setStep({ kind: "offer", graceLeft: res.grace_left, admin: !!res.became_admin });
-        else goFrom();
-      } else {
-        setStep({ kind: "enroll", reason: res.reason });
-      }
+      await after(await api.post<LoginResult>("/api/auth/otp/verify", { ...contact, code }));
     });
   };
 
@@ -96,12 +99,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
       goFrom();
     }, true);
 
-  const passkeyLogin = () =>
-    run(async () => {
-      await loginWithPasskey();
-      await refresh();
-      goFrom();
-    }, true);
+  const passkeyLogin = () => run(async () => after(await loginWithPasskey()), true);
 
   return (
     <div className={`auth-shell${embedded ? " embedded" : ""}`}>
@@ -111,23 +109,39 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
             <form className="stack" style={{ "--gap": "16px" } as React.CSSProperties} onSubmit={sendCode}>
               <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
                 <div className="eyebrow">Log ind</div>
-                <h2>Dit telefonnummer</h2>
-                <p className="muted small">Vi sender en engangskode på SMS.</p>
+                <h2>{channel === "email" ? "Din e-mailadresse" : "Dit telefonnummer"}</h2>
+                <p className="muted small">{channel === "email" ? "Vi sender en engangskode på mail." : "Vi sender en engangskode på SMS."}</p>
               </div>
               {config?.first_user && (
                 <Alert kind="warn">
-                  Instansen er ny og har ingen brugere. Du bliver den første bruger og dermed <strong>administrator</strong>.
+                  Instansen er ny og har ingen brugere. Du bliver den første bruger og dermed <strong>superadministrator</strong>.
                 </Alert>
               )}
-              <label className="field">
-                Telefonnummer
-                <input type="tel" autoComplete="tel" inputMode="tel" placeholder="12 34 56 78" value={phone}
-                       onChange={(e) => setPhone(e.target.value)} required autoFocus />
-              </label>
+              {config?.demo_mode && (
+                <Alert kind="info">Demo: koden bliver ikke sendt, men skrevet i serverens log.</Alert>
+              )}
+              {channel === "email" ? (
+                <label className="field">
+                  E-mail
+                  <input type="email" autoComplete="email" placeholder="navn@firma.dk" value={phone}
+                         onChange={(e) => setPhone(e.target.value)} required autoFocus />
+                </label>
+              ) : (
+                <label className="field">
+                  Telefonnummer
+                  <input type="tel" autoComplete="tel" inputMode="tel" placeholder="12 34 56 78" value={phone}
+                         onChange={(e) => setPhone(e.target.value)} required autoFocus />
+                </label>
+              )}
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" disabled={busy || phone.trim().length < 6}>
                 Send kode
               </button>
+              {config?.sms_login && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setChannel(channel === "email" ? "phone" : "email"); setPhone(""); setError(null); }}>
+                  {channel === "email" ? "Brug telefonnummer i stedet" : "Brug e-mail i stedet"}
+                </button>
+              )}
               {supportsPasskey && (
                 <>
                   <div className="row muted tiny" style={{ justifyContent: "center" }}>eller</div>
@@ -152,7 +166,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" disabled={busy || code.length !== 6}>Log ind</button>
               <div className="spread">
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep({ kind: "phone" })}>Skift nummer</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep({ kind: "phone" })}>{channel === "email" ? "Skift e-mail" : "Skift nummer"}</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => sendCode()} disabled={busy}>Send ny kode</button>
               </div>
             </form>
@@ -164,35 +178,31 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                 <div className="eyebrow">Du er logget ind</div>
                 <h2>Opret en passkey</h2>
                 <p className="muted small">
-                  Med en passkey logger du ind med fingeraftryk, ansigt eller enhedens kode. Du kan logge ind med
-                  engangskode {GRACE_LOGINS} gange. Derefter skal du have en passkey.
+                  Næste gang logger du ind med fingeraftryk, ansigt eller enhedens kode, uden at vente på en mail.
+                  {step.adminGraceLeft !== null && " Administrationen kræver en passkey, sikkerhedsnøgle eller godkendelsesapp efter "
+                    + `${GRACE_LOGINS} logins med engangskode.`}
                 </p>
               </div>
-              {step.admin && <Alert kind="success">Du er den første bruger og er nu administrator. Du finder administrationen under /admin.</Alert>}
-              <GracePills used={GRACE_LOGINS - step.graceLeft} />
+              {step.becameAdmin && <Alert kind="success">Du er den første bruger og er nu {user?.super_admin ? "superadministrator" : "administrator"}. Du finder administrationen under /admin.</Alert>}
+              {step.adminGraceLeft !== null && <GracePills left={step.adminGraceLeft} />}
+              {!supportsPasskey && <Alert kind="info">Din browser understøtter ikke passkeys. Du kan bruge en godkendelsesapp under Konto.</Alert>}
               <Alert>{error}</Alert>
-              <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy}>Opret passkey nu</button>
+              {supportsPasskey && <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy}>Opret passkey nu</button>}
               <button className="btn btn-ghost btn-block" onClick={() => goFrom()}>
-                {step.graceLeft > 0 ? `Senere (${step.graceLeft} ${step.graceLeft === 1 ? "login" : "logins"} tilbage)` : "Senere"}
+                {step.adminGraceLeft !== null && step.adminGraceLeft > 0
+                  ? `Ikke nu (${step.adminGraceLeft} ${step.adminGraceLeft === 1 ? "login" : "logins"} til /admin tilbage)` : "Ikke nu"}
               </button>
             </div>
           )}
 
-          {step.kind === "enroll" && (
+          {step.kind === "mfa" && (
             <div className="stack" style={{ "--gap": "16px" } as React.CSSProperties}>
               <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
-                <div className="eyebrow">Passkey kræves</div>
-                <h2>{step.reason === "new_device" ? "Ny enhed" : "Opret en passkey for at fortsætte"}</h2>
-                <p className="muted small">
-                  {step.reason === "new_device"
-                    ? "Du har bekræftet dit nummer. Opret en passkey på denne enhed for at logge ind. Det tæller ikke som et login med engangskode."
-                    : `Du har brugt dine ${GRACE_LOGINS} logins med engangskode. Opret en passkey for at komme videre.`}
-                </p>
+                <div className="eyebrow">Totrinsbekræftelse</div>
+                <h2>Bekræft at det er dig</h2>
+                <p className="muted small">Din konto kræver en passkey, sikkerhedsnøgle eller kode fra din godkendelsesapp.</p>
               </div>
-              {step.reason === "grace_exhausted" && <GracePills used={GRACE_LOGINS} />}
-              {!supportsPasskey && <Alert kind="warn">Din browser understøtter ikke passkeys. Prøv en nyere browser eller en anden enhed.</Alert>}
-              <Alert>{error}</Alert>
-              <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy || !supportsPasskey}>Opret passkey</button>
+              <SecondFactor methods={step.methods} onDone={async () => { await refresh(); goFrom(); }} />
             </div>
           )}
         </div>

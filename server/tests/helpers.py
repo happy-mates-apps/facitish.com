@@ -41,11 +41,12 @@ class SoftAuthenticator:
                 "response": {"clientDataJSON": bytes_to_base64url(client_data),
                              "attestationObject": bytes_to_base64url(attestation), "transports": ["internal"]}}
 
-    def assert_(self, options: dict) -> dict:
+    def assert_(self, options: dict, uv: bool = True) -> dict:
+        """uv=False is a key used without PIN/biometrics: possession only."""
         self.sign_count += 1
         client_data = self._client_data("webauthn.get", options["challenge"])
         rp_hash = hashlib.sha256(RP_ID.encode()).digest()
-        auth_data = rp_hash + bytes([0x01 | 0x04]) + struct.pack(">I", self.sign_count)
+        auth_data = rp_hash + bytes([0x01 | (0x04 if uv else 0)]) + struct.pack(">I", self.sign_count)
         signature = self.key.sign(auth_data + hashlib.sha256(client_data).digest(), ec.ECDSA(hashes.SHA256()))
         cid = bytes_to_base64url(self.credential_id)
         return {"id": cid, "rawId": cid, "type": "public-key",
@@ -71,11 +72,27 @@ async def register_passkey(client, authenticator: SoftAuthenticator) -> None:
     assert r.status_code == 200, r.text
 
 
-async def passkey_login(client, authenticator: SoftAuthenticator):
+async def passkey_login(client, authenticator: SoftAuthenticator, uv: bool = True):
     r = await client.post("/api/auth/passkey/login/options")
     body = r.json()
     return await client.post("/api/auth/passkey/login/verify",
-                             json={"challenge_id": body["challenge_id"], "credential": authenticator.assert_(body["options"])})
+                             json={"challenge_id": body["challenge_id"],
+                                   "credential": authenticator.assert_(body["options"], uv=uv)})
+
+
+async def stepup(client, authenticator: SoftAuthenticator, uv: bool = True):
+    """Proves the second factor with a passkey (completes a pending login or steps up a full session)."""
+    r = await client.post("/api/auth/mfa/passkey/options")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    return await client.post("/api/auth/mfa/passkey/verify",
+                             json={"challenge_id": body["challenge_id"],
+                                   "credential": authenticator.assert_(body["options"], uv=uv)})
+
+
+def totp_code(secret: str, offset_steps: int = 0) -> str:
+    from app import totp
+    return totp.code_at(secret, totp.current_step() + offset_steps)
 
 
 async def full_user(client, phone: str) -> SoftAuthenticator:
@@ -86,4 +103,5 @@ async def full_user(client, phone: str) -> SoftAuthenticator:
     return authenticator
 
 
-__all__ = ["SoftAuthenticator", "otp_login", "register_passkey", "passkey_login", "full_user", "base64url_to_bytes"]
+__all__ = ["SoftAuthenticator", "otp_login", "register_passkey", "passkey_login", "full_user", "stepup", "totp_code",
+           "base64url_to_bytes"]

@@ -7,7 +7,9 @@ Never here: granting admin to yourself, writing to log tables, SQL writes, or ha
 
 from datetime import datetime
 
-from app import config, db, gdpr, settings_store
+from fastapi import HTTPException
+
+from app import config, db, gdpr, mfa, settings_store
 from app.features_catalog import CATALOG as FEATURE_CATALOG
 from app.logs import audit, changed
 from app.mcp import app_map, db_tools
@@ -17,7 +19,8 @@ from app.mcp.registry import Caller, DraftPlan, ToolError, ToolOutput, draft, to
 from app.routes import admin as admin_routes
 from app.routes import features as feature_routes
 from app.routes import impersonation as imp_routes
-from app.security import InvalidPhone, normalize_phone
+from app.routes.me import ProfileIn, clean_profile, update_profile_fields
+from app.security import InvalidEmail, InvalidPhone, normalize_email, normalize_phone
 
 S = "admin"
 RING_NAMES = {1: "Internt", 2: "Beta", 3: "Preview", 4: "Stabilt"}
@@ -35,7 +38,7 @@ async def _user(conn, user_id: int, lock: bool = False) -> dict:
 
 
 def _name(u: dict) -> str:
-    return u["display_name"] or masked(u["phone"]) or f"#{u['id']}"
+    return u["display_name"] or masked(u.get("email") or u["phone"]) or f"#{u['id']}"
 
 
 async def _active_sessions(conn, user_id: int) -> int:
@@ -50,8 +53,8 @@ async def _active_sessions(conn, user_id: int) -> int:
 async def whoami(args, caller: Caller) -> ToolOutput:
     async with db.connection() as conn:
         user = await _user(conn, caller.user_id)
-    return ToolOutput({"user": {"id": user["id"], "displayName": user["display_name"], "phone": masked(user["phone"]),
-                                "role": user["role"]},
+    return ToolOutput({"user": {"id": user["id"], "displayName": user["display_name"], "email": masked(user["email"]),
+                                "phone": masked(user["phone"]), "role": user["role"]},
                        "sessionId": caller.principal.session_id, "client": caller.client_id,
                        "draftTtlMinutes": config.settings.mcp_draft_ttl_min, "instance": config.settings.origin})
 
@@ -127,16 +130,18 @@ USER_FILTERS = {
     "nopk": "not u.impersonation_only and not exists (select 1 from passkeys p where p.user_id = u.id)",
     "admins": "u.role = 'admin'", "test": "u.impersonation_only",
 }
-USER_COLUMNS = """u.id, u.display_name, u.phone, u.role, u.blocked_at, u.created_at, u.last_login_at, u.grace_logins_used,
-                  u.impersonation_only,
+USER_COLUMNS = """u.id, u.display_name, u.email, u.phone, u.role, u.blocked_at, u.created_at, u.last_login_at, u.grace_logins_used,
+                  u.impersonation_only, u.mfa_required, u.locale, u.time_zone,
                   (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
+                  (select count(*) from totp_factors t where t.user_id = u.id and t.confirmed_at is not null) as totp,
                   (select count(*) from sessions s where s.user_id = u.id and s.revoked_at is null and s.expires_at > now())
                       as active_sessions"""
 
 
 def _user_out(u: dict) -> dict:
-    return {"userId": u["id"], "name": u["display_name"], "phone": masked(u["phone"]), "role": u["role"],
+    return {"userId": u["id"], "name": u["display_name"], "email": masked(u["email"]), "phone": masked(u["phone"]), "role": u["role"],
             "blocked": u["blocked_at"] is not None, "testAccount": u["impersonation_only"], "passkeys": u["passkeys"],
+            "authenticatorApps": u["totp"], "mfaRequired": u["mfa_required"],
             "activeSessions": u["active_sessions"], "graceLoginsUsed": u["grace_logins_used"],
             "lastLoginAt": u["last_login_at"], "createdAt": u["created_at"]}
 
@@ -150,10 +155,14 @@ async def user_search(args, caller: Caller) -> ToolOutput:
     where = [USER_FILTERS[f], "(not u.impersonation_only or u.impersonation_owner_id = %s)"]
     params: list = [caller.user_id]
     if q and q != "*":
-        try:  # phone numbers are matched in full, never by fragment
-            where.append("u.phone = %s")
-            params.append(normalize_phone(q))
-        except InvalidPhone:
+        try:  # e-mail addresses and phone numbers are matched in full, never by fragment
+            if "@" in q:
+                where.append("u.email = %s")
+                params.append(normalize_email(q))
+            else:
+                where.append("u.phone = %s")
+                params.append(normalize_phone(q))
+        except (InvalidEmail, InvalidPhone):
             where.append("coalesce(u.display_name, '') ilike %s")
             params.append(f"%{q}%")
     async with db.connection() as conn:
@@ -176,8 +185,8 @@ async def user_get(args, caller: Caller) -> ToolOutput:
                    (select ring from feature_rings where user_id = %(u)s) as feature_ring,
                    (select count(*) from sessions where user_id = %(u)s and mcp_client_id is not null and revoked_at is null
                         and expires_at > now()) as mcp_clients""", {"u": u["id"]})
-    out = {**_user_out(u), "files": extra["files"], "fileBytes": extra["file_bytes"],
-           "featureLevel": extra["feature_ring"] or 4, "mcpClients": extra["mcp_clients"]}
+    out = {**_user_out(u), "files": extra["files"], "fileBytes": extra["file_bytes"], "locale": u["locale"],
+           "timeZone": u["time_zone"], "featureLevel": extra["feature_ring"] or 4, "mcpClients": extra["mcp_clients"]}
     return ToolOutput({"user": out}, links=_links(link_for(S, "user_get", {"userId": u["id"]}, _name(u))))
 
 
@@ -251,10 +260,63 @@ async def user_reset_passkeys(args, caller: Caller, conn) -> DraftPlan:
         return {"userId": u["id"], "deleted": deleted}
 
     return DraftPlan(summary=f"Nulstil {n} passkeys for {_name(u)}.",
-                     impact={"bullets": [f"{n} passkeys slettes", "Brugeren logges ud og skal logge ind med en kode og "
-                                         "oprette en ny passkey"], "counts": {"passkeys": n}},
+                     impact={"bullets": [f"{n} passkeys og sikkerhedsnøgler slettes; godkendelsesapps bevares",
+                                         "Brugeren logges ud alle steder og logger ind med en engangskode"],
+                             "counts": {"passkeys": n}},
                      state={"id": u["id"], "passkeys": n}, execute=execute,
                      links=_links(link_for(S, "user_reset_passkeys", {"userId": u["id"]})))
+
+
+@draft(S, "user_reset_mfa")
+async def user_reset_mfa(args, caller: Caller, conn) -> DraftPlan:
+    u = await _user(conn, args["userId"], lock=True)
+    if u["id"] == caller.user_id:
+        raise ToolError("Dine egne nøgler styrer du under Konto")
+    if u["role"] == "admin" and not caller.principal.super_admin:
+        raise ToolError("Kun superadministratoren kan nulstille en anden administrators MFA")
+    f = await mfa.factors(conn, u["id"])
+    if not f["total"] and not u["mfa_required"]:
+        raise ToolError(f"{_name(u)} har ingen passkeys, sikkerhedsnøgler eller godkendelsesapps")
+
+    async def execute(conn):
+        deleted = await admin_routes.do_reset_mfa(conn, await _user(conn, u["id"], lock=True), caller.principal)
+        return {"userId": u["id"], "deleted": deleted}
+
+    bullets = [f"{f['passkeys'] + f['security_keys']} passkeys/sikkerhedsnøgler og {f['totp']} godkendelsesapps slettes",
+               "“Kræv passkey” slås fra", "Brugeren logges ud alle steder og logger ind med en engangskode",
+               f"Årsag: {args['reason']}"]
+    return DraftPlan(summary=f"Nulstil MFA for {_name(u)}.", impact={"bullets": bullets, "counts": f},
+                     state={"id": u["id"], "factors": f["total"], "mfa_required": u["mfa_required"]}, execute=execute,
+                     links=_links(link_for(S, "user_reset_mfa", {"userId": u["id"]})))
+
+
+@draft(S, "user_profile_set")
+async def user_profile_set(args, caller: Caller, conn) -> DraftPlan:
+    """Rectification of name, language and time zone (validated like PATCH /api/admin/users/{id}/profile)."""
+    u = await _user(conn, args["userId"], lock=True)
+    if u["impersonation_only"] and not await imp_routes._owned(conn, u["id"], caller.user_id):
+        raise ToolError(f"Bruger #{args['userId']} findes ikke")
+    sent = {k: args[k] for k in ("displayName", "locale", "timeZone") if k in args}
+    if not sent:
+        raise ToolError("Angiv mindst ét af displayName, locale og timeZone")
+    try:
+        values = clean_profile(ProfileIn(**{{"displayName": "display_name", "timeZone": "time_zone"}.get(k, k): v
+                                             for k, v in sent.items()}))
+    except HTTPException as e:
+        raise ToolError(str(e.detail))
+    diff = {k: [u[k], v] for k, v in values.items() if u[k] != v}
+    if not diff:
+        raise ToolError("Ingen ændringer")
+
+    async def execute(conn):
+        await update_profile_fields(conn, u["id"], values, actor_id=caller.user_id, meta=caller.principal.meta)
+        return {"userId": u["id"], **values}
+
+    labels = {"display_name": "Navn", "locale": "Sprog", "time_zone": "Tidszone"}
+    return DraftPlan(summary=f"Ret profilen for {_name(u)}.",
+                     impact={"bullets": [f"{labels[k]}: {a or '—'} → {b or '—'}" for k, (a, b) in diff.items()], "diff": diff},
+                     state={"id": u["id"], **{k: u[k] for k in values}}, execute=execute,
+                     links=_links(link_for(S, "user_profile_set", {"userId": u["id"]})))
 
 
 @draft(S, "user_revoke_sessions")

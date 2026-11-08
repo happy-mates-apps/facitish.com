@@ -2,10 +2,9 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
-import { useLoad } from "../../ui";
+import { ErrorBox, PageTitle, useLoad } from "../ui";
 import { useAdmin } from "../context";
 import { card, fmt, MONO, RING, SANS, TONE } from "../theme";
-import { ErrorBox, PageTitle } from "../ui";
 
 type Stats = {
   days: number;

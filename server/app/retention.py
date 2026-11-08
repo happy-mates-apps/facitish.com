@@ -53,18 +53,18 @@ async def purge_old(*, actor_id: int | None, meta: RequestMeta, reason: str) -> 
 
 
 async def purge_user(user_id: int, *, logs: list[str], actor_id: int | None, meta: RequestMeta,
-                     reason: str, phone: str | None = None) -> dict:
-    """Deletes log data about one user. Auth events logged before the user existed (matched on
-    the phone hash) and visitor ids the user consented under are included."""
+                     reason: str, contacts: list[str | None] | None = None) -> dict:
+    """Deletes log data about one user. Auth events logged before the user existed (matched on the hash of
+    their e-mail address or phone number) and visitor ids the user consented under are included."""
     counts = {}
     async with db.purge_connection() as conn:
-        if phone is None:
-            row = await db.fetch_one(conn, "select phone from users where id = %s", (user_id,))
-            phone = row["phone"] if row else None
+        if contacts is None:
+            row = await db.fetch_one(conn, "select email, phone from users where id = %s", (user_id,))
+            contacts = [row["email"], row["phone"]] if row else []
+        hashes = [phone_hash(c) for c in contacts if c]
         if "auth_log" in logs:
             counts["auth_log"] = (await conn.execute(
-                "delete from auth_log where user_id = %s or (%s::text is not null and phone_hash = %s)",
-                (user_id, phone_hash(phone), phone_hash(phone)))).rowcount
+                "delete from auth_log where user_id = %s or phone_hash = any(%s)", (user_id, hashes))).rowcount
         if "audit_log" in logs:
             counts["audit_log"] = (await conn.execute("""
                 delete from audit_log

@@ -1,5 +1,5 @@
-// Entry of the standalone admin app on /admin (web/admin.html). Shares login cookie, api.ts and
-// auth.tsx with the app on /, but has its own shell and bundle.
+// Entry of the standalone admin app on /admin (web/admin.html). Shares only the login cookie, api.ts,
+// auth.tsx, bridge/ and deeplink.tsx with the app on /; shell, components and styles are its own (enforced in vite.config.ts).
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -7,6 +7,7 @@ import { setApiApp } from "../api";
 import { AuthProvider, useAuth } from "../auth";
 import AdminShell from "./AdminShell";
 import { AdminProvider } from "./context";
+import { AdminMfaGate, AdminStepUp } from "./mfa";
 import { ToastProvider } from "./ui";
 import { installTracer } from "./tracer/tracerStore";
 import Stats from "./pages/Stats";
@@ -28,7 +29,7 @@ import AiAdmin from "./pages/AiAdmin";
 import Settings from "./pages/Settings";
 import Mcp from "./pages/Mcp";
 import { AdminGo } from "./go";
-import "../styles.css";
+import "./base.css";
 import "./admin.css";
 
 setApiApp("admin");
@@ -50,6 +51,8 @@ function RequireAdmin({ children }: { children: ReactNode }) {
       </div>
     );
   }
+  // After the grace logins /admin needs a second factor in this session (the server enforces it as well).
+  if (!user.mfa.admin_ok) return <AdminMfaGate />;
   return <>{children}</>;
 }
 
@@ -62,6 +65,7 @@ createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <RequireAdmin>
           <ToastProvider>
+            <AdminStepUp />
             <AdminProvider>
               <Routes>
                 <Route path="go" element={<AdminGo />} />
