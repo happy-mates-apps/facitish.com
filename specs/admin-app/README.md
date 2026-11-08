@@ -220,5 +220,7 @@ Efterligning (fra happy-groups `admin/impersonation/routes.ts`): `GET/POST /api/
 - `design/Happy AI Sidepanel - App Stores.dc.html` — sidepanelets guides: Apple Developer, Google Play Console, Expo · EAS
 - `design/ToergaerMark.dc.html`, `design/support.js`, `design/_ds/…`, `design/assets/…` — kun for at prototypen kan køre
 - `screenshots/` — 19 skærmbilleder (se tabellen ovenfor)
-- Relaterede specs: `specs/mcp/` (MCP-servere), `specs/mobile/` (mobil-app)
+- `DATA.md` + `design/data-mcp/` — sektionen Data (katalog, udforsk, forbind API), ny sidemenu (søgning,
+  sticky overskrifter, serverfelt, klap sammen) og MCP-appen på `/mcp`
+- Relaterede specs: `specs/mcp/` (MCP-servere; `APP.md` for /mcp som separat app), `specs/mobile/` (mobil-app)
 - AI-instruktioner: `.gaer/agents/instructions.md`, skills `gaer-backend`, `gaer-mcp`

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-app-sidemenu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<aside class="tg-aside" style="position: relative; width: {{asideW}}; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; background: #0f172a; color: #ffffff; padding: 20px 10px 12px; font-family: Inter, system-ui, sans-serif; font-size: 13px; transition: width 0.2s ease">
+<div style="display: {{closedDisplay}}; flex: 1; min-height: 0; flex-direction: column; align-items: center; gap: 14px">
+  <button type="button" onClick="{{toggle}}" aria-label="Vis menu" aria-expanded="false" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: rgba(255,255,255,0.08); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16 M4 12h16 M4 18h16"></path></svg>
+  </button>
+  <span role="img" aria-label="Server: normal belastning" style="margin-top: auto; width: 8px; height: 8px; border-radius: 9999px; background: #10b981"></span>
+</div>
+<div style="display: {{openDisplay}}; flex: 1; min-height: 0; flex-direction: column; gap: 12px">
+  <div style="display: flex; flex-direction: column; gap: 6px; padding: 0 10px 2px">
+    <button type="button" onClick="{{toggle}}" aria-label="Skjul menu" aria-expanded="true" title="Klik for at skjule menuen" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left">
+      <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true" style="display: block; flex: none">
+        <defs>
+          <linearGradient id="tg-mark-mcp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#E63946"></stop><stop offset="0.25" stop-color="#F77F00"></stop><stop offset="0.5" stop-color="#FCBF49"></stop>
+            <stop offset="0.75" stop-color="#06D6A0"></stop><stop offset="1" stop-color="#118AB2"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="44" cy="56" r="38" fill="url(#tg-mark-mcp)"></circle>
+        <circle cx="44" cy="56" r="25" fill="#ffffff"></circle>
+        <circle cx="38" cy="50" r="3.6" fill="#020817"></circle>
+        <circle cx="50" cy="47" r="3.6" fill="#020817"></circle>
+        <path d="M 35 62 Q 44 70 53 62" stroke="#020817" stroke-width="3.6" fill="none" stroke-linecap="round"></path>
+        <circle cx="86" cy="22" r="7" fill="#F77F00"></circle>
+        <circle cx="73" cy="9" r="4.5" fill="#FCBF49"></circle>
+        <circle cx="94" cy="7" r="3" fill="#E63946"></circle>
+      </svg>
+      <span class="tg-rainbow-text" style="background-image: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 14px; font-weight: 800; letter-spacing: 0.04em; line-height: 1">TØRGÆR</span>
+      <span style="padding: 1px 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.85)">MCP</span>
+    </button>
+    <span style="font-size: 11px; color: rgba(255,255,255,0.6); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">lejedata.gaer.dk/mcp</span>
+  </div>
+
+  <label style="position: relative; display: flex; margin: 0 2px">
+    <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Søg kommando</span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="position: absolute; left: 10px; top: 10px"><path d="M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M21 21l-4.3-4.3"></path></svg>
+    <input type="search" placeholder="Søg endpoint eller kommando" value="{{query}}" onChange="{{onQuery}}" style="width: 100%; height: 34px; box-sizing: border-box; padding: 0 44px 0 30px; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; background: rgba(255,255,255,0.06); color: #ffffff; font: 13px Inter, system-ui, sans-serif; outline: none">
+    <kbd style="position: absolute; right: 8px; top: 8px; padding: 1px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); font: 11px Inter, system-ui, sans-serif; color: rgba(255,255,255,0.6)">⌘K</kbd>
+  </label>
+
+  <nav aria-label="MCP-app" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 0 -10px; padding: 0 10px">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 4px; background: #0f172a; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5)"><span>{{g.label}}</span><span style="letter-spacing: 0; font-weight: 600">{{g.count}}</span></div>
+        <sc-for list="{{g.items}}" as="item" hint-placeholder-count="4">
+          <sc-if value="{{item.on}}" hint-placeholder-val="{{false}}">
+            <a href="{{item.href}}" style="position: relative; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,0.1); color: #ffffff; text-decoration: none">
+              <span style="position: absolute; left: 0; top: 50%; width: 2px; height: 16px; margin-top: -8px; border-radius: 2px; background: #fcbf49"></span>
+              <span style="width: 8px; height: 8px; border-radius: 9999px; flex: none; background: {{item.dot}}"></span>
+              <span style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+                <span style="font-weight: 600">{{item.label}}</span>
+                <span style="font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: rgba(255,255,255,0.7)">{{item.sub}}</span>
+              </span>
+              <sc-if value="{{item.hasBadge}}" hint-placeholder-val="{{false}}"><span style="min-width: 18px; padding: 0 6px; box-sizing: border-box; border-radius: 9999px; background: #f59e0b; color: #ffffff; font-size: 11px; font-weight: 700; text-align: center">{{item.badge}}</span></sc-if>
+            </a>
+          </sc-if>
+          <sc-if value="{{item.off}}" hint-placeholder-val="{{true}}">
+            <a href="{{item.href}}" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; color: rgba(255,255,255,0.75); text-decoration: none">
+              <span style="width: 8px; height: 8px; border-radius: 9999px; flex: none; background: {{item.dot}}"></span>
+              <span style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+                <span>{{item.label}}</span>
+                <span style="font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: rgba(255,255,255,0.5)">{{item.sub}}</span>
+              </span>
+              <sc-if value="{{item.hasBadge}}" hint-placeholder-val="{{false}}"><span style="min-width: 18px; padding: 0 6px; box-sizing: border-box; border-radius: 9999px; background: #f59e0b; color: #ffffff; font-size: 11px; font-weight: 700; text-align: center">{{item.badge}}</span></sc-if>
+            </a>
+          </sc-if>
+        </sc-for>
+      </div>
+    </sc-for>
+    <sc-if value="{{noHits}}" hint-placeholder-val="{{false}}">
+      <div style="padding: 12px 10px; font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.5">Ingen endpoints eller kommandoer matcher “{{query}}”.</div>
+    </sc-if>
+  </nav>
+
+  <a href="McpExpose.dc.html" style="margin: 0 4px; display: flex; align-items: center; justify-content: center; gap: 6px; height: 34px; flex: none; border-radius: 8px; border: 1px dashed rgba(252,191,73,0.6); color: #fcbf49; font-weight: 600; text-decoration: none">+ Udstil endpoint</a>
+
+  <section aria-label="Server" style="padding: 12px 10px 0; border-top: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: rgba(255,255,255,0.75)">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5)">Server</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 9999px; background: #10b981"></span>Normal belastning</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 3px">
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.55)"><span>MCP-kald pr. minut, sidste time</span><span>[ANTAL]/min</span></div>
+      <svg viewBox="0 0 200 32" width="100%" height="32" preserveAspectRatio="none" role="img" aria-label="MCP-kald pr. minut den sidste time" style="display: block">
+        <polyline points="{{spark}}" fill="none" stroke="#fcbf49" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+      </svg>
+    </div>
+    <sc-for list="{{meters}}" as="m" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; gap: 3px">
+        <div style="display: flex; justify-content: space-between"><span>{{m.label}}</span><span style="font-variant-numeric: tabular-nums; color: #ffffff">{{m.value}}</span></div>
+        <div style="height: 5px; border-radius: 9999px; background: rgba(255,255,255,0.1); overflow: hidden"><div style="height: 100%; border-radius: 9999px; width: {{m.w}}; background: {{m.color}}"></div></div>
+      </div>
+    </sc-for>
+    <span style="color: rgba(255,255,255,0.6)">Separat app · kun admin-rollen</span>
+    <a href="Main.dc.html" style="color: rgba(255,255,255,0.7); text-decoration: none">← Til /admin</a>
+  </section>
+</div>
+</aside>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["home","app","admin","data","dawa","new","drafts","monitor","clients"],"default":"home"},"$preview":{"width":232,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { query: '', open: true };
+  }
+  renderVals() {
+    const active = this.props.active ?? 'home';
+    const G = '#10b981', A = '#f59e0b', N = 'rgba(255,255,255,0.35)';
+    const NAV = [
+      { label: 'Endpoints', items: [
+        ['home', 'Alle endpoints', '/mcp', 'McpHome.dc.html', N],
+        ['app', 'Appen', '/mcp/app', 'McpOverview.dc.html', G],
+        ['admin', 'Admin', '/mcp/admin', 'McpOverview.dc.html', G],
+        ['data', 'Data', '/mcp/data', 'McpOverview.dc.html', G],
+        ['dawa', 'Dataforsyningen', '/mcp/x/dawa', 'McpOverview.dc.html', G],
+        ['github', 'GitHub (proxy)', '/mcp/x/github · kladde', 'McpExpose.dc.html', A]
+      ] },
+      { label: 'På tværs', items: [
+        ['drafts', 'Kladder', 'alle endpoints', 'McpMonitor.dc.html', N, '3'],
+        ['monitor', 'Monitor', 'live kald', 'McpMonitor.dc.html', N],
+        ['clients', 'Klienter og forbind', 'sessioner', 'McpConnect.dc.html', N]
+      ] },
+      { label: 'Kommandoer', items: [
+        ['new', 'Udstil endpoint', 'nyt endpoint under /mcp', 'McpExpose.dc.html', N],
+        ['cmd-confirm', 'Bekræft afventende kladder', 'confirm_draft', 'McpMonitor.dc.html', N],
+        ['cmd-catalog', 'Eksportér værktøjskatalog', 'catalog.json', '#', N],
+        ['cmd-audit', 'MCP i audit-loggen', '/admin/logs/audit', '#', N]
+      ] }
+    ];
+    const query = this.state.query;
+    const q = query.trim().toLowerCase();
+    const groups = NAV.map((g) => {
+      const groupHit = q && g.label.toLowerCase().includes(q);
+      const items = g.items
+        .filter(([, label, sub]) => !q || groupHit || label.toLowerCase().includes(q) || sub.toLowerCase().includes(q))
+        .map(([id, label, sub, href, dot, badge]) => ({
+          label, sub, href, dot, on: id === active, off: id !== active, hasBadge: !!badge, badge: badge || ''
+        }));
+      return { label: g.label, items, count: q ? String(items.length) : '' };
+    }).filter((g) => g.items.length);
+
+    // Sample server values (design mock); in the app they come from a new /api/admin/system endpoint.
+    const calls = [12, 18, 15, 22, 30, 26, 34, 41, 38, 29, 25, 33, 46, 52, 44, 37, 31, 35, 40, 36];
+    const max = 60;
+    const spark = calls.map((v, i) => `${(i * 200 / (calls.length - 1)).toFixed(1)},${(30 - v / max * 28).toFixed(1)}`).join(' ');
+    const tone = (p) => (p < 60 ? '#10b981' : p < 85 ? '#f59e0b' : '#ef4444');
+    const meters = [
+      ['CPU', 38, '38 % · 4 vCPU'],
+      ['Hukommelse', 39, '3,1 / 8 GB'],
+      ['MCP-sessioner', 14, '7 / 50'],
+      ['DB-forbindelser', 30, '6 / 20']
+    ].map(([label, p, value]) => ({ label, value, w: p + '%', color: tone(p) }));
+
+    return {
+      query, groups, noHits: groups.length === 0, spark, meters,
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      asideW: this.state.open ? '232px' : '56px',
+      openDisplay: this.state.open ? 'flex' : 'none',
+      closedDisplay: this.state.open ? 'none' : 'flex',
+      toggle: () => this.setState({ open: !this.state.open })
+    };
+  }
+}
+</script>
+</body>
+</html>

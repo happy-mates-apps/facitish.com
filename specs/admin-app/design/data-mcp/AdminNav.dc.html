@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Admin-sidemenu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<aside class="tg-aside" style="position: relative; width: {{asideW}}; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; background: #0f172a; color: #ffffff; padding: 20px 10px 12px; font-family: Inter, system-ui, sans-serif; font-size: 13px; transition: width 0.2s ease">
+<div style="display: {{closedDisplay}}; flex: 1; min-height: 0; flex-direction: column; align-items: center; gap: 14px">
+  <button type="button" onClick="{{toggle}}" aria-label="Vis menu" aria-expanded="false" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: rgba(255,255,255,0.08); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16 M4 12h16 M4 18h16"></path></svg>
+  </button>
+  <span role="img" aria-label="Server: normal belastning" style="margin-top: auto; width: 8px; height: 8px; border-radius: 9999px; background: #10b981"></span>
+</div>
+<div style="display: {{openDisplay}}; flex: 1; min-height: 0; flex-direction: column; gap: 12px">
+  <div style="display: flex; flex-direction: column; gap: 6px; padding: 0 10px 2px">
+    <button type="button" onClick="{{toggle}}" aria-label="Skjul menu" aria-expanded="true" title="Klik for at skjule menuen" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left">
+      <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true" style="display: block; flex: none">
+        <defs>
+          <linearGradient id="tg-mark-admin" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#E63946"></stop><stop offset="0.25" stop-color="#F77F00"></stop><stop offset="0.5" stop-color="#FCBF49"></stop>
+            <stop offset="0.75" stop-color="#06D6A0"></stop><stop offset="1" stop-color="#118AB2"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="44" cy="56" r="38" fill="url(#tg-mark-admin)"></circle>
+        <circle cx="44" cy="56" r="25" fill="#ffffff"></circle>
+        <circle cx="38" cy="50" r="3.6" fill="#020817"></circle>
+        <circle cx="50" cy="47" r="3.6" fill="#020817"></circle>
+        <path d="M 35 62 Q 44 70 53 62" stroke="#020817" stroke-width="3.6" fill="none" stroke-linecap="round"></path>
+        <circle cx="86" cy="22" r="7" fill="#F77F00"></circle>
+        <circle cx="73" cy="9" r="4.5" fill="#FCBF49"></circle>
+        <circle cx="94" cy="7" r="3" fill="#E63946"></circle>
+      </svg>
+      <span class="tg-rainbow-text" style="background-image: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 14px; font-weight: 800; letter-spacing: 0.04em; line-height: 1">TØRGÆR</span>
+    </button>
+    <span style="font-size: 11px; color: rgba(255,255,255,0.6); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">/admin · lejedata</span>
+  </div>
+  <label style="position: relative; display: flex; margin: 0 2px">
+    <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Søg kommando</span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="position: absolute; left: 10px; top: 10px"><path d="M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M21 21l-4.3-4.3"></path></svg>
+    <input type="search" placeholder="Søg kommando" value="{{query}}" onChange="{{onQuery}}" style="width: 100%; height: 34px; box-sizing: border-box; padding: 0 44px 0 30px; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; background: rgba(255,255,255,0.06); color: #ffffff; font: 13px Inter, system-ui, sans-serif; outline: none">
+    <kbd style="position: absolute; right: 8px; top: 8px; padding: 1px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); font: 11px Inter, system-ui, sans-serif; color: rgba(255,255,255,0.6)">⌘K</kbd>
+  </label>
+  <nav aria-label="Admin" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 0 -10px; padding: 0 10px">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="6">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 4px; background: #0f172a; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5)"><span>{{g.label}}</span><span style="letter-spacing: 0; font-weight: 600">{{g.count}}</span></div>
+        <sc-for list="{{g.items}}" as="item" hint-placeholder-count="3">
+          <sc-if value="{{item.on}}" hint-placeholder-val="{{false}}">
+            <a href="{{item.href}}" style="position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-weight: 600; background: rgba(255,255,255,0.1); color: #ffffff; text-decoration: none">
+              <span style="position: absolute; left: 0; top: 50%; width: 2px; height: 16px; margin-top: -8px; border-radius: 2px; background: #fcbf49"></span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{item.d}}"></path></svg>
+              <span style="flex: 1; min-width: 0">{{item.label}}</span>
+              <sc-if value="{{item.isNew}}" hint-placeholder-val="{{false}}"><span style="padding: 1px 6px; border-radius: 9999px; background: #fcbf49; color: #0f172a; font-size: 10px; font-weight: 700">NY</span></sc-if>
+            </a>
+          </sc-if>
+          <sc-if value="{{item.off}}" hint-placeholder-val="{{true}}">
+            <a href="{{item.href}}" style="position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-weight: 400; color: rgba(255,255,255,0.72); text-decoration: none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{item.d}}"></path></svg>
+              <span style="flex: 1; min-width: 0">{{item.label}}</span>
+              <sc-if value="{{item.isNew}}" hint-placeholder-val="{{false}}"><span style="padding: 1px 6px; border-radius: 9999px; border: 1px solid rgba(252,191,73,0.6); color: #fcbf49; font-size: 10px; font-weight: 700">NY</span></sc-if>
+            </a>
+          </sc-if>
+        </sc-for>
+      </div>
+    </sc-for>
+    <sc-if value="{{noHits}}" hint-placeholder-val="{{false}}">
+      <div style="padding: 12px 10px; font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.5">Ingen kommandoer matcher “{{query}}”.</div>
+    </sc-if>
+  </nav>
+
+  <section aria-label="Server" style="padding: 12px 10px 0; border-top: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: rgba(255,255,255,0.75)">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5)">Server</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 9999px; background: #10b981"></span>Normal belastning</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 3px">
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.55)"><span>CPU, sidste time</span><span>4 vCPU</span></div>
+      <svg viewBox="0 0 200 32" width="100%" height="32" preserveAspectRatio="none" role="img" aria-label="CPU-belastning den sidste time" style="display: block">
+        <polyline points="{{spark}}" fill="none" stroke="#fcbf49" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+      </svg>
+    </div>
+    <sc-for list="{{meters}}" as="m" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; gap: 3px">
+        <div style="display: flex; justify-content: space-between"><span>{{m.label}}</span><span style="font-variant-numeric: tabular-nums; color: #ffffff">{{m.value}}</span></div>
+        <div style="height: 5px; border-radius: 9999px; background: rgba(255,255,255,0.1); overflow: hidden"><div style="height: 100%; border-radius: 9999px; width: {{m.w}}; background: {{m.color}}"></div></div>
+      </div>
+    </sc-for>
+    <div style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.6)">
+      <span style="width: 7px; height: 7px; border-radius: 9999px; background: #10b981"></span>
+      <span>Database OK · v2026.11.2</span>
+    </div>
+    <a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none">← Tilbage til appen</a>
+  </section>
+</div>
+</aside>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["/","/heatmaps","/data","/data/explore","/data/sources","/mcp"],"default":"/data"},"$preview":{"width":232,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { query: '', open: true };
+  }
+  renderVals() {
+    const I = {
+      chart: 'M3 3v18h18 M18 17V9 M13 17V5 M8 17v-3',
+      trend: 'M22 7l-8.5 8.5-5-5L2 17 M16 7h6v6',
+      pointer: 'M9 9l5 12 1.8-5.2L21 14Z M7.2 2.2 8 5.1 M5.1 8 2.2 7.2 M14 4.1 12 6 M6 12l-1.9 2',
+      users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+      mask: 'M2 12c0-3 2-5 5-5h10c3 0 5 2 5 5s-2 5-5 5c-2 0-3-2-5-2s-3 2-5 2c-3 0-5-2-5-5z M7 11h2 M15 11h2',
+      login: 'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3',
+      scroll: 'M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4 M19 17V5a2 2 0 0 0-2-2H4 M15 8h-5 M15 12h-5',
+      flag: 'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z M4 22v-7',
+      phone: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M12 18h.01',
+      globe: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M2 12h20 M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z',
+      folder: 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z',
+      book: 'M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20',
+      table: 'M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18',
+      plug: 'M12 22v-5 M9 8V2 M15 8V2 M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z',
+      bot: 'M12 8V4H8 M4 8h16v12H4z M2 14h2 M20 14h2 M15 13v2 M9 13v2',
+      server: 'M2 2h20v8H2z M2 14h20v8H2z M6 6h.01 M6 18h.01',
+      puzzle: 'M19.4 13a2.5 2.5 0 1 0 0-2H17V7a2 2 0 0 0-2-2h-3.5a2.5 2.5 0 1 0-3 0H5v14h12v-6z',
+      filesearch: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M11.5 17a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M13.3 16.3 15 18',
+      archive: 'M2 3h20v5H2z M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8 M10 12h4',
+      cookie: 'M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5 M8.5 8.5h.01 M16 15.5h.01 M12 12h.01 M11 17h.01 M7 14h.01',
+      settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M12 2v3 M12 19v3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M2 12h3 M19 12h3 M4.9 19.1 7 17 M17 7l2.1-2.1'
+    };
+    const NAV = [
+      { label: 'Overblik', items: [['/', 'Statistik', 'chart'], ['/analytics', 'Analytics', 'trend'], ['/heatmaps', 'Heatmaps', 'pointer']] },
+      { label: 'Adgang', items: [['/users', 'Brugere og roller', 'users'], ['/impersonation', 'Efterligning', 'mask'], ['/logs/auth', 'Auth-log', 'login'], ['/logs/audit', 'Audit-log', 'scroll']] },
+      { label: 'Produkt', items: [['/features', 'Features og ringe', 'flag'], ['/app-stores', 'App Stores', 'phone'], ['/web', 'Website', 'globe'], ['/files', 'Filer', 'folder']] },
+      { label: 'Data', items: [['/data', 'Katalog', 'book', 1], ['/data/explore', 'Udforsk', 'table', 1], ['/data/sources', 'Forbindelser', 'plug', 1]] },
+      { label: 'Integrationer', items: [['/ai', 'AI', 'bot'], ['/mcp', 'MCP-app ↗', 'server', 1], ['/integrations', 'Udvidelse og Office', 'puzzle']] },
+      { label: 'System', items: [['/gdpr', 'GDPR-forespørgsler', 'filesearch'], ['/retention', 'Sletning af logdata', 'archive'], ['/consent', 'Samtykke og cookies', 'cookie'], ['/settings', 'Indstillinger', 'settings']] }
+    ];
+    const active = this.props.active ?? '/data';
+    const LINK = { '/data': 'Main.dc.html', '/data/explore': 'DataExplore.dc.html', '/mcp': 'McpHome.dc.html', '/heatmaps': 'AdminHeatmaps.dc.html' };
+    const query = this.state.query;
+    const q = query.trim().toLowerCase();
+    const groups = NAV.map((g) => {
+      const groupHit = q && g.label.toLowerCase().includes(q);
+      const items = g.items
+        .filter(([path, label]) => !q || groupHit || label.toLowerCase().includes(q) || path.includes(q))
+        .map(([path, label, icon, isNew]) => ({
+          label, d: I[icon], href: LINK[path] || '#', on: path === active, off: path !== active, isNew: !!isNew
+        }));
+      return { label: g.label, items, count: q ? String(items.length) : '' };
+    }).filter((g) => g.items.length);
+
+    // Sample server values (design mock); in the app they come from a new /api/admin/system endpoint.
+    const cpu = [22, 25, 31, 28, 35, 41, 38, 33, 30, 36, 44, 52, 47, 39, 34, 37, 42, 38, 35, 38];
+    const spark = cpu.map((v, i) => `${(i * 200 / (cpu.length - 1)).toFixed(1)},${(30 - v / 100 * 28).toFixed(1)}`).join(' ');
+    const tone = (p) => (p < 60 ? '#10b981' : p < 85 ? '#f59e0b' : '#ef4444');
+    const meters = [
+      ['CPU', 38, '38 %'],
+      ['Hukommelse', 39, '3,1 / 8 GB'],
+      ['Disk', 26, '21 / 80 GB'],
+      ['DB-forbindelser', 30, '6 / 20']
+    ].map(([label, p, value]) => ({ label, value, w: p + '%', color: tone(p) }));
+
+    return {
+      query, groups, noHits: groups.length === 0, spark, meters,
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      asideW: this.state.open ? '232px' : '56px',
+      openDisplay: this.state.open ? 'flex' : 'none',
+      closedDisplay: this.state.open ? 'none' : 'flex',
+      toggle: () => this.setState({ open: !this.state.open })
+    };
+  }
+}
+</script>
+</body>
+</html>

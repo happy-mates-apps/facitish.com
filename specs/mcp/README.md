@@ -22,6 +22,10 @@ instans pr. kunde, roller `user` og `admin`.
 Designet til /admin-hubben er sektionen *MCP-servere* i `ToerGaer Admin.dc.html`. Det er en prototype
 med mock-data — byg den i `web/src/admin/` med appens egne komponenter.
 
+> **Nyt forslag:** hubben flytter til en separat app på `/mcp`, der også udstiller nye endpoints
+> (fra datakataloget, API-kilder og eksterne MCP-servere). Se [`APP.md`](APP.md) og designet i
+> `specs/admin-app/design/data-mcp/`. Hub-skærmen nedenfor gælder fortsat for endpoint-siderne.
+
 ## Hub-skærmen (`/admin/mcp`)
 - **Serverskifter** øverst: Appen (`/mcp`) / Admin (`/mcp/admin`). Alt nedenfor følger valget.
 - **Oversigt:** endpoint, scope, hvem der må, skrivninger, tal (værktøjer, læs, kladde, med deep link),
