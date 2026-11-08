@@ -1,0 +1,49 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-08T12:00:00Z"},
+  "title": "Gær Admin — Data & MCP",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 312, "y": 0, "w": 1440, "h": 1040, "title": "/admin/data — Katalog", "expand": "fill", "is_interactive": true},
+    "DataDataset.dc.html": {"x": 1832, "y": 0, "w": 1440, "h": 1040, "title": "/admin/data/:datasæt — Udforsk-fanen", "expand": "fill", "is_interactive": true},
+    "DataExplore.dc.html": {"x": 3352, "y": 0, "w": 1440, "h": 1040, "title": "/admin/data/explore — Udforsk", "expand": "fill", "is_interactive": true},
+    "DataConnect.dc.html": {"x": 4872, "y": 0, "w": 1440, "h": 1040, "title": "/admin/data/explore/connect — Forbind API", "expand": "fill", "is_interactive": true},
+    "McpHome.dc.html": {"x": 312, "y": 1460, "w": 1440, "h": 1040, "title": "/mcp — Endpoints", "expand": "fill", "is_interactive": true},
+    "McpExpose.dc.html": {"x": 1832, "y": 1460, "w": 1440, "h": 1040, "title": "/mcp — Udstil endpoint", "expand": "fill"},
+    "McpOverview.dc.html": {"x": 3352, "y": 1460, "w": 1440, "h": 1040, "title": "/mcp/app · /mcp/admin — Oversigt", "expand": "fill", "is_interactive": true},
+    "McpTools.dc.html": {"x": 4872, "y": 1460, "w": 1440, "h": 1040, "title": "/mcp/:endpoint — Værktøjer", "expand": "fill", "is_interactive": true},
+    "McpMonitor.dc.html": {"x": 6392, "y": 1460, "w": 1440, "h": 1040, "title": "/mcp/:endpoint — Kladder og monitor", "expand": "fill", "is_interactive": true},
+    "McpConnect.dc.html": {"x": 7912, "y": 1460, "w": 1440, "h": 1040, "title": "/mcp/:endpoint — Forbind", "expand": "fill", "is_interactive": true},
+    "AdminHeatmaps.dc.html": {"x": 312, "y": 2920, "w": 1440, "h": 1040, "title": "/admin/heatmaps — Heatmaps (fra koden)", "expand": "fill", "is_interactive": true},
+    "AdminNav.dc.html": {"x": 0, "y": 0, "w": 232, "h": 1040, "title": "Komponent — admin-sidemenu", "is_interactive": true},
+    "McpNav.dc.html": {"x": 0, "y": 1460, "w": 232, "h": 1040, "title": "Komponent — MCP-app-sidemenu", "is_interactive": true}
+  },
+  "order": [
+    "Main.dc.html",
+    "DataDataset.dc.html",
+    "DataExplore.dc.html",
+    "DataConnect.dc.html",
+    "McpHome.dc.html",
+    "McpExpose.dc.html",
+    "McpOverview.dc.html",
+    "McpTools.dc.html",
+    "McpMonitor.dc.html",
+    "McpConnect.dc.html",
+    "AdminHeatmaps.dc.html",
+    "AdminNav.dc.html",
+    "McpNav.dc.html"
+  ],
+  "notes": {
+    "rowData": {"x": 312, "y": -300, "text": "Data — katalog og udforskning i én sektion", "kind": "title1", "maxW": 6000},
+    "rowMcp": {"x": 312, "y": 1160, "text": "MCP-app — /mcp er en separat app, der udstiller endpoints", "kind": "title1", "maxW": 9040},
+    "rowExisting": {"x": 312, "y": 2620, "text": "Eksisterende /admin-sider — tegnet ud fra koden", "kind": "title1", "maxW": 4480},
+    "heatSrc": {"x": 1832, "y": 2920, "w": 380, "fill": "gray", "text": "Heatmaps er tegnet efter web/src/admin-app/pages/Heatmaps.tsx: filtrene Side, Enhed og Periode, forhåndsvisning af siden med klik-tætheden lagt ovenpå (samme farveskala blå → gul → rød som drawHeat), og scroll-dybde i 10 trin fra /api/admin/heatmaps. Klikpunkter og andele er eksempeldata.", "size": "m"},
+    "idea": {"x": 6392, "y": 0, "w": 380, "fill": "orange", "text": "Idéen: Kataloget er kortet, Udforsk er linsen.\n\n• En datakilde kan være et hvilket som helst API: REST, OpenAPI, GraphQL, en MCP-server eller Postgres. Den beskrives i en kildebeskrivelse (YAML): kald, sider, JSONPath til rækker, felter og relationer.\n• Gær kalder API'et fra serveren; nøgler er navne på miljøvariabler, aldrig selve nøglen.\n• Hvert datasæt i kataloget peger på en tabel eller et endpoint.\n• Udforsk bruger katalogets felter: danske navne, beskrivelser, klassifikation og maskering.\n• Gule/røde felter vises maskeret — afmaskering kræver en årsag og auditeres.\n• Datasæt markeret til MCP bliver værktøjer på endpointet /mcp/data.", "size": "m"},
+    "nav": {"x": 0, "y": 1100, "w": 232, "fill": "blue", "text": "Ny menugruppe Data i /admin. \"MCP-app ↗\" åbner den separate app på /mcp.", "size": "s"},
+    "routing": {"x": 9432, "y": 1460, "w": 400, "fill": "teal", "text": "/mcp som separat app\n\n• Egen Vite-indgang web/mcp.html + web/src/mcp-app/, ligesom /admin. Deler kun api.ts, auth.tsx og bridge/ — appBoundary() i vite.config.ts håndhæver det.\n• Alle endpoints ligger under /mcp/<navn>: app, admin, data, x/<kilde>.\n• Samme adresse, to svar: en browser (GET, text/html) får MCP-appens side for endpointet; en MCP-klient (POST, JSON-RPC) får endpointet.\n• /mcp alene: appens forside i browseren; MCP-klienter sendes til /mcp/app, så eksisterende forbindelser virker.\n• Nye endpoints udgives som kladde og auditeres.", "size": "m"}
+  },
+  "designSystems": [
+    {"title": "Happy Mates Design System", "namespace": "happy-mates", "artifact": "https://claude.ai/code/artifact/0e191b89-0805-44a3-a2e5-2563ca4239b7", "version": "1791524993-8858", "copiedAt": "2026-11-08T12:00:00Z"}
+  ]
+}

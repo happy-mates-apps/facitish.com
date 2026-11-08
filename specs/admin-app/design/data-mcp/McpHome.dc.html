@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-app — Endpoints</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="McpNav" active="home" hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/mcp</span></span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff"><span style="width: 6px; height: 6px; border-radius: 9999px; background: #10b981"></span>4 endpoints kører</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+          <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">MCP-app</span>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Endpoints</h1>
+          <p style="margin: 0; color: #64748b; max-width: 680px">Hvert endpoint har sin egen adresse under /mcp, sin egen adgang og sine egne værktøjer. Alle bruger Gær-login, og ændringer kommer tilbage som kladder.</p>
+        </div>
+        <a href="McpExpose.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 8px; background: #2563eb; color: #f8fafc; text-decoration: none; font-weight: 500">+ Udstil endpoint</a>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px">
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #64748b">Endpoints</span><span style="font-size: 26px; font-weight: 700">4</span><span style="font-size: 12px; color: #64748b">+ 1 kladde</span></div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #64748b">Afventende kladder</span><span style="font-size: 26px; font-weight: 700">3</span><a href="McpMonitor.dc.html" style="font-size: 12px">bekræft eller annullér →</a></div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #64748b">Forbundne klienter</span><span style="font-size: 26px; font-weight: 700">7</span><span style="font-size: 12px; color: #64748b">på tværs af endpoints</span></div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #64748b">Kald, 24 timer</span><span style="font-size: 26px; font-weight: 700">[ANTAL]</span><a href="McpMonitor.dc.html" style="font-size: 12px">åbn monitor →</a></div>
+      </div>
+
+      <section aria-label="Endpoints" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+        <div style="overflow-x: auto">
+          <div style="min-width: 900px">
+            <div style="display: grid; grid-template-columns: 1.6fr 1.2fr 1.3fr 0.7fr 1.6fr 0.9fr 0.6fr; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b">
+              <span>Endpoint</span><span>Kilde</span><span>Hvem må</span><span>Værktøjer</span><span>Skrivninger</span><span>Status</span><span></span>
+            </div>
+            <sc-for list="{{eps}}" as="e" hint-placeholder-count="5">
+              <div style="display: grid; grid-template-columns: 1.6fr 1.2fr 1.3fr 0.7fr 1.6fr 0.9fr 0.6fr; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #f1f5f9; align-items: center; font-size: 13px">
+                <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+                  <a href="{{e.href}}" style="font-weight: 600; font-size: 14px; color: #020817; text-decoration: none">{{e.name}}</a>
+                  <span style="font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569">{{e.path}}</span>
+                </span>
+                <span><span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: {{e.kBg}}; color: {{e.kFg}}">{{e.kind}}</span></span>
+                <span style="color: #334155">{{e.who}}</span>
+                <span style="font-variant-numeric: tabular-nums">{{e.tools}}</span>
+                <span style="color: #475569">{{e.writes}}</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 9999px; background: {{e.dot}}"></span>{{e.status}}</span>
+                <span style="text-align: right"><a href="{{e.href}}" style="font-weight: 500">Åbn →</a></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Sådan virker /mcp" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Én adresse, to svar</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px; border-radius: 12px; background: #f8fafc">
+            <span style="padding: 8px 12px; border-radius: 10px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: 600">Browser</span>
+            <span style="font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569">GET /mcp/admin · text/html →</span>
+            <span style="padding: 8px 12px; border-radius: 10px; background: #0f172a; color: #ffffff; font-weight: 600">MCP-appen</span>
+            <span style="flex-basis: 100%; font-size: 12px; color: #64748b">Siden for endpointet: værktøjer, kladder, monitor og forbind. Login med session-cookie.</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px; border-radius: 12px; background: #f8fafc">
+            <span style="padding: 8px 12px; border-radius: 10px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: 600">MCP-klient</span>
+            <span style="font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569">POST /mcp/admin · JSON-RPC →</span>
+            <span style="padding: 8px 12px; border-radius: 10px; background: #2563eb; color: #ffffff; font-weight: 600">Endpointet</span>
+            <span style="flex-basis: 100%; font-size: 12px; color: #64748b">Streamable HTTP. Login med OAuth 2.0 PKCE mod samme Gær-login. Klienter, der kalder /mcp direkte, sendes videre til /mcp/app.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const K = {
+      Indbygget: ['#f1f5f9', '#475569'],
+      'Fra kataloget': ['rgba(37,99,235,0.1)', '#1d4ed8'],
+      'API-kilde': ['rgba(13,148,136,0.12)', '#0f766e'],
+      'Ekstern MCP': ['rgba(124,58,237,0.1)', '#6d28d9']
+    };
+    const raw = [
+      ['Appen', '/mcp/app', 'Indbygget', 'Alle brugere · egne data', '15', 'Skriv direkte · slet og eksport som kladde', 'Kører', '#10b981', 'McpOverview.dc.html'],
+      ['Admin', '/mcp/admin', 'Indbygget', 'Admin-rollen', '34', 'Alt som kladde · udløber efter 10 min', 'Kører', '#10b981', 'McpOverview.dc.html'],
+      ['Data', '/mcp/data', 'Fra kataloget', 'Admin-rollen', '3', 'Kun læs · maskering fra kataloget', 'Kører', '#10b981', 'McpOverview.dc.html'],
+      ['Dataforsyningen', '/mcp/x/dawa', 'API-kilde', 'Alle brugere · ring 3', '2', 'Kun læs · 60 kald/min', 'Kører', '#10b981', 'McpOverview.dc.html'],
+      ['GitHub (proxy)', '/mcp/x/github', 'Ekstern MCP', 'Admin-rollen', '[ANTAL]', 'Videresendes · nøgle fra GITHUB_TOKEN', 'Kladde', '#f59e0b', 'McpExpose.dc.html']
+    ];
+    const eps = raw.map(([name, path, kind, who, tools, writes, status, dot, href]) => ({ name, path, kind, who, tools, writes, status, dot, href, kBg: K[kind][0], kFg: K[kind][1] }));
+    return { eps };
+  }
+}
+</script>
+</body>
+</html>
