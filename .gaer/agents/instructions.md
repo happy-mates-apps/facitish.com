@@ -28,14 +28,17 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | Path | What |
 | --- | --- |
 | `server/app/main.py` | app, CSRF + security headers, CSP per path, SPA fallback, `/health` |
-| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `review` review panel (notes, sessions, zip) · `app_store` App Stores · `office` manifests · `web` /w website + extension zip |
+| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `admin_ops` /api/admin webhooks, jobs, retention policies · `review` review panel (notes, sessions, zip) · `app_store` App Stores · `office` manifests · `web` /w website + extension zip |
 | `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `require_admin_stepup` / `any_session` |
 | `server/app/mfa.py`, `totp.py` | second-factor rules (who needs what, changing factors), authenticator apps (TOTP) |
 | `server/app/db.py` | connection pools: `db.connection()`, `db.purge_connection()`, `fetch_one`, `fetch_all` |
 | `server/app/config.py` | all settings from environment variables |
 | `server/app/migrations/` | plain SQL, applied by `python -m app.migrate` |
 | `server/app/ai.py`, `routes/ai.py` | optional AI chat (OVHcloud AI Endpoints), client tools, usage + monthly limits |
-| `server/app/logs.py`, `retention.py` | auth/audit log writers, purge + daily maintenance |
+| `server/app/logs.py`, `retention.py` | auth/audit log writers, purge of logs, cleanup of operational data (`retention_policies`) |
+| `server/app/jobs.py` | background jobs: queue in Postgres (`jobs`), workers + scheduler (`job_schedules`) in the app process, retries with backoff; `@jobs.handler("kind")`, `jobs.enqueue(conn, …)` |
+| `server/app/webhooks.py`, `secrets_box.py` | outgoing webhooks: `webhooks.emit(conn, event, data)` in the same transaction; signed (HMAC), optional auth header, retries via jobs, SSRF guard; secrets encrypted (AES-GCM) |
+| `server/app/captcha.py` | proof-of-work captcha (no third party) in front of `POST /api/auth/otp/start` |
 | `server/app/gdpr.py`, `reapply_erasures.py` | GDPR export (zip) and erasure; re-applying erasures after a backup restore |
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
 | `web/src/` | `pages/` app · `admin-app/` the standalone /admin app (own entry `web/admin.html`, spec in `specs/admin-app/`) · `features.tsx` FeatureGate · `mobile/` /m · `extension/` /extension · `office/` /office-addin · `bridge/` postMessage clients |
@@ -53,9 +56,9 @@ They share the same login (session cookie), the same database and the same API.
 | --- | --- | --- | --- |
 | `/` | logged in | The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation). | `main.py` `spa()`, `web/src/pages/Home.tsx` |
 | `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page is the Markdown page with an empty slug, or — setting `web_front = "facit246"` in `/admin/web` — the fixed "Facit · 246" story (da/en/de/sv/no, browser language by default; `web_front.py`, design in `specs/forside-246/`). The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_static/w.css`, `w.js` |
-| `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
+| `/login` | anonymous | E-mail → robot check (proof of work in the browser, `src/captcha.ts`; `CAPTCHA=off` removes it) → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
 | `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
-| `/admin/…` | admin role | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/admin/…` | admin role | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | ⌃⌥⌘W or `?review=1` | logged in | **Review panel** over the app on / (not /admin, /m, /extension, /office-addin): view the app as a ring sees it with ring markers, notes pointed at an element or area with screenshot and dictated audio, test sessions as an archetype with a playbook, zip for the developer. Data on the server per user (`/api/review`, in the GDPR export); loaded only when opened. Archetypes and playbooks: `web/src/review/scripts.ts`. Spec in `specs/review/`. | `review/`, `routes/review.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/` (both repo root and `web/src/extension/`), `bridge/extension.ts` |
@@ -86,9 +89,12 @@ Rules for routes:
    data is not done until it is in both. Analytics only identify a visitor after consent. Nothing is sent to
    third parties.
 5. **Migrations are new files**; never edit an applied one.
-6. **No secrets in the repo.** Configuration comes from environment variables (`server/app/config.py`).
-7. Before you say you are done: `pytest server` and `npm run build --prefix web` pass.
-8. UI text is Danish.
+6. **Background work goes through `app.jobs`** (never a loose `asyncio.create_task`), so it is retried, visible in
+   /admin/jobs and safe with several containers. Data that grows gets a row in `retention_policies` with its SQL in
+   `retention.CLEANUP_SQL`. New webhook events go in `webhooks.EVENTS` and carry ids, not personal data.
+7. **No secrets in the repo.** Configuration comes from environment variables (`server/app/config.py`).
+8. Before you say you are done: `pytest server` and `npm run build --prefix web` pass.
+9. UI text is Danish.
 
 ## Workflows (slash commands)
 `/gaer-boot` read in · `/gaer-init` new project · `/gaer-dev` run locally · `/gaer-db` migrations ·

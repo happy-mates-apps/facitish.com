@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 
-from app import db
+from app import db, webhooks
 from app.logs import audit, changed
 from app.routes.features import user_level
 from app.routes.files import delete_file, save_upload
@@ -170,6 +170,9 @@ async def create_feedback(body: FeedbackIn, p: Principal = Depends(current_user)
         await audit(conn, "create", actor_id=p.user_id, meta=p.meta, table="review_feedback", row_id=row["id"],
                     after={"path": body.path, "chars": len(row["body"]), "impression": body.impression,
                            "feature_key": body.feature_key, "session_id": body.session_id})
+        await webhooks.emit(conn, "review.feedback.created", {
+            "id": row["id"], "path": body.path, "feature_key": body.feature_key, "impression": body.impression,
+            "session_id": body.session_id})
     return {**row, "attachments": []}
 
 
@@ -389,6 +392,9 @@ async def update_session(session_id: int, body: SessionPatch, p: Principal = Dep
                         before=b, after=a)
         if body.end:
             await _end_session(conn, session_id, p)
+            await webhooks.emit(conn, "review.session.ended", {
+                "id": session_id, "persona_key": session["persona_key"], "script_key": session["script_key"],
+                "tasks": {t["id"]: t["status"] for t in tasks}})
         return await _session_out(conn, session_id)
 
 

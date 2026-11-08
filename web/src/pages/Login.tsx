@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { api, errorText } from "../api";
 import { loginWithPasskey, passkeyErrorText, registerPasskey, useAuth, type LoginResult, type MfaMethod } from "../auth";
 import { SecondFactor } from "../security";
 import { Alert } from "../ui";
+import { solveCaptcha } from "../captcha";
 
 // After the code: users with "Kræv passkey" prove their second factor (step "mfa"); everybody else is logged in
 // and offered a passkey (step "offer"). Admins also see how many grace logins /admin has left.
@@ -76,10 +77,29 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
     }
   };
 
+  // The robot check is solved in the background while the person types, so sending the code is not slower.
+  const captcha = useRef<Promise<string | null> | null>(null);
+  const nextCaptcha = () => {
+    captcha.current = solveCaptcha();
+    captcha.current.catch(() => {}); // the error is shown when the code is sent
+  };
+  useEffect(() => {
+    if (config?.captcha && step.kind === "phone" && !captcha.current) nextCaptcha();
+  }, [config?.captcha, step.kind]);
+
   const sendCode = (e?: FormEvent) => {
     e?.preventDefault();
     run(async () => {
-      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", contact);
+      let solution: string | null = null;
+      if (config?.captcha) {
+        if (!captcha.current) nextCaptcha();
+        try {
+          solution = await captcha.current;
+        } finally {
+          captcha.current = null; // a solution works once
+        }
+      }
+      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", { ...contact, captcha: solution });
       setCode("");
       setStep({ kind: "code", devCode: res.dev_code });
     });
@@ -135,8 +155,13 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
               )}
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" disabled={busy || phone.trim().length < 6}>
-                Send kode
+                {busy && config?.captcha ? "Tjekker og sender …" : "Send kode"}
               </button>
+              {config?.captcha && (
+                <p className="muted tiny" style={{ textAlign: "center" }}>
+                  Et lille robottjek kører i din browser. Ingen cookies, intet sendes til andre.
+                </p>
+              )}
               {config?.sms_login && (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setChannel(channel === "email" ? "phone" : "email"); setPhone(""); setError(null); }}>
                   {channel === "email" ? "Brug telefonnummer i stedet" : "Brug e-mail i stedet"}

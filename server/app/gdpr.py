@@ -11,7 +11,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from app import db, retention
+from app import db, retention, webhooks
 from app.logs import RequestMeta, audit
 from app.storage import get_storage
 
@@ -145,6 +145,7 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
         await audit(conn, "gdpr.erasure", actor_id=actor_id if actor_id != user_id else None, meta=meta,
                     table="users", row_id=user_id, reason=reason, gdpr_request=gdpr_request, files=len(files),
                     by_self=actor_id == user_id)
+        await webhooks.emit(conn, "user.deleted", {"user_id": user_id})
     for f in files:
         try:
             await get_storage().delete(f["storage_key"])

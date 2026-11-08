@@ -28,6 +28,8 @@ import Integrations from "./pages/Integrations";
 import AiAdmin from "./pages/AiAdmin";
 import Settings from "./pages/Settings";
 import Mcp from "./pages/Mcp";
+import Webhooks from "./pages/Webhooks";
+import Jobs from "./pages/Jobs";
 import { AdminGo } from "./go";
 import "./base.css";
 import "./admin.css";
@@ -85,6 +87,8 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="ai" element={legacy(<AiAdmin />)} />
                   <Route path="integrations" element={legacy(<Integrations />)} />
                   <Route path="mcp" element={<Mcp />} />
+                  <Route path="webhooks" element={legacy(<Webhooks />)} />
+                  <Route path="jobs" element={legacy(<Jobs />)} />
                   <Route path="gdpr" element={legacy(<Gdpr />)} />
                   <Route path="retention" element={legacy(<Retention />)} />
                   <Route path="consent" element={legacy(<Consent />)} />

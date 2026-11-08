@@ -65,6 +65,9 @@
     "/admin/integrations": {
       "anchors": []
     },
+    "/admin/jobs": {
+      "anchors": []
+    },
     "/admin/logs/audit": {
       "anchors": []
     },
@@ -98,6 +101,9 @@
       ]
     },
     "/admin/web": {
+      "anchors": []
+    },
+    "/admin/webhooks": {
       "anchors": []
     },
     "/chat": {
