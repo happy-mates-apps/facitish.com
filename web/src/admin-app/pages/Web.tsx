@@ -5,10 +5,13 @@ import { Alert, fmtDate, Loading, PageHeader, useLoad } from "../ui";
 type Page = { id: number; slug: string; lang: "da" | "en"; title: string; description: string; body: string; nav_order: number | null; published: boolean; updated_at: string };
 type Draft = Omit<Page, "id" | "updated_at"> & { id?: number };
 
+type Front = "markdown" | "facit246";
+
 const EMPTY: Draft = { slug: "", lang: "da", title: "", description: "", body: "", nav_order: null, published: false };
 
 export default function Web() {
   const pages = useLoad(() => api.get<Page[]>("/api/admin/web"));
+  const front = useLoad(() => api.get<{ front: Front }>("/api/admin/web/front"));
   const [draft, setDraft] = useState<Draft | null>(null);
   const [preview, setPreview] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,6 +48,26 @@ export default function Web() {
         </PageHeader>
         <button className="btn btn-primary" onClick={() => { setDraft({ ...EMPTY }); setNotice(null); }}>Ny side</button>
       </div>
+      <div className="card">
+        <span className="eyebrow">Forside /w/</span>
+        <label className="field">
+          Vis som forside
+          <select value={front.data?.front ?? "markdown"} disabled={!front.data} onChange={async (e) => {
+            setError(null);
+            try {
+              await api.put("/api/admin/web/front", { front: e.target.value as Front });
+              await front.reload();
+              setNotice("Forsiden er skiftet");
+            } catch (err) {
+              setError(errorText(err));
+            }
+          }}>
+            <option value="markdown">Markdown-siden med tom adresse (redigeres her)</option>
+            <option value="facit246">„Facit · 246“ — fast fortælling på dansk, engelsk, tysk, svensk og norsk</option>
+          </select>
+        </label>
+        <p className="muted small">Begge slutter med login-kortet. Undersiderne (/w/…) er Markdown-siderne nedenfor. <a href="/w/" target="_blank" rel="noreferrer">Se forsiden</a></p>
+      </div>
       <Alert kind="success">{notice}</Alert>
       <Alert>{error || pages.error}</Alert>
       {!pages.data ? <Loading /> : (
@@ -71,7 +94,7 @@ export default function Web() {
           <div className="card">
             <span className="eyebrow">{draft.id ? "Redigér side" : "Ny side"}</span>
             <div className="filters">
-              <label className="field">Adresse (/w/…)<input value={draft.slug} placeholder="tom = forside" onChange={(e) => setDraft({ ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} /></label>
+              <label className="field">Adresse (/w/…)<input value={draft.slug} placeholder={front.data?.front === "facit246" ? "fx priser — forsiden /w/ er 246-fortællingen" : "tom = forside"} onChange={(e) => setDraft({ ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} /></label>
               <label className="field">Sprog
                 <select value={draft.lang} onChange={(e) => setDraft({ ...draft, lang: e.target.value as "da" | "en" })}><option value="da">Dansk</option><option value="en">Engelsk</option></select>
               </label>

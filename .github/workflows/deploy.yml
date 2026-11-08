@@ -1,7 +1,7 @@
 name: deploy
-# Push to main: test, build one image, push it to OVHcloud Managed Private Registry,
-# migrate the container's own database and roll out. If a step fails the rollout stops,
-# and the running version stays in place (deploy/deploy.sh only swaps after /health answers).
+# Push to main: test, build one image, stream it to the UpCloud server over SSH and roll out with
+# docker compose. deploy/deploy.sh migrates, starts the new version and goes back to the previous
+# one if /health does not answer.
 
 on:
   push:
@@ -10,6 +10,9 @@ on:
 
 concurrency: deploy-main
 
+permissions:
+  contents: read
+
 jobs:
   test:
     uses: ./.github/workflows/test.yml
@@ -17,38 +20,51 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: https://${{ vars.DOMAIN }}
     env:
-      IMAGE: ${{ secrets.OVH_REGISTRY }}/gaer/app:${{ github.sha }}
+      IMAGE: gaer:${{ github.sha }}
+      REMOTE: deploy@${{ secrets.HOST }}
     steps:
+      - name: Validate deployment secrets
+        env:
+          HOST: ${{ secrets.HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          missing=0
+          for name in HOST SSH_KEY SSH_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required deployment secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - uses: actions/checkout@v4
 
-      - name: Build and push
-        run: |
-          echo "${{ secrets.OVH_REGISTRY_PASSWORD }}" | docker login \
-            ${{ secrets.OVH_REGISTRY }} -u ${{ secrets.OVH_REGISTRY_USER }} --password-stdin
-          docker build --build-arg GAER_VERSION=${GITHUB_SHA::7} -t $IMAGE .
-          docker push $IMAGE
+      - name: Build
+        run: docker build --build-arg GAER_VERSION=${GITHUB_SHA::7} -t "$IMAGE" .
 
       - name: Prepare SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
-          echo "SSH=ssh -i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=accept-new deploy@${{ secrets.HOST }}" >> $GITHUB_ENV
-          echo "SCP=scp -i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=accept-new" >> $GITHUB_ENV
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          echo "SSH=ssh -i $HOME/.ssh/id_deploy $REMOTE" >> $GITHUB_ENV
+          echo "SCP=scp -i $HOME/.ssh/id_deploy" >> $GITHUB_ENV
 
-      - name: Ship deploy scripts and log in to the registry on the instance
+      - name: Ship deploy files and image to the server
         run: |
           $SSH "mkdir -p gaer"
-          $SCP deploy/deploy.sh deploy/Caddyfile deploy@${{ secrets.HOST }}:gaer/
-          echo "${{ secrets.OVH_REGISTRY_PASSWORD }}" | $SSH \
-            "docker login ${{ secrets.OVH_REGISTRY }} -u ${{ secrets.OVH_REGISTRY_USER }} --password-stdin"
+          $SCP deploy/deploy.sh deploy/compose.yml deploy/postgres-init.sh "$REMOTE:gaer/"
+          docker save "$IMAGE" | gzip -1 | $SSH "gunzip | docker load"
 
-      # Migrations run on the instance: only its IP is allowed through the shared cluster's firewall.
-      - name: Migrate
-        run: $SSH "./gaer/deploy.sh migrate $IMAGE"
-
-      - name: Deploy
+      - name: Release
         run: $SSH "./gaer/deploy.sh release $IMAGE"
 
       - name: Smoke test

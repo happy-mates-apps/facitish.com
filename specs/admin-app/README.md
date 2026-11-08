@@ -192,7 +192,7 @@ med brugerens GitHub-token fra ToerGaer-onboardingen og aldrig gemmes i udvidels
 | `0006_features.sql` | `features`, `feature_rings` (bruger-niveau), `feature_usage` (append-only) |
 | `0007_app_store.sql` | `app_store` (én række: tekster pr. sprog, links, manuelle trin, ID'er) |
 | `0010_mcp.sql` | se `specs/mcp/SPEC.md` |
-| `0011_devices.sql` | se `specs/mobile/SPEC.md` |
+| `0012_devices.sql` | se `specs/mobile/SPEC.md` |
 
 Efterligning (fra happy-groups `admin/impersonation/routes.ts`): `GET/POST /api/impersonation/users`,
 `POST /api/impersonation/users/presets`, `DELETE /api/impersonation/users/{id}`, `POST /api/impersonation/start`,

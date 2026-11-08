@@ -321,6 +321,8 @@ async def test_db_query_runs_read_only_as_mcp_ro(make_client):
     assert r["rows"][0]["phone"] == "•••"
     r, err = await m.call("db_query", sql="select phone_masked from auth_log")
     assert err and "adgang" in r["error"]
+    r, err = await m.call("db_query", sql="select secret_enc from totp_factors")
+    assert err and "adgang" in r["error"]  # authenticator-app secrets are hidden from db_query
     r, err = await m.call("db_query", sql="select 'it''s; fine' as s, $$a;b$$ as t")
     assert not err and r["rows"][0]["s"] == "it's; fine"
     _, err = await m.call("db_query", sql="update users set role = 'admin'")

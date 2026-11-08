@@ -1,8 +1,8 @@
 # Gær — instructions for AI assistants
 
 Gær is the lightweight version of Surdej: **one container** with a Python server (FastAPI) and a Vite frontend
-(React + TypeScript), connected to a **shared managed PostgreSQL** (own database per container) and
-**Object Storage** on OVHcloud. Login is e-mail + one-time code with passkeys, security keys and authenticator apps
+(React + TypeScript), with its **own PostgreSQL** (a container in the same compose stack, own database and roles)
+and **S3 Object Storage**. Login is e-mail + one-time code with passkeys, security keys and authenticator apps
 (MFA for /admin, opt-in for users), with a full auth log and audit log. Every customer gets their own fork; updates are pulled from gaer-base.
 
 ## The backend already exists
@@ -15,7 +15,7 @@ Do not scaffold a new backend, database or login. Everything below is in place a
   `current_user`, `require_admin` or `require_admin_stepup` from `app.sessions`. Frontend reads the user with
   `useAuth()` (`web/src/auth.tsx`); profile and security UI: skill `gaer-profile`.
 - **Postgres** — the container has its own database. Locally `docker compose up -d` (postgres:16 on :5432,
-  user/password/db `gaer`); in production a database on the managed cluster that only this container reaches.
+  user/password/db `gaer`); in production the `postgres` service in `deploy/compose.yml` (roles from `postgres-init.sh`).
   psycopg 3, raw SQL, no ORM. Schema in `server/app/migrations/*.sql`, applied by `python -m app.migrate`.
 - **Python** — 3.12+ (image: 3.13), FastAPI + uvicorn, pinned `server/requirements.txt`, venv in `.venv`,
   settings from environment variables in `server/app/config.py`, tests with pytest against real Postgres.
@@ -40,7 +40,7 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
 | `web/src/` | `pages/` app · `admin-app/` the standalone /admin app (own entry `web/admin.html`, spec in `specs/admin-app/`) · `features.tsx` FeatureGate · `mobile/` /m · `extension/` /extension · `office/` /office-addin · `bridge/` postMessage clients |
 | `extension/` | MV3 browser extension (side panel) |
-| `deploy/` | `deploy.sh` (on the instance), `Caddyfile`, `provision_database.py`, `.env.example` |
+| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, cloudflared), `postgres-init.sh`, `.env.example`, `app.env.example` |
 | `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod) |
 | `mobile/` | Expo app (iOS + Android): native login, then `/m` in a WebView — spec in `specs/mobile/` |
 | `server/app/mcp/` | MCP servers: `/mcp` (appen, as the user) and `/mcp/admin` (admin, drafts) — spec in `specs/mcp/` |
@@ -52,7 +52,7 @@ They share the same login (session cookie), the same database and the same API.
 | Route | Who | What | Code |
 | --- | --- | --- | --- |
 | `/` | logged in | The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation). | `main.py` `spa()`, `web/src/pages/Home.tsx` |
-| `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_static/w.css`, `w.js` |
+| `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page is the Markdown page with an empty slug, or — setting `web_front = "facit246"` in `/admin/web` — the fixed "Facit · 246" story (da/en/de/sv/no, browser language by default; `web_front.py`, design in `specs/forside-246/`). The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_static/w.css`, `w.js` |
 | `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
 | `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
 | `/admin/…` | admin role | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |

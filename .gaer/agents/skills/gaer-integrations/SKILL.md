@@ -45,6 +45,10 @@ page, a mail or a selection, inserted into Word/Outlook.
 ## /w — public website
 - `server/app/routes/web.py` renders `web_pages` (Markdown, sanitized with nh3) as HTML; da/en via `?lang`
   and the `w_lang` cookie; menu from `nav_order`. Edited in `/admin/web`. Anonymous `/` redirects to `/w/`.
+- The front page `/w/` is the Markdown page with an empty slug (default) or, with the setting `web_front =
+  "facit246"` (chosen in `/admin/web`, `PUT /api/admin/web/front`; until then `WEB_FRONT` in the environment), the fixed "Facit · 246" story from
+  `server/app/web_front.py` (da/en/de/sv/no, `Accept-Language` when nothing is chosen) with
+  `web_static/facit.css` + `facit.js` (no inline scripts — CSP). Both end with the login card. Design: `specs/forside-246/`.
 - `server/app/web_static/w.js` shows the consent banner and sends analytics — same storage keys as the app.
 
 ## /m — mobile app (PWA)

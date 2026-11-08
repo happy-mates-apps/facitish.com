@@ -129,3 +129,32 @@ async def test_front_page_placeholder_when_none_written(client, owner_conn):
         assert r.status_code == 200 and "Her kommer jeres website" in r.text and 'class="login-card"' in r.text
     finally:
         owner_conn.execute("update web_pages set published = true where id = %s", (saved,))
+
+
+async def test_web_front_default_comes_from_the_environment(client, monkeypatch, owner_conn):
+    import dataclasses
+    from app import config
+    monkeypatch.setattr(config, "settings", dataclasses.replace(config.settings, web_front="facit246"))
+    assert "Facit først." in (await client.get("/w/?lang=da")).text
+    owner_conn.execute("""insert into settings (key, value) values ('web_front', '"markdown"')""")  # /admin/web wins
+    assert "Facit først." not in (await client.get("/w/?lang=da")).text
+
+
+async def test_front_page_can_be_the_246_story(client, make_client, owner_conn):
+    assert "Facit først." not in (await client.get("/w/?lang=da")).text  # Markdown by default
+    owner_conn.execute("""insert into settings (key, value) values ('web_front', '"facit246"')
+                          on conflict (key) do update set value = excluded.value""")
+    for lang, html_lang, line in (("da", "da", "Facit først."), ("en", "en", "The answer first."),
+                                  ("de", "de", "Erst das Ergebnis."), ("sv", "sv", "Facit först."),
+                                  ("no", "nb", "Fasit først.")):
+        body = (await client.get(f"/w/?lang={lang}")).text
+        assert f'lang="{html_lang}"' in body and line in body and 'class="login-card"' in body
+    assert 'lang="da"' in (await client.get("/w/om")).text  # de/sv/no are front-page only
+    browser = make_client()
+    body = (await browser.get("/w/", headers={"accept-language": "nb-NO,nb;q=0.9,en;q=0.8"})).text
+    assert 'lang="nb"' in body  # the browser's language when nothing is chosen
+    body = (await client.get("/w/?lang=da")).text
+    assert "Dette er forsiden" not in body and body.count("<i style=") == 246
+    for name in ("facit.css", "facit.js"):
+        assert (await client.get(f"/w/static/{name}")).status_code == 200
+    assert "script-src 'self';" in (await client.get("/w/")).headers["content-security-policy"]

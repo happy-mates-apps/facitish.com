@@ -1,6 +1,9 @@
 """/w — the public website, server-rendered from Markdown pages edited in /admin/web.
 
 Language: ?lang=da|en (remembered in the w_lang cookie), then the cookie, then Danish.
+Front page: the Markdown page with slug '' (default), or — with the setting web_front = "facit246" (/admin/web) —
+the fixed "Facit · 246" story (app/web_front.py) in da/en/de/sv/no, where the browser's language is used when
+nothing is chosen. Both end with the login card.
 Anonymous visitors to / are sent here (see main.py). Page views go through the same
 self-hosted analytics as the app (static/w.js), with the same consent.
 """
@@ -15,7 +18,7 @@ import nh3
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
-from app import config, db, settings_store
+from app import config, db, settings_store, web_front
 from app.routes.auth import admin_open_to_anyone
 
 router = APIRouter(tags=["web"])
@@ -55,12 +58,25 @@ def render_markdown(source: str) -> str:
                      url_schemes={"http", "https", "mailto", "tel"})
 
 
-def _lang(request: Request) -> tuple[str, bool]:
+def _browser_lang(request: Request, allowed: tuple[str, ...]) -> str | None:
+    for part in request.headers.get("accept-language", "").split(","):
+        code = part.split(";")[0].strip().lower()[:2]
+        code = "no" if code in ("nb", "nn") else code
+        if code in allowed:
+            return code
+    return None
+
+
+def _lang(request: Request, allowed: tuple[str, ...] = LANGS, browser: bool = False) -> tuple[str, bool]:
     q = request.query_params.get("lang")
-    if q in LANGS:
+    if q in allowed:
         return q, True
     c = request.cookies.get("w_lang")
-    return (c if c in LANGS else "da"), False
+    if c in allowed:
+        return c, False
+    if browser and not c:
+        return _browser_lang(request, allowed) or "da", False
+    return "da", False
 
 
 def _page_html(*, lang: str, page: dict | None, nav: list[dict], values: dict, slug: str,
@@ -119,7 +135,7 @@ async def w_root():
 
 @router.get("/w/static/{name}", include_in_schema=False)
 async def w_static(name: str):
-    if name not in ("w.css", "w.js"):
+    if name not in ("w.css", "w.js", "facit.css", "facit.js"):
         raise HTTPException(404)
     return FileResponse(os.path.join(STATIC_DIR, name), headers={"Cache-Control": "public, max-age=300"})
 
@@ -127,15 +143,21 @@ async def w_static(name: str):
 @router.get("/w/{slug:path}", response_class=HTMLResponse, include_in_schema=False)
 async def w_page(slug: str, request: Request):
     slug = slug.strip("/")
-    lang, explicit = _lang(request)
     async with db.connection() as conn:
         values = await settings_store.get_all(conn)
-        page = await db.fetch_one(conn, "select * from web_pages where slug = %s and lang = %s and published",
-                                  (slug, lang))
+        story = slug == "" and values["web_front"] == "facit246"
+        lang, explicit = _lang(request, web_front.LANGS, browser=True) if story else _lang(request)
+        page_lang = lang if lang in LANGS else "da"  # Markdown pages and the menu exist in da/en
+        page = None if story else await db.fetch_one(
+            conn, "select * from web_pages where slug = %s and lang = %s and published", (slug, lang))
         nav = await db.fetch_all(conn, """select slug, title from web_pages where lang = %s and published
-                                          and nav_order is not null order by nav_order, title""", (lang,))
+                                          and nav_order is not null order by nav_order, title""", (page_lang,))
         first_user = await admin_open_to_anyone(conn)
-    html = _page_html(lang=lang, page=page, nav=nav, values=values, slug=slug, first_user=first_user)
+    if story:
+        html = web_front.render(lang=lang, app_name=values["app_name"], base=config.settings.origin.rstrip("/"),
+                                nav=nav, first_user=first_user)
+    else:
+        html = _page_html(lang=lang, page=page, nav=nav, values=values, slug=slug, first_user=first_user)
     found = page is not None or slug == ""
     response = HTMLResponse(html, status_code=200 if found else 404, headers={"Cache-Control": "no-cache"})
     if explicit:
