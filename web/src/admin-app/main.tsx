@@ -1,5 +1,5 @@
 // Entry of the standalone admin app on /admin (web/admin.html). Shares only the login cookie, api.ts,
-// auth.tsx, bridge/ and deeplink.tsx with the app on /; shell, components and styles are its own (enforced in vite.config.ts).
+// auth.tsx, bridge/, deeplink.tsx and routes.json with the app on /; shell, components and styles are its own (enforced in vite.config.ts).
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
