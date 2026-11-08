@@ -3,22 +3,22 @@ import { api, errorText } from "../../api";
 import { Alert, fmtBytes, fmtDate, fmtDay, fmtNumber, Loading, PageHeader, useLoad } from "../ui";
 
 type Data = {
-  auth_log_days: number; audit_log_days: number; analytics_days: number; last_run: string | null;
+  auth_log_days: number; audit_log_days: number; analytics_days: number; mcp_log_days: number; last_run: string | null;
   logs: { log: string; rows: number; oldest: string | null; bytes: number }[];
 };
 
-const NAMES: Record<string, string> = { auth_log: "Auth-log", audit_log: "Audit-log", analytics: "Analytics og heatmaps" };
+const NAMES: Record<string, string> = { auth_log: "Auth-log", audit_log: "Audit-log", analytics: "Analytics og heatmaps", mcp_log: "MCP-log" };
 
 export default function Retention() {
   const data = useLoad(() => api.get<Data>("/api/admin/retention"));
-  const [days, setDays] = useState({ auth_log_days: 365, audit_log_days: 1825, analytics_days: 395 });
+  const [days, setDays] = useState({ auth_log_days: 365, audit_log_days: 1825, analytics_days: 395, mcp_log_days: 90 });
   const [userId, setUserId] = useState("");
-  const [logs, setLogs] = useState<string[]>(["auth_log", "audit_log", "analytics"]);
+  const [logs, setLogs] = useState<string[]>(["auth_log", "audit_log", "analytics", "mcp_log"]);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (data.data) setDays({ auth_log_days: data.data.auth_log_days, audit_log_days: data.data.audit_log_days, analytics_days: data.data.analytics_days });
+    if (data.data) setDays({ auth_log_days: data.data.auth_log_days, audit_log_days: data.data.audit_log_days, analytics_days: data.data.analytics_days, mcp_log_days: data.data.mcp_log_days });
   }, [data.data]);
 
   const act = async (fn: () => Promise<{ deleted?: Record<string, number> } | unknown>, label: string, confirmText?: string) => {
@@ -62,6 +62,7 @@ export default function Retention() {
               <label className="field">Auth-log (dage)<input type="number" min={30} value={days.auth_log_days} onChange={(e) => setDays({ ...days, auth_log_days: Number(e.target.value) })} /></label>
               <label className="field">Audit-log (dage)<input type="number" min={30} value={days.audit_log_days} onChange={(e) => setDays({ ...days, audit_log_days: Number(e.target.value) })} /></label>
               <label className="field">Analytics (dage)<input type="number" min={7} value={days.analytics_days} onChange={(e) => setDays({ ...days, analytics_days: Number(e.target.value) })} /></label>
+              <label className="field">MCP-log (dage)<input type="number" min={7} value={days.mcp_log_days} onChange={(e) => setDays({ ...days, mcp_log_days: Number(e.target.value) })} /></label>
             </div>
             <p className="muted tiny">Sidst kørt automatisk: {fmtDay(data.data.last_run)}. log.purged-hændelser slettes aldrig.</p>
             <div className="row">

@@ -24,7 +24,7 @@ jobs:
       name: production
       url: https://${{ vars.DOMAIN }}
     env:
-      IMAGE: facitish:${{ github.sha }}
+      IMAGE: gaer:${{ github.sha }}
       REMOTE: deploy@${{ secrets.HOST }}
     steps:
       - name: Validate deployment secrets

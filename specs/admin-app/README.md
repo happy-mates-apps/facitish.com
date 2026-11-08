@@ -30,7 +30,7 @@ Bemærk: i skærmbillederne vises lucide-ikonerne som grå firkanter. Det skylde
 
 Admin-appen er en **selvstændig app**: egen Vite-entry, egen layout-shell, egen bundle, egne komponenter
 (`admin-app/ui.tsx`) og egne styles (`admin-app/base.css` + `admin.css`). Den deler kun login-cookie, `api.ts`,
-`auth.tsx` og `bridge/` med appen på `/` — hverken `TopBar`, `ui.tsx` eller `styles.css`. `appBoundary()` i
+`auth.tsx`, `bridge/` og `deeplink.tsx` med appen på `/` — hverken `TopBar`, `ui.tsx` eller `styles.css`. `appBoundary()` i
 `web/vite.config.ts` lader `npm run dev`/`build` fejle, hvis en af siderne importerer fra den anden. Den eksisterende
 `web/src/admin/` erstattes af den nye app. De nuværende sektioner (auth-log, audit-log, GDPR, sletning,
 samtykke, filer, website, integrationer, indstillinger) flyttes ind uændret som undersider.
@@ -191,8 +191,8 @@ med brugerens GitHub-token fra ToerGaer-onboardingen og aldrig gemmes i udvidels
 | `0005_impersonation.sql` | `users.impersonation_only`, `users.impersonation_owner_id`, `sessions.impersonator_id` |
 | `0006_features.sql` | `features`, `feature_rings` (bruger-niveau), `feature_usage` (append-only) |
 | `0007_app_store.sql` | `app_store` (én række: tekster pr. sprog, links, manuelle trin, ID'er) |
-| `0008_mcp.sql` | se `specs/mcp/SPEC.md` |
-| `0009_devices.sql` | se `specs/mobile/SPEC.md` |
+| `0010_mcp.sql` | se `specs/mcp/SPEC.md` |
+| `0012_devices.sql` | se `specs/mobile/SPEC.md` |
 
 Efterligning (fra happy-groups `admin/impersonation/routes.ts`): `GET/POST /api/impersonation/users`,
 `POST /api/impersonation/users/presets`, `DELETE /api/impersonation/users/{id}`, `POST /api/impersonation/start`,
@@ -220,5 +220,7 @@ Efterligning (fra happy-groups `admin/impersonation/routes.ts`): `GET/POST /api/
 - `design/Happy AI Sidepanel - App Stores.dc.html` — sidepanelets guides: Apple Developer, Google Play Console, Expo · EAS
 - `design/ToergaerMark.dc.html`, `design/support.js`, `design/_ds/…`, `design/assets/…` — kun for at prototypen kan køre
 - `screenshots/` — 19 skærmbilleder (se tabellen ovenfor)
-- Relaterede specs: `specs/mcp/` (MCP-servere), `specs/mobile/` (mobil-app)
+- `DATA.md` + `design/data-mcp/` — sektionen Data (katalog, udforsk, forbind API), ny sidemenu (søgning,
+  sticky overskrifter, serverfelt, klap sammen) og MCP-appen på `/mcp`
+- Relaterede specs: `specs/mcp/` (MCP-servere; `APP.md` for /mcp som separat app), `specs/mobile/` (mobil-app)
 - AI-instruktioner: `.gaer/agents/instructions.md`, skills `gaer-backend`, `gaer-mcp`

@@ -13,25 +13,27 @@ from app.storage import MemoryStorage, get_storage
 router = APIRouter(prefix="/api/files", tags=["files"])
 
 
-async def save_upload(conn, upload: UploadFile, *, owner_id: int | None, actor: Principal, prefix: str) -> dict:
-    """Stores an upload and writes file.upload in the audit log. Used by /api/files and /admin/settings."""
+async def save_upload(conn, upload: UploadFile, *, owner_id: int | None, actor: Principal, prefix: str,
+                      content_type: str | None = None, kind: str = "file") -> dict:
+    """Stores an upload and writes file.upload in the audit log. Used by /api/files, /api/me/avatar and
+    /admin/settings. content_type overrides what the browser sent (when the server checked the content itself)."""
     limit = config.settings.max_upload_mb * 1024 * 1024
     data = await upload.read(limit + 1)
     if len(data) > limit:
         raise HTTPException(413, f"Filen er større end {config.settings.max_upload_mb} MB")
     file_id = uuid.uuid4()
     filename = (upload.filename or "fil").replace("/", "_")[:200]
-    content_type = upload.content_type or "application/octet-stream"
+    content_type = content_type or upload.content_type or "application/octet-stream"
     key = f"{prefix}/{file_id}"
     await get_storage().put(key, data, content_type)
     row = await db.fetch_one(conn, """
-        insert into files (id, user_id, storage_key, filename, content_type, size_bytes)
-        values (%s, %s, %s, %s, %s, %s)
+        insert into files (id, user_id, storage_key, filename, content_type, size_bytes, kind)
+        values (%s, %s, %s, %s, %s, %s, %s)
         returning id, filename, content_type, size_bytes, created_at, storage_key""",
-        (file_id, owner_id, key, filename, content_type, len(data)))
+        (file_id, owner_id, key, filename, content_type, len(data), kind))
     await audit(conn, "file.upload", actor_id=actor.user_id, meta=actor.meta, table="files", row_id=file_id,
                 after={"filename": filename, "size_bytes": len(data), "content_type": content_type,
-                       "user_id": owner_id})
+                       "user_id": owner_id, "kind": kind})
     return row
 
 
@@ -52,7 +54,7 @@ async def list_files(p: Principal = Depends(current_user)):
     async with db.connection() as conn:
         return await db.fetch_all(conn, """
             select id, filename, content_type, size_bytes, created_at from files
-            where user_id = %s order by created_at desc""", (p.user_id,))
+            where user_id = %s and kind = 'file' order by created_at desc""", (p.user_id,))
 
 
 @router.post("")

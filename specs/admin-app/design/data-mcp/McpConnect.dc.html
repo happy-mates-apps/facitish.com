@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-servere — Forbind</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="McpNav" active="{{server}}"hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/mcp/{{server}}?fane=forbind</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Indbyggede endpoints</h1>
+        <div role="radiogroup" aria-label="Server" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #e2e8f0">
+          <button type="button" role="radio" aria-checked="{{appChecked}}" onClick="{{pickApp}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer; background: {{appBg}}; font: {{appFw}} 12px Inter, system-ui, sans-serif; color: {{appFg}}">Appen · /mcp/app</button>
+          <button type="button" role="radio" aria-checked="{{adminChecked}}" onClick="{{pickAdmin}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer; background: {{adminBg}}; font: {{adminFw}} 12px Inter, system-ui, sans-serif; color: {{adminFg}}">Admin · /mcp/admin</button>
+        </div>
+      </div>
+
+      <nav aria-label="MCP" style="display: flex; gap: 22px; border-bottom: 1px solid #e2e8f0; overflow-x: auto">
+        <a href="McpOverview.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Oversigt</a>
+        <a href="McpTools.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Værktøjer</a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Kladder <span style="padding: 0 6px; border-radius: 9999px; background: #f59e0b; color: #ffffff; font-size: 11px; font-weight: 700">{{pending}}</span></a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Monitor</a>
+        <a href="McpConnect.dc.html" aria-current="page" style="padding: 10px 0; font-weight: 600; color: #020817; text-decoration: none; border-bottom: 2px solid #2563eb; margin-bottom: -1px; white-space: nowrap">Forbind</a>
+      </nav>
+
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-radius: 12px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 13px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span style="flex: 1 1 320px">{{banner}}</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px">
+        <section aria-label="Claude Code" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 32px; height: 32px; border-radius: 8px; background: #0f172a; color: #ffffff; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6-6-6 M12 19h8"></path></svg></span>
+            <span style="font-weight: 700; font-size: 16px">Claude Code</span>
+          </div>
+          <p style="margin: 0; font-size: 13px; color: #64748b">Kør i terminalen. Første kald åbner login.</p>
+          <code style="display: block; padding: 12px; border-radius: 10px; background: #0f172a; color: #e2e8f0; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all">claude mcp add --transport http {{name}} {{url}}</code>
+          <button type="button" style="align-self: flex-start; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif">Kopiér</button>
+        </section>
+
+        <section aria-label="Claude Desktop" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; color: #0f172a; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h20v13H2z M8 21h8 M12 17v4"></path></svg></span>
+            <span style="font-weight: 700; font-size: 16px">Claude Desktop og claude.ai</span>
+          </div>
+          <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; display: flex; flex-direction: column; gap: 4px">
+            <li>Indstillinger → Connectors → Tilføj brugerdefineret connector</li>
+            <li>Navn: <strong>{{label}}</strong></li>
+            <li>URL: indsæt adressen herunder</li>
+          </ol>
+          <code style="display: block; padding: 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; color: #334155; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace">{{url}}</code>
+          <button type="button" style="align-self: flex-start; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif">Kopiér URL</button>
+        </section>
+
+        <section aria-label="VS Code" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 32px; height: 32px; border-radius: 8px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 18l6-6-6-6 M8 6l-6 6 6 6"></path></svg></span>
+            <span style="font-weight: 700; font-size: 16px">VS Code · Copilot</span>
+          </div>
+          <p style="margin: 0; font-size: 13px; color: #64748b">Læg filen i projektet som <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace">.vscode/mcp.json</span>.</p>
+          <code style="display: block; padding: 12px; border-radius: 10px; background: #0f172a; color: #e2e8f0; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre">{{vscode}}</code>
+          <button type="button" style="align-self: flex-start; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif">Kopiér</button>
+        </section>
+      </div>
+
+      <section aria-label="Forbundne klienter" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e2e8f0">
+          <span style="font-weight: 700">Forbundne klienter</span>
+          <span style="font-size: 12px; color: #64748b">MCP-sessioner på {{path}}</span>
+        </div>
+        <sc-for list="{{clients}}" as="c" hint-placeholder-count="3">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #f1f5f9">
+            <span style="width: 30px; height: 30px; border-radius: 9999px; background: {{c.color}}; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">{{c.ini}}</span>
+            <span style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0">
+              <span style="font-weight: 600">{{c.user}} · {{c.client}}</span>
+              <span style="font-size: 12px; color: #64748b">Forbundet {{c.since}} · sidste kald {{c.last}}</span>
+            </span>
+            <button type="button" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #fecaca; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif; color: #b91c1c">Afbryd</button>
+          </div>
+        </sc-for>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { server: 'admin' };
+  }
+  renderVals() {
+    const isApp = this.state.server === 'app';
+    const on = { bg: '#0f172a', fg: '#ffffff', fw: 600 };
+    const off = { bg: 'transparent', fg: '#475569', fw: 500 };
+    const a = isApp ? on : off;
+    const b = isApp ? off : on;
+    const sw = {
+      server: this.state.server,
+      pickApp: () => this.setState({ server: 'app' }),
+      pickAdmin: () => this.setState({ server: 'admin' }),
+      appChecked: isApp ? 'true' : 'false', adminChecked: isApp ? 'false' : 'true',
+      appBg: a.bg, appFg: a.fg, appFw: a.fw, adminBg: b.bg, adminFg: b.fg, adminFw: b.fw,
+      pending: isApp ? 1 : 2
+    };
+    const name = isApp ? 'gaer' : 'gaer-admin';
+    const path = isApp ? '/mcp/app' : '/mcp/admin';
+    const url = 'https://lejedata.gaer.dk' + path;
+    const label = isApp ? 'Gær' : 'Gær admin';
+    const banner = isApp
+      ? 'Alle brugere med en fuld session kan forbinde. Klienten åbner Gær-login i browseren (telefon → engangskode → passkey) og handler altid som den bruger, der loggede ind — kun på egne data.'
+      : 'Kun admin-rollen kan forbinde — ikke testkonti og ikke under efterligning. Klienten åbner Gær-login i browseren (telefon → engangskode → passkey). Der er ingen API-nøgler at kopiere, og forbindelsen kan lukkes under Konto → Sessioner.';
+    const vscode = '{\n  "servers": {\n    "' + name + '": {\n      "type": "http",\n      "url": "' + url + '"\n    }\n  }\n}';
+    const clients = isApp
+      ? [
+          { ini: 'SL', user: 'Sofie L.', client: 'Claude Desktop', since: '6. nov', last: 'for 2 min siden', color: '#06D6A0' },
+          { ini: 'JM', user: 'Jonas M.', client: 'ChatGPT', since: '1. nov', last: 'for 5 min siden', color: '#F77F00' },
+          { ini: 'MK', user: 'Mette K.', client: 'VS Code', since: '28. okt', last: 'for 25 min siden', color: '#7c3aed' },
+          { ini: 'NI', user: 'Niels', client: 'ChatGPT', since: '20. okt', last: 'for 47 min siden', color: '#118AB2' }
+        ]
+      : [
+          { ini: 'NI', user: 'Niels', client: 'Claude Desktop', since: '3. nov', last: 'for 1 min siden', color: '#118AB2' },
+          { ini: 'MK', user: 'Mette K.', client: 'Claude Code', since: '28. okt', last: 'for 30 min siden', color: '#7c3aed' },
+          { ini: 'NI', user: 'Niels', client: 'VS Code', since: '14. okt', last: 'i går', color: '#118AB2' }
+        ];
+    return { ...sw, name, path, url, label, banner, vscode, clients };
+  }
+}
+</script>
+</body>
+</html>

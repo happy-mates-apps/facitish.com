@@ -4,11 +4,12 @@ Run once per new Gær instance by Happy Mates, with the cluster's admin user:
 
     python deploy/provision_database.py --admin-url "postgresql://avnadmin:...@host:port/defaultdb?sslmode=require" --name kunde
 
-Creates database gaer_<name> and three users that can only reach that database:
+Creates database gaer_<name> and four users that can only reach that database:
     gaer_<name>_owner   owns the schema, runs migrations          -> MIGRATION_DATABASE_URL
     gaer_<name>_app     the application, append-only on log tables -> DATABASE_URL
     gaer_<name>_purge   deletes log data from /admin               -> PURGE_DATABASE_URL
-Prints the three URLs for the instance's .env. Passwords are generated and shown only once.
+    gaer_<name>_mcp_ro  SELECT only, for the db_query MCP tool     -> MCP_DB_QUERY_URL
+Prints the four URLs for the instance's .env. Passwords are generated and shown only once.
 """
 
 import argparse
@@ -36,7 +37,7 @@ def main() -> int:
         parser.error("name must be lowercase letters, digits and _")
 
     db = f"gaer_{args.name}"
-    roles = {suffix: (f"{db}_{suffix}", secrets.token_urlsafe(24)) for suffix in ("owner", "app", "purge")}
+    roles = {suffix: (f"{db}_{suffix}", secrets.token_urlsafe(24)) for suffix in ("owner", "app", "purge", "mcp_ro")}
 
     with psycopg.connect(args.admin_url, autocommit=True) as conn:
         if conn.execute("select 1 from pg_database where datname = %s", (db,)).fetchone():
@@ -59,6 +60,7 @@ def main() -> int:
     print(f"DATABASE_URL={url_for(args.admin_url, *roles['app'], db)}")
     print(f"PURGE_DATABASE_URL={url_for(args.admin_url, *roles['purge'], db)}")
     print(f"MIGRATION_DATABASE_URL={url_for(args.admin_url, *roles['owner'], db)}")
+    print(f"MCP_DB_QUERY_URL={url_for(args.admin_url, *roles['mcp_ro'], db)}")
     return 0
 
 

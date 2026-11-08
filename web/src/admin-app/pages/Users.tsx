@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { api } from "../../api";
 import { Empty, ErrorBox, PageTitle, Pill, useLoad } from "../ui";
 import { card, SANS, tableHead } from "../theme";
-import { isTest, userView, type AdminUser, type UsersResponse } from "../users";
+import { factorCount, isTest, userView, type AdminUser, type UsersResponse } from "../users";
 import UserDrawer from "./UserDrawer";
 
 const FILTERS: [key: string, label: string, test: (u: AdminUser) => boolean][] = [
@@ -14,6 +14,7 @@ const FILTERS: [key: string, label: string, test: (u: AdminUser) => boolean][] =
   ["blocked", "Spærrede", (u) => !!u.blocked_at],
   ["nopk", "Uden passkey", (u) => u.passkeys === 0 && !isTest(u)],
   ["admins", "Admins", (u) => u.role === "admin"],
+  ["adminnomfa", "Admins uden MFA", (u) => u.role === "admin" && !isTest(u) && factorCount(u) === 0],
   ["test", "Testkonti", isTest],
 ];
 const COLS = "minmax(240px,1.6fr) 110px 170px 130px 100px 40px";
@@ -23,10 +24,11 @@ export default function Users() {
   const [q, setQ] = useState("");
   const { data, error, reload } = useLoad(() => api.get<UsersResponse>("/api/admin/users?limit=500"), []);
   const filter = params.get("filter") ?? "all";
-  const selected = Number(params.get("user")) || null;
+  const selected = Number(params.get("user") ?? params.get("userId")) || null;
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
+    if (key === "user") next.delete("userId");
     if (value) next.set(key, value); else next.delete(key);
     setParams(next, { replace: key === "filter" });
   };

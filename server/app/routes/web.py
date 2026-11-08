@@ -1,8 +1,9 @@
 """/w — the public website, server-rendered from Markdown pages edited in /admin/web.
 
 Language: ?lang=da|en (remembered in the w_lang cookie), then the cookie, then Danish.
-The front page /w/ is the fixed "Facit · 246" story (app/web_front.py) in da/en/de/sv/no, where
-the browser's language is used when nothing is chosen; the Markdown pages are everything below it.
+Front page: the Markdown page with slug '' (default), or — with the setting web_front = "facit246" (/admin/web) —
+the fixed "Facit · 246" story (app/web_front.py) in da/en/de/sv/no, where the browser's language is used when
+nothing is chosen. Both end with the login card.
 Anonymous visitors to / are sent here (see main.py). Page views go through the same
 self-hosted analytics as the app (static/w.js), with the same consent.
 """
@@ -25,11 +26,28 @@ router = APIRouter(tags=["web"])
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "web_static")
 LANGS = ("da", "en")
 TEXT = {
-    "da": {"login": "Log ind", "privacy": "Privatliv", "other": "English", "missing": "Siden findes ikke"},
-    "en": {"login": "Log in", "privacy": "Privacy", "other": "Dansk", "missing": "Page not found"},
+    "da": {"login": "Log ind", "privacy": "Privatliv", "other": "English", "missing": "Siden findes ikke",
+           "card_title": "Log ind", "card_text": "Brug din e-mailadresse. Du får en engangskode på mail.",
+           "first": "Instansen er ny og har ingen brugere endnu. Den første, der logger ind, bliver administrator."},
+    "en": {"login": "Log in", "privacy": "Privacy", "other": "Dansk", "missing": "Page not found",
+           "card_title": "Log in", "card_text": "Use your e-mail address. We'll e-mail you a one-time code.",
+           "first": "This instance is new and has no users yet. The first person to log in becomes the administrator."},
+}
+PLACEHOLDER = {
+    "da": "# Velkommen\n\nHer kommer jeres website. Indholdet redigeres i /admin/web.",
+    "en": "# Welcome\n\nYour website goes here. Edit the content in /admin/web.",
 }
 
 
+def _login_card(lang: str, first_user: bool) -> str:
+    t = TEXT[lang]
+    notice = f'<p class="first">{t["first"]}</p>' if first_user else ""
+    return f"""<section class="login-card">
+  <h2>{t['card_title']}</h2>
+  <p>{t['card_text']}</p>
+  {notice}
+  <a class="button" href="/login">{t['login']}</a>
+</section>"""
 ALLOWED_TAGS = {"h1", "h2", "h3", "h4", "p", "a", "ul", "ol", "li", "strong", "em", "code", "pre", "blockquote",
                 "img", "hr", "br", "table", "thead", "tbody", "tr", "th", "td"}
 
@@ -49,19 +67,20 @@ def _browser_lang(request: Request, allowed: tuple[str, ...]) -> str | None:
     return None
 
 
-def _lang(request: Request, allowed: tuple[str, ...] = LANGS) -> tuple[str, bool]:
+def _lang(request: Request, allowed: tuple[str, ...] = LANGS, browser: bool = False) -> tuple[str, bool]:
     q = request.query_params.get("lang")
     if q in allowed:
         return q, True
     c = request.cookies.get("w_lang")
     if c in allowed:
         return c, False
-    if allowed is web_front.LANGS and not c:
+    if browser and not c:
         return _browser_lang(request, allowed) or "da", False
     return "da", False
 
 
-def _page_html(*, lang: str, page: dict | None, nav: list[dict], values: dict, slug: str) -> str:
+def _page_html(*, lang: str, page: dict | None, nav: list[dict], values: dict, slug: str,
+               first_user: bool = False) -> str:
     t = TEXT[lang]
     other = "en" if lang == "da" else "da"
     name = escape(values["app_name"])
@@ -73,7 +92,15 @@ def _page_html(*, lang: str, page: dict | None, nav: list[dict], values: dict, s
     links = "".join(
         f'<a href="/w/{escape(p["slug"])}"{" class=active" if p["slug"] == slug else ""}>{escape(p["title"])}</a>'
         for p in nav if p["slug"])
-    body = render_markdown(page["body"]) if page else f"<h1>{t['missing']}</h1>"
+    if page:
+        body = render_markdown(page["body"])
+    elif slug == "":
+        body = render_markdown(PLACEHOLDER[lang])  # no front page written yet
+        title = escape(values["app_name"])
+    else:
+        body = f"<h1>{t['missing']}</h1>"
+    if slug == "":
+        body += _login_card(lang, first_user)
     return f"""<!doctype html>
 <html lang="{lang}">
 <head>
@@ -116,22 +143,22 @@ async def w_static(name: str):
 @router.get("/w/{slug:path}", response_class=HTMLResponse, include_in_schema=False)
 async def w_page(slug: str, request: Request):
     slug = slug.strip("/")
-    front = slug == ""
-    lang, explicit = _lang(request, web_front.LANGS if front else LANGS)
-    page_lang = lang if lang in LANGS else "da"  # Markdown pages and the menu exist in da/en
     async with db.connection() as conn:
         values = await settings_store.get_all(conn)
-        page = None if front else await db.fetch_one(
+        story = slug == "" and values["web_front"] == "facit246"
+        lang, explicit = _lang(request, web_front.LANGS, browser=True) if story else _lang(request)
+        page_lang = lang if lang in LANGS else "da"  # Markdown pages and the menu exist in da/en
+        page = None if story else await db.fetch_one(
             conn, "select * from web_pages where slug = %s and lang = %s and published", (slug, lang))
         nav = await db.fetch_all(conn, """select slug, title from web_pages where lang = %s and published
                                           and nav_order is not null order by nav_order, title""", (page_lang,))
-        first_user = await admin_open_to_anyone(conn) if front else False
-    if front:
+        first_user = await admin_open_to_anyone(conn)
+    if story:
         html = web_front.render(lang=lang, app_name=values["app_name"], base=config.settings.origin.rstrip("/"),
                                 nav=nav, first_user=first_user)
     else:
-        html = _page_html(lang=lang, page=page, nav=nav, values=values, slug=slug)
-    found = page is not None or front
+        html = _page_html(lang=lang, page=page, nav=nav, values=values, slug=slug, first_user=first_user)
+    found = page is not None or slug == ""
     response = HTMLResponse(html, status_code=200 if found else 404, headers={"Cache-Control": "no-cache"})
     if explicit:
         response.set_cookie("w_lang", lang, max_age=365 * 86400, samesite="lax", secure=config.settings.secure_cookies)

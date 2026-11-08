@@ -3,14 +3,19 @@
 import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.routing import Route
 
 from app import config, db, mail, retention
-from app.routes import admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public, web
+from app.mcp import hub as mcp_hub
+from app.mcp import oauth as mcp_oauth
+from app.mcp import transport as mcp_transport
+from app.routes import (admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public,
+                        security, web)
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -43,7 +48,7 @@ def csp_for(path: str) -> str:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     log = logging.getLogger("gaer")
     # Both raise on an invalid BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PHONE.
     bootstrap = bootstrap_admin_email() or (bootstrap_admin_phone() if config.settings.sms_login else None)
@@ -55,10 +60,20 @@ async def lifespan(_: FastAPI):
         log.warning("e-mail is not configured, login codes cannot be sent: missing %s", ", ".join(missing))
     await db.open_pools()
     task = asyncio.create_task(retention.maintenance_loop()) if retention.enabled() else None
-    yield
+    async with mcp_sessions(app):
+        yield
     if task:
         task.cancel()
     await db.close_pools()
+
+
+@asynccontextmanager
+async def mcp_sessions(app: FastAPI):
+    """Runs the session managers of /mcp and /mcp/admin (one each per process)."""
+    async with AsyncExitStack() as stack:
+        for endpoint in app.state.mcp.values():
+            await stack.enter_async_context(endpoint.manager.run())
+        yield
 
 
 def create_app() -> FastAPI:
@@ -88,10 +103,16 @@ def create_app() -> FastAPI:
             await conn.execute("select 1")
         return {"ok": True, "version": config.settings.version}
 
-    for r in (auth.router, ai.router, me.router, files.router, clips.router, public.router, admin.router, app_store.router,
-              features.router, features.admin_router, impersonation.router, office.router,
+    for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router, admin.router,
+              app_store.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
+              mcp_hub.router, office.router,
               web.router, files.memory_router):
         app.include_router(r)
+
+    # MCP: exact routes, so /mcp/authorize, /mcp/token and /mcp/register above stay ordinary endpoints.
+    app.state.mcp = mcp_transport.endpoints()
+    app.router.routes.append(Route("/mcp/admin", endpoint=app.state.mcp["admin"], methods=["GET", "POST", "DELETE"]))
+    app.router.routes.append(Route("/mcp", endpoint=app.state.mcp["app"], methods=["GET", "POST", "DELETE"]))
 
     static_dir = os.path.abspath(config.settings.static_dir)
     index = os.path.join(static_dir, "index.html")

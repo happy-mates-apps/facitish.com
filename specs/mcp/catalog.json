@@ -118,7 +118,7 @@
    "domain": "me",
    "name": "whoami",
    "mode": "read",
-   "description": "The signed-in user: display name, masked phone, role, feature ring level and session.",
+   "description": "The signed-in user: display name, masked e-mail and phone, role, feature ring level and session.",
    "params": [],
    "link": {
     "section": "/konto",
@@ -167,6 +167,67 @@
     "args": [],
     "focus": "account-ring",
     "label": "Dit niveau"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "me",
+   "name": "profile_get",
+   "mode": "read",
+   "description": "Your profile: display name, masked e-mail and phone, language (da/en), time zone and whether you have a profile picture.",
+   "params": [],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "account-profile",
+    "label": "Profil"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "me",
+   "name": "profile_update",
+   "mode": "write",
+   "description": "Changes your display name, language and/or time zone. Only the fields you send change; an empty string clears one. E-mail, phone and picture are changed in the app.",
+   "params": [
+    {
+     "name": "displayName",
+     "type": "string",
+     "desc": "max 80 chars",
+     "optional": true
+    },
+    {
+     "name": "locale",
+     "type": "string",
+     "desc": "da | en",
+     "optional": true
+    },
+    {
+     "name": "timeZone",
+     "type": "string",
+     "desc": "IANA name, e.g. Europe/Copenhagen",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "account-profile",
+    "label": "Profil"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "me",
+   "name": "security_get",
+   "mode": "read",
+   "description": "Your login security: passkeys, security keys, authenticator apps, whether \"Kræv passkey\" (MFA) is on, and for admins the /admin MFA status. Read only — changes need the browser and a second factor (Konto → Sikkerhed).",
+   "params": [],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "account-security",
+    "label": "Sikkerhed"
    }
   },
   {
@@ -359,8 +420,8 @@
    "params": [
     {
      "name": "fileId",
-     "type": "int",
-     "desc": "file id"
+     "type": "string",
+     "desc": "file id (uuid) from files_list"
     }
    ],
    "link": {
@@ -604,12 +665,12 @@
    "domain": "users",
    "name": "user_search",
    "mode": "read",
-   "description": "Find users by name or phone. Phone numbers are matched in full but returned masked.",
+   "description": "Find users by name, e-mail or phone. E-mail and phone are matched in full but returned masked.",
    "params": [
     {
      "name": "q",
      "type": "string",
-     "desc": "name or phone"
+     "desc": "name, e-mail or phone"
     },
     {
      "name": "filter",
@@ -639,7 +700,7 @@
    "domain": "users",
    "name": "user_get",
    "mode": "read",
-   "description": "One user: role, passkeys, grace logins used, sessions, files, feature level.",
+   "description": "One user: role, masked e-mail/phone, language, time zone, passkeys, authenticator apps, \"Kræv passkey\", grace logins used, sessions, files, feature level.",
    "params": [
     {
      "name": "userId",
@@ -737,7 +798,7 @@
    "domain": "users",
    "name": "user_reset_passkeys",
    "mode": "draft",
-   "description": "Removes all passkeys and signs the user out; next login needs a code and a new passkey. Returns a draft.",
+   "description": "Removes all passkeys and security keys (authenticator apps stay) and signs the user out; next login is with a one-time code. Returns a draft.",
    "params": [
     {
      "name": "userId",
@@ -752,6 +813,73 @@
     ],
     "focus": "user-passkeys",
     "label": "Nulstil passkeys"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "users",
+   "name": "user_reset_mfa",
+   "mode": "draft",
+   "description": "For a user who lost every second factor: deletes passkeys, security keys and authenticator apps, switches \"Kræv passkey\" off and signs the user out. Another admin only by the super admin; never yourself. Returns a draft.",
+   "params": [
+    {
+     "name": "userId",
+     "type": "int",
+     "desc": "user id"
+    },
+    {
+     "name": "reason",
+     "type": "string",
+     "desc": "min 5 chars"
+    }
+   ],
+   "link": {
+    "section": "/admin/users",
+    "args": [
+     "userId"
+    ],
+    "focus": "user-mfa",
+    "label": "Nulstil MFA"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "users",
+   "name": "user_profile_set",
+   "mode": "draft",
+   "description": "Rectifies a user's display name, language and/or time zone. Only the fields you send change. Returns a draft.",
+   "params": [
+    {
+     "name": "userId",
+     "type": "int",
+     "desc": "user id"
+    },
+    {
+     "name": "displayName",
+     "type": "string",
+     "desc": "max 80 chars",
+     "optional": true
+    },
+    {
+     "name": "locale",
+     "type": "string",
+     "desc": "da | en",
+     "optional": true
+    },
+    {
+     "name": "timeZone",
+     "type": "string",
+     "desc": "IANA name, e.g. Europe/Copenhagen",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/users",
+    "args": [
+     "userId"
+    ],
+    "focus": "user-profile",
+    "label": "Ret navn"
    }
   },
   {

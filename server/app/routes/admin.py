@@ -11,12 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import config, db, gdpr, mail, retention, settings_store
+from app import config, db, gdpr, mail, mfa, retention, settings_store
 from app.logs import audit, auth_event, changed
 from app.routes.auth import parse_email, parse_phone
 from app.routes.files import delete_file, save_upload
+from app.routes.me import ProfileIn, avatar_response, clean_profile, update_profile_fields
 from app.security import bootstrap_admin_email, bootstrap_admin_phone, mask_contact, normalize_email, normalize_phone, phone_hash
-from app.sessions import Principal, require_admin, revoke_sessions
+from app.sessions import Principal, require_admin, require_admin_stepup, revoke_sessions
 from app.storage import get_storage
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -39,9 +40,10 @@ async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, ad
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""
             select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used, u.blocked_at,
-                   u.created_at, u.last_login_at, u.impersonation_only,
+                   u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required,
                    (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
+                   (select count(*) from totp_factors t where t.user_id = u.id and t.confirmed_at is not null) as totp,
                    (select count(*) from sessions s where s.user_id = u.id and s.revoked_at is null
                         and s.expires_at > now()) as active_sessions,
                    (select coalesce(sum(size_bytes), 0) from files f where f.user_id = u.id) as file_bytes
@@ -74,18 +76,66 @@ def _ensure_not_super_admin(user: dict) -> None:
         raise HTTPException(409, "Superadministratoren kan ikke mistes eller spærres")
 
 
+# The user actions take a connection, so /api/admin and the MCP drafts (app/mcp/admin_server.py) share them,
+# including the rules (super admin, last admin, who may reset whom).
+
+async def do_set_role(conn, user: dict, role: str, admin: Principal) -> None:
+    if user["role"] == role:
+        return
+    if role != "admin":
+        _ensure_not_super_admin(user)
+        await _ensure_not_last_admin(conn, user)
+    await conn.execute("update users set role = %s, updated_at = now() where id = %s", (role, user["id"]))
+    await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"role": user["role"]}, after={"role": role})
+
+
+async def do_block(conn, user: dict, admin: Principal) -> int:
+    if user["id"] == admin.user_id:
+        raise HTTPException(409, "Du kan ikke spærre dig selv")
+    _ensure_not_super_admin(user)
+    await _ensure_not_last_admin(conn, user)
+    await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user["id"],))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"blocked": False}, after={"blocked": True})
+    return await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="blocked", actor_id=admin.user_id)
+
+
+async def do_unblock(conn, user: dict, admin: Principal) -> None:
+    await conn.execute("update users set blocked_at = null, updated_at = now() where id = %s", (user["id"],))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"blocked": True}, after={"blocked": False})
+
+
+async def do_reset_passkeys(conn, user: dict, admin: Principal) -> int:
+    """Deletes all passkeys and sessions. "Kræv passkey" is switched off if no other factor is left."""
+    await _ensure_may_reset(user, admin)
+    user_id = user["id"]
+    rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
+    await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
+                before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
+    await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id,
+                     contact=user["email"] or user["phone"], count=len(rows), by=admin.user_id)
+    if user["mfa_required"] and not (await mfa.factors(conn, user_id))["total"]:
+        await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
+        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                    before={"mfa_required": True}, after={"mfa_required": False}, reason="admin.reset_passkeys")
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset", actor_id=admin.user_id)
+    return len(rows)
+
+
+async def do_revoke_sessions(conn, user: dict, admin: Principal) -> int:
+    """Ends every session of the user, including MCP clients (their tokens hang on the session)."""
+    n = await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="admin", actor_id=admin.user_id)
+    await audit(conn, "session.revoked", actor_id=admin.user_id, meta=admin.meta, table="sessions",
+                subject_user_id=user["id"], count=n)
+    return n
+
+
 @router.patch("/users/{user_id}/role")
-async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin)):
+async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        if user["role"] == body.role:
-            return {"ok": True}
-        if body.role != "admin":
-            _ensure_not_super_admin(user)
-            await _ensure_not_last_admin(conn, user)
-        await conn.execute("update users set role = %s, updated_at = now() where id = %s", (body.role, user_id))
-        await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"role": user["role"]}, after={"role": body.role})
+        await do_set_role(conn, await _user_or_404(conn, user_id), body.role, admin)
     return {"ok": True}
 
 
@@ -120,63 +170,130 @@ async def _set_contact(user_id: int, channel: str, contact: str, admin: Principa
 
 
 @router.patch("/users/{user_id}/email")
-async def set_email(user_id: int, body: AdminEmailIn, admin: Principal = Depends(require_admin)):
+async def set_email(user_id: int, body: AdminEmailIn, admin: Principal = Depends(require_admin_stepup)):
     return await _set_contact(user_id, "email", parse_email(body.email), admin)
 
 
 @router.patch("/users/{user_id}/phone")
-async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends(require_admin)):
+async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends(require_admin_stepup)):
     return await _set_contact(user_id, "phone", parse_phone(body.phone), admin)
 
 
 @router.post("/users/{user_id}/block")
-async def block_user(user_id: int, admin: Principal = Depends(require_admin)):
+async def block_user(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        if user_id == admin.user_id:
-            raise HTTPException(409, "Du kan ikke spærre dig selv")
-        _ensure_not_super_admin(user)
-        await _ensure_not_last_admin(conn, user)
-        await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"blocked": False}, after={"blocked": True})
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="blocked", actor_id=admin.user_id)
+        await do_block(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/unblock")
-async def unblock_user(user_id: int, admin: Principal = Depends(require_admin)):
+async def unblock_user(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        await _user_or_404(conn, user_id)
-        await conn.execute("update users set blocked_at = null, updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"blocked": True}, after={"blocked": False})
+        await do_unblock(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/reset-passkeys")
-async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin)):
-    """Deletes all passkeys and sessions. The user logs in with a one-time code and must
-    register a new passkey (grace logins are not given back)."""
+async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin_stepup)):
+    """Deletes all passkeys and sessions. The user logs in with a one-time code and can add a new passkey
+    (grace logins are not given back). "Kræv passkey" is switched off if no other factor is left."""
+    async with db.connection() as conn:
+        n = await do_reset_passkeys(conn, await _user_or_404(conn, user_id), admin)
+    return {"ok": True, "deleted": n}
+
+
+async def _ensure_may_reset(user: dict, admin: Principal) -> None:
+    """Resetting another admin's factors could hand over that admin account, so only the super admin may do it.
+    Your own factors are managed under /konto."""
+    if user["id"] == admin.user_id:
+        raise HTTPException(409, "Dine egne nøgler styrer du under Konto")
+    if user["role"] == "admin" and not admin.super_admin:
+        raise HTTPException(403, "Kun superadministratoren kan nulstille en anden administrators MFA")
+
+
+@router.post("/users/{user_id}/reset-mfa")
+async def reset_mfa(user_id: int, admin: Principal = Depends(require_admin_stepup)):
+    """A user who lost every second factor: deletes passkeys, security keys and authenticator apps, switches
+    "Kræv passkey" off and logs the user out everywhere. The next login is with a one-time code."""
+    async with db.connection() as conn:
+        deleted = await do_reset_mfa(conn, await _user_or_404(conn, user_id), admin)
+    return {"ok": True, "deleted": deleted}
+
+
+async def do_reset_mfa(conn, user: dict, admin: Principal) -> dict:
+    """Shared with the MCP draft user_reset_mfa."""
+    await _ensure_may_reset(user, admin)
+    user_id = user["id"]
+    keys = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name, kind", (user_id,))
+    apps = await db.fetch_all(conn, "delete from totp_factors where user_id = %s returning id, name", (user_id,))
+    await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
+    await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                before={"passkeys": keys, "totp_factors": apps, "mfa_required": user["mfa_required"]},
+                after={"mfa_required": False}, subject_user_id=user_id, reason="admin.reset_mfa")
+    await auth_event(conn, "mfa.reset", ok=True, meta=admin.meta, user_id=user_id,
+                     contact=user["email"] or user["phone"], keys=len(keys), apps=len(apps), by=admin.user_id)
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="mfa_reset", actor_id=admin.user_id)
+    return {"keys": len(keys), "apps": len(apps)}
+
+
+@router.get("/users/{user_id}")
+async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
+    """One user's profile and security status (factors, MFA, grace logins, sessions). Never secrets."""
+    async with db.connection() as conn:
+        user = await db.fetch_one(conn, """
+            select id, email, phone, display_name, locale, time_zone, role, super_admin, mfa_required,
+                   grace_logins_used, blocked_at, created_at, updated_at, last_login_at, impersonation_only,
+                   impersonation_owner_id, avatar_file_id is not null as has_avatar
+            from users where id = %s""", (user_id,))
+        if user is None or (user["impersonation_only"] and user["impersonation_owner_id"] != admin.user_id):
+            raise HTTPException(404, "Brugeren findes ikke")
+        f = await mfa.factors(conn, user_id)
+        keys = await db.fetch_all(conn, """select id, name, kind, created_at, last_used_at from passkeys
+                                           where user_id = %s order by created_at""", (user_id,))
+        apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors
+                                           where user_id = %s and confirmed_at is not null order by created_at""",
+                                  (user_id,))
+        sessions = await db.fetch_all(conn, """
+            select id, created_at, last_seen_at, expires_at, host(ip) as ip, user_agent, mfa_at, grace from sessions
+            where user_id = %s and scope = 'full' and revoked_at is null and expires_at > now()
+            order by last_seen_at desc""", (user_id,))
+    has_avatar = user.pop("has_avatar")
+    s = config.settings
+    return {
+        "user": {**user, "avatar_url": f"/api/admin/users/{user_id}/avatar" if has_avatar else None},
+        "security": {
+            "factors": f,
+            "methods": mfa.methods(f),
+            "keys": keys,
+            "totp": apps,
+            "grace_logins": s.grace_logins,
+            "grace_left": max(0, s.grace_logins - user["grace_logins_used"]) if user["role"] == "admin" and not f["total"] else None,
+        },
+        "sessions": sessions,
+    }
+
+
+@router.patch("/users/{user_id}/profile")
+async def set_user_profile(user_id: int, body: ProfileIn, admin: Principal = Depends(require_admin)):
+    """Rectification of name, language and time zone. E-mail and phone have their own endpoints."""
+    values = clean_profile(body)
     async with db.connection() as conn:
         user = await _user_or_404(conn, user_id)
-        rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
-        await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
-                    before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
-        await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id,
-                         contact=user["email"] or user["phone"], count=len(rows), by=admin.user_id)
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset",
-                              actor_id=admin.user_id)
-    return {"ok": True, "deleted": len(rows)}
+        if user["impersonation_only"] and user["impersonation_owner_id"] != admin.user_id:
+            raise HTTPException(404, "Brugeren findes ikke")
+        await update_profile_fields(conn, user_id, values, actor_id=admin.user_id, meta=admin.meta)
+    return {"ok": True}
+
+
+@router.get("/users/{user_id}/avatar")
+async def get_user_avatar(user_id: int, admin: Principal = Depends(require_admin)):
+    return await avatar_response(user_id)
 
 
 @router.post("/users/{user_id}/revoke-sessions")
-async def admin_revoke_sessions(user_id: int, admin: Principal = Depends(require_admin)):
+async def admin_revoke_sessions(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        await _user_or_404(conn, user_id)
-        n = await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="admin", actor_id=admin.user_id)
-        await audit(conn, "session.revoked", actor_id=admin.user_id, meta=admin.meta, table="sessions",
-                    subject_user_id=user_id, count=n)
+        n = await do_revoke_sessions(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True, "revoked": n}
 
 
@@ -470,7 +587,7 @@ async def gdpr_export(request_id: int, admin: Principal = Depends(require_admin)
 
 
 @router.post("/gdpr/{request_id}/erase")
-async def gdpr_erase(request_id: int, admin: Principal = Depends(require_admin)):
+async def gdpr_erase(request_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         req = await _gdpr_or_404(conn, request_id)
     if req["user_id"] is None:
@@ -488,6 +605,7 @@ class RetentionIn(BaseModel):
     auth_log_days: int = Field(ge=30, le=3650)
     audit_log_days: int = Field(ge=30, le=3650)
     analytics_days: int = Field(ge=7, le=3650)
+    mcp_log_days: int = Field(default=90, ge=7, le=3650)
 
 
 @router.get("/retention")
@@ -498,6 +616,7 @@ async def retention_get():
         "auth_log_days": values["retention_auth_log_days"],
         "audit_log_days": values["retention_audit_log_days"],
         "analytics_days": values["retention_analytics_days"],
+        "mcp_log_days": values["retention_mcp_log_days"],
         "last_run": values["retention_last_run"],
         "logs": await retention.log_stats(),
     }
@@ -507,7 +626,8 @@ async def retention_get():
 async def retention_put(body: RetentionIn, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
         values = await settings_store.get_all(conn)
-        before = {k: values[f"retention_{k}"] for k in ("auth_log_days", "audit_log_days", "analytics_days")}
+        before = {k: values[f"retention_{k}"] for k in ("auth_log_days", "audit_log_days", "analytics_days",
+                                                                 "mcp_log_days")}
         after = body.model_dump()
         await settings_store.set_many(conn, {f"retention_{k}": v for k, v in after.items()})
         b, a = changed(before, after)
@@ -526,7 +646,7 @@ class PurgeUserIn(BaseModel):
 
 
 @router.post("/retention/users/{user_id}")
-async def retention_purge_user(user_id: int, body: PurgeUserIn, admin: Principal = Depends(require_admin)):
+async def retention_purge_user(user_id: int, body: PurgeUserIn, admin: Principal = Depends(require_admin_stepup)):
     if not set(body.logs) <= set(retention.LOGS):
         raise HTTPException(400, f"Gyldige logs: {', '.join(retention.LOGS)}")
     return {"deleted": await retention.purge_user(user_id, logs=body.logs, actor_id=admin.user_id, meta=admin.meta,
@@ -687,6 +807,28 @@ async def web_pages():
 async def web_preview(body: PreviewIn):
     from app.routes.web import render_markdown
     return {"html": render_markdown(body.body)}
+
+
+class WebFrontIn(BaseModel):
+    front: str = Field(pattern="^(markdown|facit246)$")
+
+
+@router.get("/web/front")
+async def web_front_get():
+    async with db.connection() as conn:
+        return {"front": await settings_store.get(conn, "web_front")}
+
+
+@router.put("/web/front")
+async def web_front_put(body: WebFrontIn, admin: Principal = Depends(require_admin)):
+    """/w/: the Markdown page with slug '' or the fixed "Facit · 246" story (app/web_front.py)."""
+    async with db.connection() as conn:
+        before = await settings_store.get(conn, "web_front")
+        if before != body.front:
+            await settings_store.set_many(conn, {"web_front": body.front})
+            await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="settings", row_id="web_front",
+                        before={"web_front": before}, after={"web_front": body.front})
+    return {"ok": True, "front": body.front}
 
 
 @router.post("/web")

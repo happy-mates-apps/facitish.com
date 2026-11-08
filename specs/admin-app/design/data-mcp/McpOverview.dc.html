@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-servere — Oversigt</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="McpNav" active="{{server}}"hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/mcp/{{server}}</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">MCP-app · endpoint</span>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Indbyggede endpoints</h1>
+          <p style="margin: 0; color: #64748b; max-width: 640px">Lad Claude, Copilot eller ChatGPT arbejde med instansen gennem den almindelige Gær-login. Ændringer kommer altid tilbage som en kladde.</p>
+        </div>
+        <div role="radiogroup" aria-label="Server" style="display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: #ffffff; border: 1px solid #e2e8f0">
+          <button type="button" role="radio" aria-checked="{{appChecked}}" onClick="{{pickApp}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 14px; border: 0; border-radius: 8px; background: {{appBg}}; font-family: Inter, system-ui, sans-serif; color: {{appFg}}; cursor: pointer">
+            <span style="font-weight: 600; font-size: 13px">Appen</span><span style="font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: {{appSub}}">/mcp/app</span>
+          </button>
+          <button type="button" role="radio" aria-checked="{{adminChecked}}" onClick="{{pickAdmin}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 14px; border: 0; border-radius: 8px; background: {{adminBg}}; font-family: Inter, system-ui, sans-serif; color: {{adminFg}}; cursor: pointer">
+            <span style="font-weight: 600; font-size: 13px">Admin</span><span style="font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: {{adminSub}}">/mcp/admin</span>
+          </button>
+        </div>
+      </div>
+
+      <nav aria-label="MCP" style="display: flex; gap: 22px; border-bottom: 1px solid #e2e8f0; overflow-x: auto">
+        <a href="McpOverview.dc.html" aria-current="page" style="padding: 10px 0; font-weight: 600; color: #020817; text-decoration: none; border-bottom: 2px solid #2563eb; margin-bottom: -1px; white-space: nowrap">Oversigt</a>
+        <a href="McpTools.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Værktøjer</a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Kladder <span style="padding: 0 6px; border-radius: 9999px; background: #f59e0b; color: #ffffff; font-size: 11px; font-weight: 700">{{pending}}</span></a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Monitor</a>
+        <a href="McpConnect.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Forbind</a>
+      </nav>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+        <section aria-label="Server" style="flex: 1 1 380px; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 8px; height: 8px; border-radius: 9999px; background: #10b981"></span>
+            <span style="font-weight: 700; font-size: 16px">{{s.name}}</span>
+            <span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: rgba(22,163,74,0.12); color: #166534">Kører</span>
+          </div>
+          <dl style="margin: 0; display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; font-size: 13px">
+            <dt style="color: #64748b">Endpoint</dt><dd style="margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace">{{s.endpoint}}</dd>
+            <dt style="color: #64748b">Scope</dt><dd style="margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace">{{s.scope}}</dd>
+            <dt style="color: #64748b">Hvem må</dt><dd style="margin: 0">{{s.who}}</dd>
+            <dt style="color: #64748b">Data</dt><dd style="margin: 0">{{s.data}}</dd>
+            <dt style="color: #64748b">Skrivninger</dt><dd style="margin: 0">{{s.writes}}</dd>
+            <dt style="color: #64748b">Login</dt><dd style="margin: 0">OAuth 2.0 PKCE med telefon, engangskode og passkey</dd>
+          </dl>
+        </section>
+        <section aria-label="Tal" style="flex: 1 1 380px; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <sc-for list="{{stats}}" as="st" hint-placeholder-count="3">
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 12px; color: #64748b">{{st.label}}</span><span style="font-size: 26px; font-weight: 700">{{st.value}}</span><span style="font-size: 12px; color: #64748b">{{st.sub}}</span>
+            </div>
+          </sc-for>
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 12px; color: #64748b">Kald, 24 timer</span><span style="font-size: 26px; font-weight: 700">[ANTAL]</span><a href="McpMonitor.dc.html" style="font-size: 12px">åbn monitor →</a>
+          </div>
+        </section>
+      </div>
+
+      <section aria-label="Prøv at spørge" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Prøv at spørge</span>
+        <sc-for list="{{prompts}}" as="p" hint-placeholder-count="5">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 10px; background: #f8fafc">
+            <span style="flex: 1 1 320px; font-size: 14px">“{{p.q}}”</span>
+            <span style="display: flex; gap: 6px; flex-wrap: wrap">
+              <sc-for list="{{p.tools}}" as="t" hint-placeholder-count="2">
+                <span style="padding: 2px 8px; border-radius: 6px; background: #ffffff; border: 1px solid #e2e8f0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #334155">{{t}}</span>
+              </sc-for>
+            </span>
+          </div>
+        </sc-for>
+      </section>
+
+      <section aria-label="Domæner" style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Domæner</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px">
+          <sc-for list="{{domains}}" as="d" hint-placeholder-count="11">
+            <a href="McpTools.dc.html" style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 14px; background: #ffffff; border: 1px solid {{d.bd}}; text-decoration: none; color: #020817">
+              <span style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+                <span style="font-weight: 600">{{d.label}}</span>
+                <sc-if value="{{d.isNew}}" hint-placeholder-val="{{false}}"><span style="padding: 1px 6px; border-radius: 9999px; background: #fcbf49; color: #0f172a; font-size: 10px; font-weight: 700">NY</span></sc-if>
+              </span>
+              <span style="font-size: 12px; color: #64748b">{{d.summary}}</span>
+              <span style="font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #94a3b8">{{d.src}}</span>
+            </a>
+          </sc-for>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { server: 'admin' };
+  }
+  renderVals() {
+    const isApp = this.state.server === 'app';
+    const on = { bg: '#0f172a', fg: '#ffffff', sub: 'rgba(255,255,255,0.7)' };
+    const off = { bg: 'transparent', fg: '#475569', sub: '#64748b' };
+    const a = isApp ? on : off;
+    const b = isApp ? off : on;
+    const sw = {
+      server: this.state.server,
+      pickApp: () => this.setState({ server: 'app' }),
+      pickAdmin: () => this.setState({ server: 'admin' }),
+      appChecked: isApp ? 'true' : 'false', adminChecked: isApp ? 'false' : 'true',
+      appBg: a.bg, appFg: a.fg, appSub: a.sub, adminBg: b.bg, adminFg: b.fg, adminSub: b.sub,
+      pending: isApp ? 1 : 2
+    };
+
+    const s = isApp
+      ? { name: 'gaer', endpoint: 'https://lejedata.gaer.dk/mcp/app', scope: 'mcp', who: 'Alle brugere med en fuld session', data: 'Kun egne data', writes: 'Egne data direkte · sletning og eksport som kladde' }
+      : { name: 'gaer-admin', endpoint: 'https://lejedata.gaer.dk/mcp/admin', scope: 'mcp:admin', who: 'Kun admin-rollen · ikke testkonti · ikke under efterligning', data: 'Hele instansen', writes: 'Kladde → confirm_draft · udløber efter 10 min' };
+
+    const stats = isApp
+      ? [
+          { label: 'Værktøjer', value: '15', sub: 'altid som den bruger, der loggede ind' },
+          { label: 'Læs', value: '9', sub: 'kører med det samme' },
+          { label: 'Skriv / kladde', value: '3 / 2', sub: 'egne klip direkte · slet og eksport som kladde' }
+        ]
+      : [
+          { label: 'Værktøjer', value: '37', sub: '34 i dag + 3 fra Data' },
+          { label: 'Læs', value: '23', sub: 'kører med det samme' },
+          { label: 'Kladde', value: '13', sub: '+ confirm_draft' }
+        ];
+
+    const prompts = isApp
+      ? [
+          { q: 'Find mine klip om OVHcloud fra i sidste uge og lav en kort opsummering', tools: ['clips_search', 'clip_get'] },
+          { q: 'Gem denne tekst som et klip med titlen "Mødenoter"', tools: ['clip_create'] },
+          { q: 'Hvilke features kan jeg se, og hvad er mit niveau?', tools: ['me_features', 'whoami'] },
+          { q: 'Giv mig et link til min seneste fil', tools: ['files_list', 'file_link'] }
+        ]
+      : [
+          { q: 'Hvor mange brugere har ikke oprettet en passkey endnu?', tools: ['user_search', 'stats_logins'] },
+          { q: 'Flyt browserudvidelsen til ring 3 og fortæl hvor mange der får den', tools: ['feature_set_ring', 'confirm_draft'] },
+          { q: 'Spær +45 27 90 44 01 — mistet telefon', tools: ['user_search', 'user_block', 'confirm_draft'] },
+          { q: 'Find adresserne på Trøjborgvej i 8200 via Dataforsyningen', tools: ['data_catalog_search', 'dataset_query'] },
+          { q: 'Opret en testkonto som Bruger og giv mig linket til at skifte', tools: ['test_account_create', 'impersonate_start'] }
+        ];
+
+    const D = isApp
+      ? [
+          ['Mig', '3 læs · 1 skriv (eget feature-niveau)', 'routes/me.py'],
+          ['Klip', '3 læs · 2 skriv · 1 kladde', 'routes/clips.py'],
+          ['Filer', '2 læs · links udløber efter 300 s', 'routes/files.py'],
+          ['Privatliv', '1 kladde · GDPR-eksport', 'routes/me.py'],
+          ['Kladder og session', '1 læs · 1 bekræft', 'mcp/drafts.py']
+        ]
+      : [
+          ['Kladder og session', '4 værktøjer · 3 læs · 1 bekræft', 'mcp/drafts.py'],
+          ['Navigation', '3 læs · deep links til /admin', 'mcp/app_map.py'],
+          ['Statistik', '3 læs', 'routes/admin.py'],
+          ['Brugere og roller', '2 læs · 5 kladde', 'routes/admin.py'],
+          ['Efterligning', '1 læs · 2 kladde', 'routes/impersonation.py'],
+          ['Features og ringe', '2 læs · 4 kladde', 'routes/features.py'],
+          ['Logs', '2 læs', 'logs.py'],
+          ['GDPR', '1 læs · 1 kladde', 'routes/admin.py'],
+          ['Database', '2 læs · READ ONLY, 5 s, 500 rækker', 'mcp/db_tools.py'],
+          ['Indstillinger', '1 læs · 1 kladde', 'settings_store.py'],
+          ['Data', '3 læs · også eget endpoint /mcp/data · maskering fra kataloget', 'mcp/data_tools.py', true]
+        ];
+    const domains = D.map(([label, summary, src, isNew]) => ({ label, summary, src, isNew: !!isNew, bd: isNew ? '#fcbf49' : '#e2e8f0' }));
+    return { ...sw, s, stats, prompts, domains };
+  }
+}
+</script>
+</body>
+</html>

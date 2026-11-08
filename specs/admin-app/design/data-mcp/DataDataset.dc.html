@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Datasæt Klip — Udforsk</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="AdminNav" active="/data" hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/admin/data/gaer.clips?tab=udforsk</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 24px 24px 64px; display: flex; flex-direction: column; gap: 16px">
+      <nav aria-label="Brødkrumme" style="font-size: 13px; color: #64748b; display: flex; gap: 6px; flex-wrap: wrap">
+        <a href="Main.dc.html">Katalog</a><span>/</span><span>Gær (egen database)</span><span>/</span><span style="color: #020817; font-weight: 500">Klip</span>
+      </nav>
+
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+            <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Klip</h1>
+            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: rgba(249,115,22,0.12); color: #9a3412"><span style="width: 6px; height: 6px; border-radius: 9999px; background: #f59e0b"></span>Gul · fortroligt</span>
+            <span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: rgba(220,38,38,0.1); color: #b91c1c">Persondata · GDPR-eksport og sletning</span>
+            <span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: rgba(37,99,235,0.1); color: #1d4ed8">MCP · /mcp/data</span>
+            <span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: #f1f5f9; color: #475569">v2 publiceret</span>
+          </div>
+          <p style="margin: 0; color: #64748b; max-width: 720px">Brugernes klip fra web, browserudvidelsen, Outlook, Word og mobilen — ét klip pr. række. Ejer: <strong style="color: #020817; font-weight: 600">[DATAEJER]</strong> · kilde <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px">gaer.public.clips</span></p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 14px Inter, system-ui, sans-serif; color: #020817">Eksportér CSV</button>
+          <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 0; background: #2563eb; font: 500 14px Inter, system-ui, sans-serif; color: #f8fafc">Publicér version</button>
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Datasæt" style="display: flex; gap: 22px; border-bottom: 1px solid #e2e8f0; overflow-x: auto">
+        <a role="tab" aria-selected="false" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Beskrivelse</a>
+        <a role="tab" aria-selected="false" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Felter (8)</a>
+        <a role="tab" aria-selected="true" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 600; color: #020817; text-decoration: none; border-bottom: 2px solid #2563eb; margin-bottom: -1px; white-space: nowrap">Udforsk</a>
+        <a role="tab" aria-selected="false" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">MCP-eksponering</a>
+        <a role="tab" aria-selected="false" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Versioner (2)</a>
+        <a role="tab" aria-selected="false" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Adgang</a>
+        <a role="tab" aria-selected="false" href="#" style="padding: 10px 0; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Feedback (0)</a>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section aria-label="Rækker" style="flex: 999 1 640px; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 14px; border-bottom: 1px solid #e2e8f0">
+            <label style="display: flex; flex-direction: column; gap: 0">
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Visning</span>
+              <select style="height: 32px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; background: #ffffff">
+                <option>Visning: Standard</option>
+                <option>Visning: Pr. kilde</option>
+              </select>
+            </label>
+            <span style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px 0 10px; border-radius: 9999px; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 500">Kilde <strong style="font-weight: 600">er en af</strong> extension, outlook
+              <button type="button" aria-label="Fjern filter" style="width: 20px; height: 20px; border: 0; border-radius: 9999px; background: transparent; color: #1d4ed8; padding: 0; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18 M6 6l12 12"></path></svg></button>
+            </span>
+            <span style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px 0 10px; border-radius: 9999px; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 500">Oprettet <strong style="font-weight: 600">≥</strong> 1. okt 2026
+              <button type="button" aria-label="Fjern filter" style="width: 20px; height: 20px; border: 0; border-radius: 9999px; background: transparent; color: #1d4ed8; padding: 0; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18 M6 6l12 12"></path></svg></button>
+            </span>
+            <button type="button" style="height: 28px; padding: 0 10px; border-radius: 9999px; border: 1px dashed #cbd5e1; background: #ffffff; font: 500 12px Inter, system-ui, sans-serif; color: #475569">+ Filter</button>
+            <div style="margin-left: auto; display: flex; gap: 6px; align-items: center">
+              <button type="button" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif; color: #020817">Kolonner (6/8)</button>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto">
+            <div style="min-width: 780px; font-size: 13px">
+              <div style="display: grid; grid-template-columns: 2.1fr 0.9fr 1.3fr 0.6fr 1fr 1.1fr; gap: 10px; padding: 8px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b">
+                <span>Titel</span>
+                <span style="color: #1d4ed8; font-weight: 700">Kilde</span>
+                <span>Domæne</span><span style="text-align: right">Tegn</span>
+                <span>Oprettet ▾</span>
+                <span style="display: inline-flex; align-items: center; gap: 4px">Ejer
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Maskeret felt"><path d="M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                </span>
+              </div>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+                <div style="display: grid; grid-template-columns: 2.1fr 0.9fr 1.3fr 0.6fr 1fr 1.1fr; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #f1f5f9; align-items: center; background: #ffffff">
+                  <span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</span>
+                  <span><span style="padding: 2px 8px; border-radius: 6px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f1f5f9; color: #334155">{{r.source}}</span></span>
+                  <span style="color: #475569">{{r.domain}}</span>
+                  <span style="text-align: right; font-variant-numeric: tabular-nums">{{r.chars}}</span>
+                  <span style="color: #475569; font-variant-numeric: tabular-nums">{{r.created}}</span>
+                  <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #94a3b8; letter-spacing: 0.1em">••••••</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 14px; font-size: 12px; color: #64748b">
+            <span>Viser 1–8 af [ANTAL] rækker · sorteret efter oprettet, nyeste først · Tekst (Gul) er skjult</span>
+            <div style="margin-left: auto; display: flex; gap: 6px">
+              <button type="button" style="height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 12px Inter, system-ui, sans-serif; color: #94a3b8">Forrige</button>
+              <button type="button" style="height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 12px Inter, system-ui, sans-serif; color: #020817">Næste</button>
+            </div>
+          </div>
+        </section>
+
+        <aside aria-label="Felt" style="flex: 1 1 300px; max-width: 100%; display: flex; flex-direction: column; gap: 12px">
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Valgt kolonne · fra kataloget</span>
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-weight: 700; font-size: 16px">Kilde</span>
+              <span style="font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">source · text</span>
+            </div>
+            <p style="margin: 0; font-size: 13px; color: #334155; line-height: 1.5">Hvor klippet blev gemt: manual, extension, outlook, word eller mobile.</p>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 12px">
+              <div style="padding: 8px 10px; border-radius: 10px; background: #f8fafc"><div style="color: #64748b">Klassifikation</div><div style="font-weight: 600; color: #166534">Grøn</div></div>
+              <div style="padding: 8px 10px; border-radius: 10px; background: #f8fafc"><div style="color: #64748b">Maskering</div><div style="font-weight: 600">Ingen</div></div>
+              <div style="padding: 8px 10px; border-radius: 10px; background: #f8fafc"><div style="color: #64748b">Tomme</div><div style="font-weight: 600; font-variant-numeric: tabular-nums">0 %</div></div>
+              <div style="padding: 8px 10px; border-radius: 10px; background: #f8fafc"><div style="color: #64748b">MCP</div><div style="font-weight: 600; color: #1d4ed8">Udstillet</div></div>
+            </div>
+            <a href="#" style="font-size: 13px; font-weight: 500">Redigér i Felter-fanen →</a>
+          </div>
+
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 8px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              <span style="font-weight: 600; color: #78350f">1 kolonne er maskeret</span>
+            </div>
+            <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.5">Ejer er klassificeret Rød. Afmaskering gælder i 15 minutter, kræver en årsag og skrives i audit-loggen.</p>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: #78350f">
+              Årsag
+              <input type="text" placeholder="Fx GDPR-forespørgsel 2026-14" style="height: 36px; padding: 0 10px; border: 1px solid #fcd34d; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; background: #ffffff; box-sizing: border-box">
+            </label>
+            <button type="button" style="height: 36px; border-radius: 8px; border: 1px solid #b45309; background: #ffffff; font: 600 13px Inter, system-ui, sans-serif; color: #78350f">Vis ejer</button>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Samme forespørgsel via MCP</span>
+            <code style="display: block; padding: 10px; border-radius: 10px; background: #0f172a; color: #e2e8f0; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap">dataset_query(
+  dataset: "gaer.clips",
+  filters: [source in ["extension","outlook"],
+            created_at &gt;= "2026-10-01"],
+  sort: "-created_at")</code>
+            <a href="McpTools.dc.html" style="font-size: 13px; font-weight: 500">Åbn på /mcp/data →</a>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['OVHcloud AI Endpoints — priser', 'extension', 'ovhcloud.com', 1840, '7. nov 2026'],
+      ['Svar fra leverandør om levering', 'outlook', '—', 612, '6. nov 2026'],
+      ['Release notes v2026.11', 'extension', 'github.com', 2310, '5. nov 2026'],
+      ['Artikel om passkeys', 'extension', 'web.dev', 4120, '3. nov 2026'],
+      ['Mødeindkaldelse styregruppe', 'outlook', '—', 388, '30. okt 2026'],
+      ['GDPR-vejledning, Datatilsynet', 'extension', 'datatilsynet.dk', 2985, '22. okt 2026'],
+      ['Kundefeedback uge 42', 'outlook', '—', 1204, '17. okt 2026'],
+      ['Caddy reverse proxy-dokumentation', 'extension', 'caddyserver.com', 3560, '2. okt 2026']
+    ];
+    const rows = raw.map(([title, source, domain, chars, created]) => ({ title, source, domain, chars, created }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

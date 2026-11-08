@@ -36,8 +36,13 @@ async def list_notes(user: Principal = Depends(current_user)):
 ```
 
 - `current_user` — a full session (the default for everything).
-- `require_admin` — full session + `admin` role; GETs are logged as `admin.read`. Use it for `/api/admin/*`.
-- `any_session` — also accepts an enroll session. **Only** for passkey registration.
+- `require_admin` — full session + `admin` role + a second factor (or an admin grace login); GETs are logged as
+  `admin.read`. Use it for `/api/admin/*`.
+- `require_admin_stepup` — like `require_admin`, but a second factor within the last 15 minutes. Use it for admin
+  actions that change access or security (roles, contact details, blocking, MFA reset, erasure).
+- `any_session` — also accepts a pending `mfa` session. **Only** for `/api/auth/mfa/*` (completing the second factor).
+- MFA errors are `403` with header `X-Gaer-Error` (`mfa_required`, `mfa_setup_required`, `stepup_required`), raised
+  with `app.mfa.mfa_error`. Rules: skill `gaer-auth`.
 - State-changing requests must send `X-Gaer: 1` (CSRF). The frontend `api` client in `web/src/api.ts` does it.
 - Locally, `SMS_PROVIDER=console` prints the code in the server log and shows it on the login page.
   Never add a "dev login" or a bypass — use the console provider.

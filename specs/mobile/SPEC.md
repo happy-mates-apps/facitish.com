@@ -26,8 +26,8 @@ no "two installs on one phone". One fork = one app. Name, icon and colours come 
 |---|---|---|
 | 1 | Velkommen | — (passkey button if one is stored) |
 | 2 | Telefonnummer | `POST /api/auth/otp/start` |
-| 3 | SMS-kode | `POST /api/auth/otp/verify` → `scope: full` or `enroll` |
-| 4 | Passkey | `/api/auth/passkey/register/{options,verify}` (enroll) · `/api/auth/passkey/login/{options,verify}` |
+| 3 | Engangskode | `POST /api/auth/otp/verify` → `status: logged_in` (scope `full`) or `mfa_required` (scope `mfa`) |
+| 4 | Passkey / MFA | `/api/auth/passkey/login/{options,verify}` · second factor `/api/auth/mfa/{passkey/options,passkey/verify,totp/verify}` · offer `/api/auth/passkey/register/{options,verify}` |
 | 5 | App | WebView of `<origin>/m#handoff=<code>` |
 
 Login rules are the web's (skill `gaer-auth`): no PIN, no dev bypass. The native client sends

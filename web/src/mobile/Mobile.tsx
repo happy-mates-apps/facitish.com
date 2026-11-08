@@ -64,7 +64,9 @@ export function MobileHome() {
     <div className="stack">
       <h2>{greeting()}{user?.display_name ? `, ${user.display_name}` : ""}</h2>
       {user && user.passkeys === 0 && (
-        <Alert kind="warn">Opret en passkey på telefonen. Du har {user.grace_left} logins med engangskode tilbage. <Link to="/m/profil">Opret</Link></Alert>
+        <Alert kind={user.mfa.admin_grace_left !== null ? "warn" : "info"}>
+          Log ind med fingeraftryk eller ansigt: opret en passkey på telefonen. <Link to="/m/profil">Opret</Link>
+        </Alert>
       )}
       <div className="grid" style={{ "--min": "130px", "--gap": "10px" } as React.CSSProperties}>
         <Link to="/m/klip" className="card"><span className="eyebrow">Nyt</span><strong>Skriv et klip</strong></Link>

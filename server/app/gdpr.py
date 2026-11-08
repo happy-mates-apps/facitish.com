@@ -21,8 +21,9 @@ async def build_user_export(conn, user_id: int) -> dict:
     async def rows(sql, *params):
         return await db.fetch_all(conn, sql, params)
 
-    user = await db.fetch_one(conn, """select id, email, phone, display_name, role, super_admin, grace_logins_used,
-                                              blocked_at, created_at, updated_at, last_login_at
+    user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin,
+                                              mfa_required, grace_logins_used, blocked_at, created_at, updated_at,
+                                              last_login_at, avatar_file_id
                                        from users where id = %s""", (user_id,))
     if user is None:
         raise HTTPException(404, "Brugeren findes ikke")
@@ -31,10 +32,14 @@ async def build_user_export(conn, user_id: int) -> dict:
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
         "user": user,
-        "passkeys": await rows("select id, name, created_at, last_used_at from passkeys where user_id = %s", user_id),
-        "sessions": await rows("""select created_at, last_seen_at, expires_at, revoked_at, host(ip) as ip, user_agent
+        "passkeys": await rows("select id, name, kind, created_at, last_used_at from passkeys where user_id = %s", user_id),
+        # Authenticator apps: only that they exist, never the secret.
+        "totp_factors": await rows("""select id, name, created_at, confirmed_at, last_used_at from totp_factors
+                                      where user_id = %s order by created_at""", user_id),
+        "sessions": await rows("""select created_at, last_seen_at, expires_at, revoked_at, host(ip) as ip, user_agent,
+                                         mfa_at
                                   from sessions where user_id = %s order by created_at""", user_id),
-        "files": await rows("""select id, filename, content_type, size_bytes, created_at from files
+        "files": await rows("""select id, filename, content_type, size_bytes, kind, created_at from files
                                where user_id = %s order by created_at""", user_id),
         "clips": await rows("""select id, source, title, body, url, created_at, updated_at from clips
                                where user_id = %s order by created_at""", user_id),
@@ -64,10 +69,11 @@ async def build_user_export(conn, user_id: int) -> dict:
 
 README = """Indsigt i dine data
 
-data.json   alt, vi har gemt om dig: bruger, passkeys, sessioner, klip, filer (oversigt), tilladte domæner,
+data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnøgler, godkendelsesapps
+            (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
             testkonti du har oprettet og statistik knyttet til dig.
-files/      kopier af de filer, du har uploadet.
+files/      kopier af de filer, du har uploadet, og dit profilbillede.
 
 Samtaler med AI'en bliver ikke gemt og er derfor ikke med.
 """
@@ -113,7 +119,7 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
-    """The right to be forgotten. Deletes the user (passkeys, sessions, clips, domain consents, AI usage, one-time
+    """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, one-time
     codes, feature level and their test accounts cascade; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:

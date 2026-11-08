@@ -1,10 +1,10 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Globe, LogIn, MousePointerClick, Puzzle, ScrollText,
+  Archive, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Globe, LogIn, MousePointerClick, PlugZap, Puzzle, ScrollText,
   Settings, Smartphone, TrendingUp, Users, VenetianMask, type LucideIcon,
 } from "lucide-react";
 
-export type NavBadge = "impersonation" | "features";
+export type NavBadge = "impersonation" | "features" | "mcp";
 export type NavItem = { path: string; label: string; icon: LucideIcon; badge?: NavBadge };
 export type NavGroup = { label: string; items: NavItem[] };
 
@@ -40,6 +40,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: "/ai", label: "AI", icon: Bot },
       { path: "/integrations", label: "Udvidelse og Office", icon: Puzzle },
+      { path: "/mcp", label: "MCP-servere", icon: PlugZap, badge: "mcp" },
     ],
   },
   {

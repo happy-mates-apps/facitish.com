@@ -45,7 +45,7 @@ export default function Impersonation() {
         oprettelse og sletning skrives i audit-loggen.
       </PageTitle>
       {error && <ErrorBox>{error}</ErrorBox>}
-      <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div data-deeplink="imp-create" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>Opret testkonto</span>
           <span style={{ fontSize: 13, color: "#64748b" }}>„Én pr. rolle“ opretter Test Bruger og Test Admin, hvis de mangler.</span>
@@ -66,7 +66,7 @@ export default function Impersonation() {
           <Btn icon={Sparkles} onClick={presets}>Én pr. rolle</Btn>
         </div>
       </div>
-      <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div data-deeplink="imp-accounts" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={{ fontSize: 15, fontWeight: 600, paddingBottom: 6 }}>Dine testkonti</span>
         {data && tests.length === 0 && <span style={{ fontSize: 13, color: "#64748b" }}>Ingen testkonti endnu.</span>}
         {tests.map((t) => {
@@ -85,7 +85,7 @@ export default function Impersonation() {
               {current
                 ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 9999, background: "#0f172a", color: "#ffffff" }}>Aktiv</span>
                 : (
-                  <button type="button" onClick={() => switchTo(t)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
+                  <button type="button" onClick={() => switchTo(t)} data-deeplink={`imp-switch-${t.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
                     borderRadius: 8, border: 0, cursor: "pointer", background: "#2563eb", color: "#f8fafc", font: `500 13px ${SANS}` }}>
                     <VenetianMask size={14} strokeWidth={2} />Skift til
                   </button>

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Data — Udforsk</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="AdminNav" active="/data/explore" hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/admin/data/explore?t=dawa.adresser</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0">
+      <aside aria-label="Tabeller" style="flex: 1 1 240px; max-width: 100%; box-sizing: border-box; background: #ffffff; border-right: 1px solid #e2e8f0; padding: 16px 12px; display: flex; flex-direction: column; gap: 14px">
+        <label style="display: flex; position: relative">
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Find tabel</span>
+          <input type="search" placeholder="Find tabel eller endpoint" style="width: 100%; height: 34px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; box-sizing: border-box">
+        </label>
+        <a href="DataConnect.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; border-radius: 8px; border: 1px dashed #93c5fd; background: #eff6ff; color: #1d4ed8; font-size: 13px; font-weight: 600; text-decoration: none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5 M9 8V2 M15 8V2 M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg>
+          Forbind API
+        </a>
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 8px 4px">
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">{{g.label}}</span>
+              <span style="font-size: 11px; color: #94a3b8">{{g.note}}</span>
+            </div>
+            <sc-for list="{{g.items}}" as="t" hint-placeholder-count="4">
+              <a href="#" style="display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; text-decoration: none; color: {{t.fg}}; background: {{t.bg}}; font-weight: {{t.fw}}">
+                <span style="width: 6px; height: 6px; border-radius: 9999px; flex: none; background: {{t.dot}}"></span>
+                <span style="flex: 1; min-width: 0; font-size: 13px">{{t.label}}</span>
+                <span style="font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #94a3b8">{{t.name}}</span>
+              </a>
+            </sc-for>
+          </div>
+        </sc-for>
+        <div style="margin-top: auto; padding: 10px; border-radius: 10px; background: #f8fafc; font-size: 12px; color: #475569; line-height: 1.5">
+          <strong style="color: #020817">Ikke i kataloget</strong> kan udforskes, men uden danske navne, beskrivelser eller maskering. Gule og røde kolonner skjules, indtil tabellen er katalogiseret.
+        </div>
+      </aside>
+
+      <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Udforsk · Dataforsyningen (API)</span>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em">Adresser</h1>
+              <span style="padding: 2px 8px; border-radius: 6px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f1f5f9; color: #334155">GET /adresser</span>
+              <a href="DataConnect.dc.html" style="font-size: 13px; font-weight: 500">Kildebeskrivelse →</a>
+            </div>
+          </div>
+          <div role="group" aria-label="Tilstand" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #e2e8f0">
+            <button type="button" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: #ffffff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); font: 600 12px Inter, system-ui, sans-serif; color: #020817">Tabel</button>
+            <button type="button" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Rå svar (JSON)</button>
+            <button type="button" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Diagram</button>
+          </div>
+        </div>
+
+        <section aria-label="Filtre" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; justify-content: space-between">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Filtre · alle skal gælde</span>
+            <button type="button" style="height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Gem som visning</button>
+          </div>
+          <sc-for list="{{filters}}" as="f" hint-placeholder-count="3">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+              <span style="width: 38px; font-size: 12px; color: #64748b; text-align: right">{{f.join}}</span>
+              <select aria-label="Felt" style="flex: 1 1 160px; height: 34px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; background: #ffffff"><option>{{f.field}}</option></select>
+              <select aria-label="Operator" style="flex: 0 1 150px; height: 34px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; background: #ffffff"><option>{{f.op}}</option></select>
+              <input aria-label="Værdi" value="{{f.value}}" style="flex: 1 1 160px; height: 34px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; box-sizing: border-box">
+              <span style="flex: 0 0 auto; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: {{f.hBg}}; color: {{f.hFg}}">{{f.how}}</span>
+              <button type="button" aria-label="Fjern filter" style="width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: #64748b; display: inline-flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18 M6 6l12 12"></path></svg></button>
+            </div>
+          </sc-for>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-left: 46px">
+            <button type="button" style="height: 30px; padding: 0 10px; border-radius: 8px; border: 1px dashed #cbd5e1; background: #ffffff; font: 500 12px Inter, system-ui, sans-serif; color: #475569">+ Filter</button>
+            <button type="button" style="height: 30px; padding: 0 10px; border-radius: 8px; border: 1px dashed #cbd5e1; background: #ffffff; font: 500 12px Inter, system-ui, sans-serif; color: #475569">+ Relateret kolonne (Postnummer …)</button>
+          </div>
+        </section>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start">
+          <section aria-label="Resultat" style="flex: 999 1 520px; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+              <span><strong style="color: #020817">[ANTAL]</strong> rækker · hentet fra api.dataforsyningen.dk · [KALD] kald · [MS] ms</span>
+              <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 9999px; background: #16a34a"></span>Cache 60 min</span>
+            </div>
+            <div style="overflow-x: auto">
+              <div style="min-width: 620px; font-size: 13px">
+                <div style="display: grid; grid-template-columns: 1.6fr 0.6fr 0.8fr 0.7fr 1fr 0.9fr; gap: 10px; padding: 8px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b">
+                  <span>Vej</span><span>Husnr.</span><span>Etage/dør</span><span>Postnr.</span><span>By</span><span>Kommune</span>
+                </div>
+                <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+                  <div style="display: grid; grid-template-columns: 1.6fr 0.6fr 0.8fr 0.7fr 1fr 0.9fr; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #f1f5f9; align-items: center; background: {{r.bg}}; box-shadow: {{r.ring}}">
+                    <span style="font-weight: 500">{{r.vej}}</span>
+                    <span style="font-variant-numeric: tabular-nums">{{r.nr}}</span>
+                    <span style="color: #475569">{{r.etage}}</span>
+                    <span style="font-variant-numeric: tabular-nums">{{r.post}}</span>
+                    <span style="color: #475569">{{r.by}}</span>
+                    <span style="color: #475569">Aarhus</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </section>
+
+          <aside aria-label="Række" style="flex: 1 1 280px; max-width: 100%; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; justify-content: space-between">
+              <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Valgt række</span>
+              <button type="button" aria-label="Luk" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #64748b; display: inline-flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18 M6 6l12 12"></path></svg></button>
+            </div>
+            <span style="font-weight: 700; font-size: 16px">Trøjborgvej 77, st. th</span>
+            <dl style="margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px">
+              <dt style="color: #64748b">Postnr.</dt><dd style="margin: 0">8200 Aarhus N</dd>
+              <dt style="color: #64748b">Kommune</dt><dd style="margin: 0">Aarhus</dd>
+              <dt style="color: #64748b">Status</dt><dd style="margin: 0">Gældende</dd>
+              <dt style="color: #64748b">ID</dt><dd style="margin: 0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569">[ADRESSE-ID]</dd>
+            </dl>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Relaterede</span>
+              <a href="#" style="display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: #f8fafc; color: #020817; text-decoration: none; font-size: 13px"><span>Postnummer</span><span style="color: #64748b">1 →</span></a>
+              <a href="#" style="display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: #f8fafc; color: #020817; text-decoration: none; font-size: 13px"><span>Rå svar fra API'et</span><span style="color: #64748b">JSON →</span></a>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5">Udforsk læser kun. Serveren henter rækkerne efter kildebeskrivelsen <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace">kilder/dawa.yaml</span>; her ændres kun katalogets beskrivelser.</p>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const DOT = { Hvid: '#cbd5e1', 'Grøn': '#16a34a', Gul: '#f59e0b', 'Rød': '#dc2626', '?': '#e2e8f0' };
+    const mk = (label, name, cls, on) => ({ label, name, dot: DOT[cls], bg: on ? '#eff6ff' : 'transparent', fg: on ? '#1d4ed8' : '#020817', fw: on ? 600 : 400 });
+    const groups = [
+      { label: 'Dataforsyningen · API', note: 'REST', items: [mk('Adresser', '/adresser', 'Hvid', true), mk('Postnumre', '/postnumre', 'Hvid')] },
+      { label: 'Gær (egen database)', note: '8 / 21', items: [mk('Klip', 'clips', 'Gul'), mk('Filer', 'files', 'Gul'), mk('Brugere', 'users', 'Rød'), mk('Auth-log', 'auth_log', 'Rød'), mk('Website-sider', 'web_pages', 'Hvid')] },
+      { label: 'Ikke i kataloget', note: '13', items: [mk('Feature-brug', 'feature_usage', '?'), mk('Analytics', 'analytics_events', '?'), mk('App Stores', 'app_store', '?')] }
+    ];
+    const api = ['rgba(37,99,235,0.1)', '#1d4ed8'];
+    const local = ['#f1f5f9', '#475569'];
+    const filters = [
+      { join: 'Hvor', field: 'Postnr.', op: 'er en af', value: '8000, 8200', how: '→ API-parameter postnr', hBg: api[0], hFg: api[1] },
+      { join: 'og', field: 'Vej', op: 'starter med', value: 'Trøjborg', how: '→ API-parameter q', hBg: api[0], hFg: api[1] },
+      { join: 'og', field: 'Etage/dør', op: 'er ikke tom', value: '', how: 'filtreres i Gær', hBg: local[0], hFg: local[1] }
+    ];
+    const raw = [
+      ['Trøjborgvej', '72', '1. tv', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '74', 'st. th', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '77', 'st. th', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '77', '2. mf', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '81', '1.', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '83', '3. tv', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '86', 'st.', '8200', 'Aarhus N'],
+      ['Trøjborgvej', '90', '2. th', '8200', 'Aarhus N']
+    ];
+    const rows = raw.map(([vej, nr, etage, post, by], i) => ({
+      vej, nr, etage, post, by,
+      bg: i === 2 ? '#eff6ff' : '#ffffff', ring: i === 2 ? 'inset 2px 0 0 #2563eb' : 'none'
+    }));
+    return { groups, filters, rows };
+  }
+}
+</script>
+</body>
+</html>

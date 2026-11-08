@@ -1,7 +1,8 @@
 # Gær — Surdej i letvægt
 
 Én container med en Python-server og en Vite-frontend, koblet til managed Postgres og Object Storage på
-OVHcloud. Login med telefonnummer og engangskode, passkey efter tre logins, og fuld audit- og auth-log.
+OVHcloud. Login med e-mail og engangskode, passkeys, sikkerhedsnøgler og godkendelsesapps (MFA til /admin), og fuld
+audit- og auth-log.
 
 Gær-base er skabelonen. Hver kunde får altid en fork i sin egen GitHub-organisation og henter opdateringer
 herfra ind i sin fork.
@@ -10,7 +11,7 @@ herfra ind i sin fork.
 
 | | |
 | --- | --- |
-| **Login** | Telefonnummer → engangskode på SMS (gemt som hash, udløber, kan bruges én gang, spærring efter for mange forsøg). Tre grace logins, derefter passkey. Ny enhed: kode + ny passkey, tæller ikke som grace login. Første bruger bliver admin — eller, med `BOOTSTRAP_ADMIN_PHONE`, kun det nummer (anbefalet i produktion). |
+| **Login** | E-mail → engangskode (SMS er opt-in med `SMS_LOGIN=1`; koden gemt som hash, udløber, kan bruges én gang, spærring efter for mange forsøg). Alle tilbydes en passkey; brugere kan selv slå **Kræv passkey** (MFA) til. **/admin kræver MFA** efter tre grace logins: passkey, sikkerhedsnøgle (YubiKey) eller godkendelsesapp (TOTP), og sikkerhedshandlinger kræver en frisk bekræftelse. Første bruger bliver superadmin — eller, med `BOOTSTRAP_ADMIN_EMAIL`, kun den adresse (anbefalet i produktion). |
 | **Logning** | Auth-log og audit-log i Postgres. Kun tilføjelse: app-brugeren har ikke UPDATE/DELETE, og en trigger stopper UPDATE. Sletning kun fra /admin med en separat databasebruger, og sletningen logges. |
 | **/admin** | Brugere og roller · auth-log · audit-log (CSV) · analytics · heatmaps · GDPR-forespørgsler · sletning af logdata · samtykke og cookies · filer · website · udvidelse og Office · indstillinger. Alt i /admin skrives i audit-loggen. |
 | **Analytics og heatmaps** | Opsamles af Python-serveren og gemmes i en partitioneret tabel i containerens egen database. Ingen tredjepart. Kun anonyme sidevisninger uden samtykke. |
@@ -83,28 +84,29 @@ rettighederne på log-tabellerne bliver testet. Passkeys testes med en software-
 ## Arkitektur
 
 ```
-           Caddy (TLS, Let's Encrypt)
-                     │
-        ┌────────────▼────────────┐
-        │  Container  gaer        │        OVHcloud · managed
-        │  ┌───────────────────┐  │     ┌──────────────────────────────┐
-        │  │ Python (FastAPI)  │──┼────►│ PostgreSQL-cluster (fælles)  │
-        │  │  /api  /w  /health│  │     │  gaer_<kunde>  ← egen db     │
-        │  │  serverer web/dist│──┼──┐  └──────────────────────────────┘
-        │  └───────────────────┘  │  │  ┌──────────────────────────────┐
-        └─────────────────────────┘  └─►│ Object Storage (S3)          │
+        Cloudflare Tunnel (TLS, ingen åbne porte)
+                     │  cloudflared
+   Server · docker compose (deploy/compose.yml)
+        ┌────────────▼────────────┐     ┌──────────────────────────────┐
+        │  Container  app         │────►│ Container  postgres          │
+        │  Python (FastAPI)       │     │  gaer_<kunde>  ← egen db     │
+        │  /api /w /mcp /health   │     └──────────────────────────────┘
+        │  serverer web/dist      │     ┌──────────────────────────────┐
+        └─────────────────────────┘────►│ Object Storage (S3)          │
                                         └──────────────────────────────┘
 ```
 
-Tre databasebrugere pr. container, oprettet med `deploy/provision_database.py`:
+Databasebrugere, oprettet af `deploy/postgres-init.sh`, første gang Postgres-volumet er tomt (eller med
+`deploy/provision_database.py` på en managed PostgreSQL-klynge):
 
 | Bruger | Miljøvariabel | Rettigheder |
 | --- | --- | --- |
 | `gaer_<navn>_owner` | `MIGRATION_DATABASE_URL` | ejer skemaet, kører migrationer |
 | `gaer_<navn>_app` | `DATABASE_URL` | appen; kun SELECT/INSERT på log-tabeller |
 | `gaer_<navn>_purge` | `PURGE_DATABASE_URL` | sletning af logdata fra /admin |
+| `gaer_<navn>_mcp_ro` | `MCP_DB_QUERY_URL` | kun SELECT, for `db_query` i /mcp/admin; aldrig hemmeligheder (valgfri) |
 
-Ingen af dem kan forbinde til andre containeres databaser.
+Ingen af dem kan forbinde til andre instansers databaser.
 
 ## Udrulning
 
@@ -125,6 +127,16 @@ til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variabl
 På serveren laves `~/gaer/.env` ud fra `deploy/.env.example` og `~/gaer/app.env` ud fra
 `deploy/app.env.example`.
 
+`postgres-init.sh` kører kun på et tomt volume. Har en eksisterende server ikke `<db>_mcp_ro` (fra før MCP), så
+sæt `DB_MCP_RO_PASSWORD` i `~/gaer/.env` og opret rollen én gang; den næste udrulning giver den rettighederne:
+
+```bash
+cd ~/gaer && set -a && . ./.env && set +a
+docker compose -f compose.yml exec -T postgres psql -U postgres \
+  -c "create role ${DB_NAME}_mcp_ro login password '$DB_MCP_RO_PASSWORD'" \
+  -c "grant connect on database $DB_NAME to ${DB_NAME}_mcp_ro"
+```
+
 ## Browserudvidelse og Office
 
 - **Udvidelse**: hent den i `/admin/integrations` (zip med instansens adresse), indlæs upakket i
@@ -137,5 +149,6 @@ gælder inde i udvidelsen/Office.
 
 ## Konfiguration
 
-Alle indstillinger er miljøvariabler — se `.env.example` (lokalt) og `deploy/.env.example` (produktion) og
+Alle indstillinger er miljøvariabler — se `.env.example` (lokalt), `deploy/app.env.example` og `deploy/.env.example`
+(produktion: appens indstillinger og stakkens hemmeligheder) og
 `server/app/config.py`. Navn, logo, SMS-afsender, GDPR-mail, cookie-tekster og opbevaringsperioder sættes i /admin.

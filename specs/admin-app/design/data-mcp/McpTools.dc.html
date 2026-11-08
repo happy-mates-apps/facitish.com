@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-servere — Værktøjer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="McpNav" active="{{server}}"hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/mcp/{{server}}?fane=vaerktoejer&amp;tool={{sel.name}}</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Indbyggede endpoints</h1>
+        <div role="radiogroup" aria-label="Server" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #e2e8f0">
+          <button type="button" role="radio" aria-checked="{{appChecked}}" onClick="{{pickApp}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer; background: {{appBg}}; font: {{appFw}} 12px Inter, system-ui, sans-serif; color: {{appFg}}">Appen · /mcp/app</button>
+          <button type="button" role="radio" aria-checked="{{adminChecked}}" onClick="{{pickAdmin}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer; background: {{adminBg}}; font: {{adminFw}} 12px Inter, system-ui, sans-serif; color: {{adminFg}}">Admin · /mcp/admin</button>
+        </div>
+      </div>
+
+      <nav aria-label="MCP" style="display: flex; gap: 22px; border-bottom: 1px solid #e2e8f0; overflow-x: auto">
+        <a href="McpOverview.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Oversigt</a>
+        <a href="McpTools.dc.html" aria-current="page" style="padding: 10px 0; font-weight: 600; color: #020817; text-decoration: none; border-bottom: 2px solid #2563eb; margin-bottom: -1px; white-space: nowrap">Værktøjer</a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Kladder <span style="padding: 0 6px; border-radius: 9999px; background: #f59e0b; color: #ffffff; font-size: 11px; font-weight: 700">{{pending}}</span></a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Monitor</a>
+        <a href="McpConnect.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Forbind</a>
+      </nav>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section aria-label="Værktøjsliste" style="flex: 1 1 360px; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+          <div style="padding: 14px; border-bottom: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px">
+            <label style="display: flex">
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Søg værktøj</span>
+              <input type="search" placeholder="Søg værktøj eller beskrivelse" style="width: 100%; height: 36px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; box-sizing: border-box">
+            </label>
+            <div role="group" aria-label="Type" style="display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 8px; background: #f1f5f9; align-self: flex-start">
+              <sc-for list="{{types}}" as="ty" hint-placeholder-count="4">
+                <button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: {{ty.bg}}; box-shadow: {{ty.shadow}}; font: {{ty.fw}} 12px Inter, system-ui, sans-serif; color: {{ty.fg}}">{{ty.label}}</button>
+              </sc-for>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap">
+              <sc-for list="{{chips}}" as="c" hint-placeholder-count="6">
+                <button type="button" style="height: 26px; padding: 0 10px; border-radius: 9999px; border: 1px solid {{c.bd}}; background: {{c.bg}}; font: 500 12px Inter, system-ui, sans-serif; color: {{c.fg}}">{{c.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{tools}}" as="t" hint-placeholder-count="9">
+            <a href="#" style="display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; text-decoration: none; color: #020817; background: {{t.bg}}; box-shadow: {{t.ring}}">
+              <span style="display: flex; align-items: center; gap: 8px">
+                <span style="font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace">{{t.name}}</span>
+                <span style="padding: 1px 7px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; background: {{t.mBg}}; color: {{t.mFg}}">{{t.mode}}</span>
+                <span style="margin-left: auto; font-size: 11px; color: #94a3b8">{{t.domain}}</span>
+              </span>
+              <span style="font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.desc}}</span>
+            </a>
+          </sc-for>
+        </section>
+
+        <section aria-label="Inspektør" style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+              <span style="font: 700 18px ui-monospace, SFMono-Regular, Menlo, monospace">{{sel.name}}</span>
+              <span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background: rgba(249,115,22,0.12); color: #9a3412">KLADDE</span>
+              <span style="font-size: 12px; color: #64748b">{{sel.meta}}</span>
+            </div>
+            <p style="margin: 0; color: #334155">{{sel.desc}}</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
+              <sc-for list="{{sel.params}}" as="pa" hint-placeholder-count="2">
+                <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">
+                  <span>{{pa.name}} <span style="color: #b91c1c">*</span> <span style="font-weight: 400; color: #64748b">· {{pa.type}}</span></span>
+                  <input type="text" value="{{pa.value}}" style="height: 36px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px {{pa.font}}; box-sizing: border-box">
+                </label>
+              </sc-for>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <span style="font-size: 12px; color: #64748b">Deep link — opdateres mens du skriver</span>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <code style="flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sel.link}}</code>
+                <button type="button" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif">Kopiér</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: 0; background: #2563eb; font: 600 14px Inter, system-ui, sans-serif; color: #f8fafc">Opret kladde</button>
+              <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 14px Inter, system-ui, sans-serif">Vis JSON-skema</button>
+            </div>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #fcd34d; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+              <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #92400e">Kladde</span>
+              <span style="font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">{{dr.id}}</span>
+              <span style="margin-left: auto; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: rgba(249,115,22,0.12); color: #9a3412">{{dr.status}}</span>
+            </div>
+            <span style="font-weight: 600">{{dr.title}}</span>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 13px">
+              <div style="padding: 10px 12px; border-radius: 10px; background: #f8fafc"><div style="color: #64748b; font-size: 12px">Før</div><div>{{dr.before}}</div></div>
+              <div style="padding: 10px 12px; border-radius: 10px; background: #fef2f2"><div style="color: #b91c1c; font-size: 12px">Efter</div><div>{{dr.after}}</div></div>
+            </div>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">
+              Årsag til bekræftelse (skrives i audit-loggen)
+              <input type="text" value="{{dr.reason}}" style="height: 36px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; box-sizing: border-box">
+            </label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: 0; background: #dc2626; font: 600 14px Inter, system-ui, sans-serif; color: #ffffff">Bekræft kladde</button>
+              <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 14px Inter, system-ui, sans-serif">Annullér</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { server: 'admin' };
+  }
+  renderVals() {
+    const isApp = this.state.server === 'app';
+    const on = { bg: '#0f172a', fg: '#ffffff', fw: 600 };
+    const off = { bg: 'transparent', fg: '#475569', fw: 500 };
+    const a = isApp ? on : off;
+    const b = isApp ? off : on;
+    const sw = {
+      server: this.state.server,
+      pickApp: () => this.setState({ server: 'app' }),
+      pickAdmin: () => this.setState({ server: 'admin' }),
+      appChecked: isApp ? 'true' : 'false', adminChecked: isApp ? 'false' : 'true',
+      appBg: a.bg, appFg: a.fg, appFw: a.fw, adminBg: b.bg, adminFg: b.fg, adminFw: b.fw,
+      pending: isApp ? 1 : 2
+    };
+
+    const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+    const SANS = 'Inter, system-ui, sans-serif';
+    const M = {
+      read: ['Læs', '#f1f5f9', '#475569'], write: ['Skriv', 'rgba(37,99,235,0.1)', '#1d4ed8'],
+      draft: ['Kladde', 'rgba(249,115,22,0.12)', '#9a3412'], confirm: ['Bekræft', 'rgba(220,38,38,0.1)', '#b91c1c']
+    };
+    const adminRaw = [
+      ['user_search', 'read', 'Brugere', 'Find brugere på navn eller telefon. Numre matches fuldt, men vises maskeret.'],
+      ['user_get', 'read', 'Brugere', 'Én bruger: rolle, passkeys, brugte grace-logins, sessioner, filer, niveau.'],
+      ['user_set_role', 'draft', 'Brugere', 'Gør en bruger til admin eller fjerner rollen. Den sidste admin kan ikke fjernes.'],
+      ['user_block', 'draft', 'Brugere', 'Spærrer en bruger og afslutter alle sessioner.'],
+      ['user_unblock', 'draft', 'Brugere', 'Ophæver en spærring.'],
+      ['user_reset_passkeys', 'draft', 'Brugere', 'Fjerner alle passkeys og logger ud; næste login kræver kode og ny passkey.'],
+      ['user_revoke_sessions', 'draft', 'Brugere', 'Logger en bruger ud overalt, også MCP-klienter.'],
+      ['data_catalog_search', 'read', 'Data', 'Søg i katalogets datasæt og felter, med klassifikation.'],
+      ['dataset_query', 'read', 'Data', 'Filtrér og sortér et udstillet datasæt. Gule/røde felter maskeres.'],
+      ['confirm_draft', 'confirm', 'Kladder', 'Kører en afventende kladde én gang.']
+    ];
+    const appRaw = [
+      ['whoami', 'read', 'Mig', 'Den indloggede bruger: navn, maskeret telefon, rolle, feature-niveau og session.'],
+      ['me_features', 'read', 'Mig', 'Features du kan se lige nu og deres ring (1 Internt – 4 Stabilt).'],
+      ['me_set_ring', 'write', 'Mig', 'Sætter dit eget feature-niveau. Kan kun gøres mere forsigtigt end din gruppes.'],
+      ['clips_list', 'read', 'Klip', 'Dine klip, nyeste først. Filtrér på kilde (web, extension, office, mobile).'],
+      ['clips_search', 'read', 'Klip', 'Fritekstsøgning i dine klip (titel, tekst, url).'],
+      ['clip_create', 'write', 'Klip', 'Gemmer tekst eller et link som et nyt klip (kilde "mcp").'],
+      ['clip_update', 'write', 'Klip', 'Ændrer titel eller tekst på et af dine klip.'],
+      ['clip_delete', 'draft', 'Klip', 'Sletter et af dine klip. Returnerer en kladde.'],
+      ['files_list', 'read', 'Filer', 'Dine filer i Object Storage med størrelse og upload-tid.'],
+      ['file_link', 'read', 'Filer', 'Et download-link til en af dine filer. Udløber efter 300 s.'],
+      ['privacy_export', 'draft', 'Privatliv', 'Bestiller en GDPR-eksport af alt om dig. Returnerer en kladde.'],
+      ['confirm_draft', 'confirm', 'Kladder', 'Kører en af dine afventende kladder.']
+    ];
+    const selName = isApp ? 'clip_delete' : 'user_block';
+    const tools = (isApp ? appRaw : adminRaw).map(([name, mode, domain, desc]) => ({
+      name, domain, desc, mode: M[mode][0], mBg: M[mode][1], mFg: M[mode][2],
+      bg: name === selName ? '#eff6ff' : '#ffffff', ring: name === selName ? 'inset 3px 0 0 #2563eb' : 'none'
+    }));
+    const typeLabels = isApp ? ['Alle 15', 'Læs 9', 'Skriv 3', 'Kladde 2', 'Bekræft 1'] : ['Alle 37', 'Læs 23', 'Kladde 13', 'Bekræft 1'];
+    const types = typeLabels.map((label, i) => ({
+      label, bg: i === 0 ? '#ffffff' : 'transparent', shadow: i === 0 ? '0 1px 2px rgb(0 0 0 / 0.05)' : 'none', fw: i === 0 ? 600 : 500, fg: i === 0 ? '#020817' : '#475569'
+    }));
+    const chipLabels = isApp ? ['Alle', 'Mig', 'Klip', 'Filer', 'Privatliv', 'Kladder'] : ['Alle', 'Brugere', 'Data', 'Features', 'Logs', 'Database', 'GDPR'];
+    const chipOn = isApp ? 'Klip' : 'Brugere';
+    const chips = chipLabels.map((label) => ({
+      label, bg: label === chipOn ? '#0f172a' : '#ffffff', fg: label === chipOn ? '#ffffff' : '#475569', bd: label === chipOn ? '#0f172a' : '#e2e8f0'
+    }));
+    const sel = isApp
+      ? {
+          name: 'clip_delete', meta: 'Klip · routes/clips.py · kører som dig',
+          desc: 'Sletter et af dine klip. Returnerer en kladde — intet slettes før confirm_draft.',
+          params: [{ name: 'clipId', type: 'uuid', value: 'c41e…02bd (Mødenoter 4. nov)', font: MONO }],
+          link: '/klip/c41e…02bd?focus=clip-delete'
+        }
+      : {
+          name: 'user_block', meta: 'Brugere og roller · routes/admin.py',
+          desc: 'Spærrer en bruger og afslutter alle brugerens sessioner. Du kan ikke spærre dig selv. Returnerer en kladde.',
+          params: [
+            { name: 'userId', type: 'uuid', value: '7f3c…a91e (Jonas M.)', font: MONO },
+            { name: 'reason', type: 'tekst', value: 'Mistet telefon', font: SANS }
+          ],
+          link: '/admin/users/7f3c…a91e?focus=user-block'
+        };
+    const dr = isApp
+      ? { id: 'drf_Q7mt…', status: 'Afventer · udløber om 8:15', title: 'Slet klippet "Mødenoter 4. nov"', before: '1 klip · kilde extension', after: 'slettet · kan ikke fortrydes', reason: 'Dublet — findes også i Filer' }
+      : { id: 'drf_8K2q…', status: 'Afventer · udløber om 9:42', title: 'Spær Jonas M. og afslut 3 sessioner', before: 'status: aktiv · 3 sessioner', after: 'status: spærret · 0 sessioner', reason: 'Mistet telefon — ringet ind 08.11' };
+    return { ...sw, tools, types, chips, sel, dr };
+  }
+}
+</script>
+</body>
+</html>

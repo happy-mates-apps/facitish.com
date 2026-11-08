@@ -1,10 +1,21 @@
 // Every call to the Python server goes through here. State-changing requests carry the
 // X-Gaer header, which the server requires as CSRF protection.
 
+/** code comes from the X-Gaer-Error header: "mfa_required", "mfa_setup_required" or "stepup_required". */
+export type ApiErrorCode = "mfa_required" | "mfa_setup_required" | "stepup_required";
+
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public code: ApiErrorCode | null = null) {
     super(message);
   }
+}
+
+// When the server asks for a second factor (stepup_required / mfa_required), the app can show its step-up dialog.
+// The handler resolves true when the user proved it; the call is then repeated once. Set by each app (/ and /admin).
+export type StepUpHandler = (code: "mfa_required" | "stepup_required", message: string) => Promise<boolean>;
+let stepUpHandler: StepUpHandler | null = null;
+export function setStepUpHandler(handler: StepUpHandler | null): void {
+  stepUpHandler = handler;
 }
 
 // Inside the browser extension or an Office pane the app runs in an iframe; the server then
@@ -36,7 +47,7 @@ export function setApiObserver(o: ApiObserver | null): void {
   observer = o;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, retried = false): Promise<T> {
   const headers: Record<string, string> = { "X-Gaer": "1" };
   if (embedded) headers["X-Gaer-Embedded"] = "1";
   if (appName) headers["X-Gaer-App"] = appName;
@@ -74,7 +85,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     const detail = (data as { detail?: unknown } | undefined)?.detail;
     if (typeof detail === "string") message = detail;
     else if (Array.isArray(detail)) message = "Tjek felterne og prøv igen";
-    throw new ApiError(res.status, message);
+    const code = (res.headers.get("X-Gaer-Error") as ApiErrorCode | null) ?? null;
+    if (!retried && stepUpHandler && (code === "stepup_required" || code === "mfa_required")
+        && !path.startsWith("/api/auth/mfa/") && await stepUpHandler(code, message)) {
+      return request<T>(method, path, body, true);
+    }
+    throw new ApiError(res.status, message, code);
   }
   return data as T;
 }

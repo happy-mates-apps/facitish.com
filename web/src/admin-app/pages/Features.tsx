@@ -1,5 +1,6 @@
 // /admin/features → Features og ringe (screen 05), after happy-groups FeaturesAdmin.tsx.
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
 import { api, errorText } from "../../api";
 import { Btn, ErrorBox, IconBtn, Modal, PageTitle, Toggle, useLoad, useToast } from "../ui";
@@ -30,7 +31,8 @@ export default function Features() {
   const { setMissingFeatures } = useAdmin();
   const { data, error, reload, setData } = useLoad(() => api.get<FeaturesResponse>("/api/admin/features"), []);
   const users = useLoad(() => api.get<UsersResponse>("/api/admin/users?limit=500"), []);
-  const [open, setOpen] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const [open, setOpen] = useState<string | null>(params.get("key"));
   const [usage, setUsage] = useState<Usage[] | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [nf, setNf] = useState({ key: "", title: "", description: "", area: "bruger" });
@@ -71,7 +73,7 @@ export default function Features() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PageTitle title="Features og ringe" aside={<>
-        <Btn icon={Download} height={34} style={{ padding: "0 12px" }} disabled={!missing}
+        <Btn icon={Download} height={34} style={{ padding: "0 12px" }} disabled={!missing} deeplink="feature-import"
           onClick={() => act(async () => {
             const r = await api.post<{ created: string[] }>("/api/admin/features/import");
             say(`${r.created.length} features importeret i ring 1`);
@@ -118,12 +120,13 @@ export default function Features() {
                     <span title={f.description} style={{ color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.description}</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <RingChip ring={f.ring} />
-                      <select aria-label="Ring" value={String(f.ring)} onChange={(e) => patch(f, { ring: Number(e.target.value) })} style={{ ...small, width: 170 }}>
+                      <select aria-label="Ring" data-deeplink={`feature-ring-${f.key}`} value={String(f.ring)} onChange={(e) => patch(f, { ring: Number(e.target.value) })} style={{ ...small, width: 170 }}>
                         <RingOptions />
                       </select>
                     </span>
-                    <Toggle on={f.observe} label="Observation" onChange={() => patch(f, { observe: !f.observe })} />
+                    <Toggle on={f.observe} label="Observation" deeplink={`feature-observe-${f.key}`} onChange={() => patch(f, { observe: !f.observe })} />
                     <button type="button" className="tg-hover" onClick={() => setOpen(open === f.key ? null : f.key)}
+                      data-deeplink={`feature-usage-${f.key}`}
                       style={{ justifySelf: "end", display: "inline-flex", alignItems: "center", gap: 4, border: 0, background: "transparent", cursor: "pointer",
                         padding: "2px 4px", borderRadius: 6, font: `13px ${SANS}`, color: "#020817", fontVariantNumeric: "tabular-nums" }}>
                       {fmt(f.uses_30d)} <span style={{ fontSize: 12, color: "#64748b" }}>/ {f.users_30d} brugere</span>
@@ -152,7 +155,7 @@ export default function Features() {
         </div>
       </div>
 
-      <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 10, maxWidth: 720 }}>
+      <div data-deeplink="feature-levels" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 10, maxWidth: 720 }}>
         <span style={{ fontSize: 15, fontWeight: 600 }}>Brugernes niveau</span>
         <span style={{ fontSize: 12, color: "#64748b", textWrap: "pretty" }}>
           Uden række gælder ring 4. Brugeren vælger selv under Konto → Dit niveau, og du kan sætte eller nulstille det her. En feature vises, når

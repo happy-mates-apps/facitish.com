@@ -1,5 +1,6 @@
 // /admin → Statistik (screen 01). Data from /api/admin/analytics, period from the top bar.
-import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { ErrorBox, PageTitle, useLoad } from "../ui";
 import { useAdmin } from "../context";
@@ -22,7 +23,12 @@ const cardTitle = { fontSize: 15, fontWeight: 600 } as const;
 const linkBtn = { border: 0, background: "transparent", cursor: "pointer", color: "#2563eb", font: `500 12px ${SANS}`, padding: 0 } as const;
 
 export default function Stats() {
-  const { range } = useAdmin();
+  const { range, setRange } = useAdmin();
+  const [params] = useSearchParams();
+  const linkedDays = Number(params.get("days"));
+  useEffect(() => {
+    if ([7, 30, 90].includes(linkedDays)) setRange(linkedDays);
+  }, [linkedDays, setRange]);
   const navigate = useNavigate();
   const { data, error } = useLoad(() => api.get<Stats>(`/api/admin/analytics?days=${range}`), [range]);
 
@@ -63,7 +69,7 @@ export default function Stats() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {title}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+      <div data-deeplink="stats-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ ...card, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#64748b" }}>{k.label}</span>
@@ -129,7 +135,7 @@ export default function Stats() {
           ))}
         </div>
 
-        <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div data-deeplink="stats-login" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
           <span style={cardTitle}>Login</span>
           <div style={{ display: "flex", height: 10, borderRadius: 9999, overflow: "hidden", background: "#f1f5f9" }}>
             <div style={{ width: `${(l.passkey / all) * 100}%`, background: "#16a34a" }} />

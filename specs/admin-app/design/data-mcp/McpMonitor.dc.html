@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-servere — Kladder og monitor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="McpNav" active="{{server}}"hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/mcp/{{server}}?fane=monitor</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Indbyggede endpoints</h1>
+        <div role="radiogroup" aria-label="Server" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #e2e8f0">
+          <button type="button" role="radio" aria-checked="{{appChecked}}" onClick="{{pickApp}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer; background: {{appBg}}; font: {{appFw}} 12px Inter, system-ui, sans-serif; color: {{appFg}}">Appen · /mcp/app</button>
+          <button type="button" role="radio" aria-checked="{{adminChecked}}" onClick="{{pickAdmin}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer; background: {{adminBg}}; font: {{adminFw}} 12px Inter, system-ui, sans-serif; color: {{adminFg}}">Admin · /mcp/admin</button>
+        </div>
+      </div>
+
+      <nav aria-label="MCP" style="display: flex; gap: 22px; border-bottom: 1px solid #e2e8f0; overflow-x: auto">
+        <a href="McpOverview.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Oversigt</a>
+        <a href="McpTools.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Værktøjer</a>
+        <a href="McpMonitor.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Kladder <span style="padding: 0 6px; border-radius: 9999px; background: #f59e0b; color: #ffffff; font-size: 11px; font-weight: 700">{{pending}}</span></a>
+        <a href="McpMonitor.dc.html" aria-current="page" style="padding: 10px 0; font-weight: 600; color: #020817; text-decoration: none; border-bottom: 2px solid #2563eb; margin-bottom: -1px; white-space: nowrap">Monitor</a>
+        <a href="McpConnect.dc.html" style="padding: 10px 0; font-weight: 500; color: #64748b; text-decoration: none; white-space: nowrap">Forbind</a>
+      </nav>
+
+      <section aria-label="Kladder" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0">
+          <span style="font-weight: 700">Kladder</span>
+          <span style="font-size: 12px; color: #64748b">{{scopeNote}}</span>
+          <div role="group" aria-label="Status" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #f1f5f9">
+            <button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: #ffffff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); font: 600 12px Inter, system-ui, sans-serif; color: #020817">Alle</button>
+            <button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Afventer</button>
+            <button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Bekræftet</button>
+            <button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Annulleret</button>
+            <button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: 500 12px Inter, system-ui, sans-serif; color: #475569">Udløbet</button>
+          </div>
+        </div>
+        <div style="overflow-x: auto">
+          <div style="min-width: 760px">
+            <div style="display: grid; grid-template-columns: 0.9fr 1.3fr 2.4fr 1.1fr 1fr 0.9fr; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #e2e8f0; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b">
+              <span>Oprettet</span><span>Værktøj</span><span>Beskrivelse</span><span>Klient</span><span>Status</span><span></span>
+            </div>
+            <sc-for list="{{drafts}}" as="d" hint-placeholder-count="5">
+              <div style="display: grid; grid-template-columns: 0.9fr 1.3fr 2.4fr 1.1fr 1fr 0.9fr; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; align-items: center; font-size: 13px">
+                <span style="color: #64748b; font-variant-numeric: tabular-nums">{{d.at}}</span>
+                <span style="font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace">{{d.tool}}</span>
+                <span>{{d.desc}}</span>
+                <span style="color: #475569">{{d.client}}</span>
+                <span><span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: {{d.sBg}}; color: {{d.sFg}}">{{d.status}}</span></span>
+                <span style="text-align: right"><a href="McpTools.dc.html" style="font-size: 13px; font-weight: 500">{{d.action}}</a></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Monitor" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0">
+          <span style="font-weight: 700">Monitor</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 9999px; background: rgba(22,163,74,0.12); color: #166534; font-size: 12px; font-weight: 600"><span style="width: 6px; height: 6px; border-radius: 9999px; background: #16a34a"></span>Live</span>
+          <label style="display: flex; margin-left: auto">
+            <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Filtrér kald</span>
+            <input type="search" placeholder="Filtrér på værktøj eller bruger" style="width: 240px; max-width: 100%; height: 32px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; box-sizing: border-box">
+          </label>
+          <select aria-label="Status" style="height: 32px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px Inter, system-ui, sans-serif; background: #ffffff"><option>Alle statusser</option><option>Fejl</option></select>
+          <button type="button" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 13px Inter, system-ui, sans-serif">Pause</button>
+        </div>
+        <div style="overflow-x: auto">
+          <div style="min-width: 760px; font-size: 13px">
+            <div style="display: grid; grid-template-columns: 0.8fr 1.4fr 1.1fr 1.2fr 0.8fr 0.6fr 1.6fr; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #e2e8f0; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b">
+              <span>Tid</span><span>Værktøj</span><span>Bruger</span><span>Klient</span><span>Status</span><span style="text-align: right">ms</span><span>Note</span>
+            </div>
+            <sc-for list="{{calls}}" as="c" hint-placeholder-count="9">
+              <div style="display: grid; grid-template-columns: 0.8fr 1.4fr 1.1fr 1.2fr 0.8fr 0.6fr 1.6fr; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #f1f5f9; align-items: center">
+                <span style="font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">{{c.t}}</span>
+                <span style="font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace">{{c.tool}}</span>
+                <span>{{c.user}}</span>
+                <span style="color: #475569">{{c.client}}</span>
+                <span><span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: {{c.sBg}}; color: {{c.sFg}}">{{c.status}}</span></span>
+                <span style="text-align: right; font-variant-numeric: tabular-nums; color: #475569">{{c.ms}}</span>
+                <span style="font-size: 12px; color: #64748b">{{c.note}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { server: 'admin' };
+  }
+  renderVals() {
+    const isApp = this.state.server === 'app';
+    const on = { bg: '#0f172a', fg: '#ffffff', fw: 600 };
+    const off = { bg: 'transparent', fg: '#475569', fw: 500 };
+    const a = isApp ? on : off;
+    const b = isApp ? off : on;
+    const sw = {
+      server: this.state.server,
+      pickApp: () => this.setState({ server: 'app' }),
+      pickAdmin: () => this.setState({ server: 'admin' }),
+      appChecked: isApp ? 'true' : 'false', adminChecked: isApp ? 'false' : 'true',
+      appBg: a.bg, appFg: a.fg, appFw: a.fw, adminBg: b.bg, adminFg: b.fg, adminFw: b.fw,
+      scopeNote: isApp ? '/mcp/app · hver bruger ser kun sine egne kladder' : '/mcp/admin · admin-rollen'
+    };
+    const S = {
+      Afventer: ['rgba(249,115,22,0.12)', '#9a3412'], 'Bekræftet': ['rgba(22,163,74,0.12)', '#166534'],
+      Annulleret: ['#f1f5f9', '#475569'], 'Udløbet': ['#f1f5f9', '#94a3b8'],
+      OK: ['rgba(22,163,74,0.12)', '#166534'], Kladde: ['rgba(249,115,22,0.12)', '#9a3412'], Fejl: ['rgba(220,38,38,0.1)', '#b91c1c'], Maskeret: ['rgba(37,99,235,0.1)', '#1d4ed8']
+    };
+    const dr = [
+      ['10:41', 'user_block', 'Spær Jonas M. og afslut 3 sessioner', 'Claude Desktop', 'Afventer', 'Bekræft'],
+      ['10:12', 'feature_set_ring', 'Flyt browserudvidelsen fra ring 2 til ring 3', 'Claude Code', 'Afventer', 'Bekræft'],
+      ['I går 16:03', 'settings_set', 'Ændr SMS-afsender til "Lejedata"', 'VS Code', 'Bekræftet', 'Se i audit-log'],
+      ['I går 11:20', 'user_set_role', 'Gør Mette K. til admin', 'Claude Desktop', 'Annulleret', 'Detaljer'],
+      ['6. nov', 'gdpr_export', 'Byg eksport for bruger 3a91…', 'Claude Code', 'Udløbet', 'Detaljer']
+    ];
+    const drApp = [
+      ['10:33', 'clip_delete', 'Slet klippet "Mødenoter 4. nov"', 'Claude Desktop', 'Afventer', 'Bekræft'],
+      ['09:58', 'privacy_export', 'Bestil GDPR-eksport af egne data', 'ChatGPT', 'Bekræftet', 'Se i audit-log'],
+      ['I går 14:10', 'clip_delete', 'Slet 3 klip fra kilden "extension"', 'Claude Code', 'Annulleret', 'Detaljer'],
+      ['5. nov', 'clip_delete', 'Slet klippet "Tilbud Østbanetorvet"', 'VS Code', 'Udløbet', 'Detaljer']
+    ];
+    const drafts = (isApp ? drApp : dr).map(([at, tool, desc, client, status, action]) => ({ at, tool, desc, client, status, action, sBg: S[status][0], sFg: S[status][1] }));
+    const cl = [
+      ['10:42:07', 'dataset_query', 'Niels', 'Claude Desktop', 'Maskeret', '212', 'gaer.clips · ejer maskeret'],
+      ['10:42:05', 'data_catalog_search', 'Niels', 'Claude Desktop', 'OK', '38', 'q="klip fra outlook"'],
+      ['10:41:52', 'user_block', 'Niels', 'Claude Desktop', 'Kladde', '61', 'drf_8K2q…'],
+      ['10:41:50', 'user_search', 'Niels', 'Claude Desktop', 'OK', '44', '1 træf'],
+      ['10:38:13', 'db_query', 'Mette K.', 'Claude Code', 'Fejl', '5003', 'timeout efter 5 s'],
+      ['10:37:40', 'db_schema', 'Mette K.', 'Claude Code', 'OK', '120', ''],
+      ['10:12:31', 'feature_set_ring', 'Mette K.', 'Claude Code', 'Kladde', '57', 'drf_1Pzx…'],
+      ['10:12:29', 'feature_list', 'Mette K.', 'Claude Code', 'OK', '33', '']
+    ];
+    const clApp = [
+      ['10:43:11', 'clips_search', 'Sofie L.', 'Claude Desktop', 'OK', '41', 'q="OVHcloud" · 4 træf'],
+      ['10:43:09', 'clip_get', 'Sofie L.', 'Claude Desktop', 'OK', '18', ''],
+      ['10:40:22', 'clip_create', 'Jonas M.', 'ChatGPT', 'OK', '35', 'kilde "mcp"'],
+      ['10:33:47', 'clip_delete', 'Niels', 'Claude Desktop', 'Kladde', '29', 'drf_Q7mt…'],
+      ['10:21:05', 'file_link', 'Mette K.', 'VS Code', 'OK', '52', 'udløber om 300 s'],
+      ['10:20:58', 'files_list', 'Mette K.', 'VS Code', 'OK', '64', ''],
+      ['10:02:14', 'me_set_ring', 'Jonas M.', 'ChatGPT', 'Fejl', '22', 'ring kan kun gøres mere forsigtig'],
+      ['09:58:30', 'whoami', 'Niels', 'ChatGPT', 'OK', '12', '']
+    ];
+    const calls = (isApp ? clApp : cl).map(([t, tool, user, client, status, ms, note]) => ({ t, tool, user, client, status, ms, note, sBg: S[status][0], sFg: S[status][1] }));
+    const pending = drafts.filter((d) => d.status === 'Afventer').length;
+    return { ...sw, drafts, calls, pending };
+  }
+}
+</script>
+</body>
+</html>
