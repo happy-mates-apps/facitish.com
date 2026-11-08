@@ -21,6 +21,7 @@ import ClipsPage, { ClipsList, useClips } from "./clips";
 import OfficeShell from "./office/OfficeShell";
 import { DocumentTool, OutlookTool, ToolLayout, WordTool } from "./office/Tools";
 import { MobileClips, MobileFiles, MobileHome, MobileLayout } from "./mobile/Mobile";
+import ReviewLauncher from "./review/ReviewLauncher";
 
 function TopBar() {
   const { user, impersonator, scope, config, logout } = useAuth();
@@ -136,6 +137,8 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <StepUpDialog />
+      {/* The review panel (⌃⌥⌘W or ?review=1): logged-in users only, loaded when it opens. Not in embedded surfaces. */}
+      {!ownChrome && <ReviewLauncher />}
       {!pathname.startsWith("/extension") && !pathname.startsWith("/office-addin") && <ConsentBanner />}
     </>
   );
