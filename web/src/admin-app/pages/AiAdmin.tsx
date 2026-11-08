@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, errorText } from "../../api";
-import { Alert, fmtNumber, Loading, PageHeader, useLoad } from "../../ui";
+import { Alert, fmtNumber, Loading, PageHeader, useLoad } from "../ui";
 
 type Data = {
   enabled: boolean; base_url: string; model: string; default_monthly_tokens: number;

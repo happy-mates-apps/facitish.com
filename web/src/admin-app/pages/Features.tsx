@@ -2,10 +2,9 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
 import { api, errorText } from "../../api";
-import { useLoad } from "../../ui";
+import { Btn, ErrorBox, IconBtn, Modal, PageTitle, Toggle, useLoad, useToast } from "../ui";
 import { useAdmin } from "../context";
 import { AREA, card, fmt, input, label, lastLabel, MONO, phoneLabel, RING, SANS, select, tableHead, TONE } from "../theme";
-import { Btn, ErrorBox, IconBtn, Modal, PageTitle, Toggle, useToast } from "../ui";
 import type { UsersResponse } from "../users";
 
 type Feature = { key: string; title: string; description: string; area: string; ring: number; observe: boolean; builtin: boolean; uses_30d: number; users_30d: number };
