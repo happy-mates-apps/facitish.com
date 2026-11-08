@@ -97,6 +97,8 @@ class Settings:
     trust_proxy: bool = field(default_factory=lambda: _env("TRUST_PROXY", "0") == "1")
 
     # Static frontend (built Vite output)
+    # /w/ until an admin chooses in /admin/web: "markdown" (the page with slug '') or "facit246" (the 246 story).
+    web_front: str = field(default_factory=lambda: _env("WEB_FRONT", "markdown"))
     static_dir: str = field(default_factory=lambda: _env("STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "web", "dist")))
 
     # Optional AI chat. OpenAI-compatible endpoint; default OVHcloud AI Endpoints (processed in Europe).

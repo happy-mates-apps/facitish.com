@@ -131,6 +131,15 @@ async def test_front_page_placeholder_when_none_written(client, owner_conn):
         owner_conn.execute("update web_pages set published = true where id = %s", (saved,))
 
 
+async def test_web_front_default_comes_from_the_environment(client, monkeypatch, owner_conn):
+    import dataclasses
+    from app import config
+    monkeypatch.setattr(config, "settings", dataclasses.replace(config.settings, web_front="facit246"))
+    assert "Facit først." in (await client.get("/w/?lang=da")).text
+    owner_conn.execute("""insert into settings (key, value) values ('web_front', '"markdown"')""")  # /admin/web wins
+    assert "Facit først." not in (await client.get("/w/?lang=da")).text
+
+
 async def test_front_page_can_be_the_246_story(client, make_client, owner_conn):
     assert "Facit først." not in (await client.get("/w/?lang=da")).text  # Markdown by default
     owner_conn.execute("""insert into settings (key, value) values ('web_front', '"facit246"')

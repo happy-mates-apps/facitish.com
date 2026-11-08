@@ -22,7 +22,7 @@ DEFAULTS: dict = {
     "retention_mcp_log_days": 90,
     "retention_last_run": None,
     "ai_default_monthly_tokens": 200_000,   # per user; 0 turns AI off for users without their own limit
-    "web_front": "markdown",                # /w/: "markdown" (the page with slug '') or "facit246" (app/web_front.py)
+    "web_front": "markdown",                # /w/: "markdown" (slug '') or "facit246" (app/web_front.py); default: WEB_FRONT
 }
 
 PUBLIC_KEYS = ("app_name", "logo_key", "consent_version", "consent_title", "consent_text",
@@ -32,6 +32,7 @@ PUBLIC_KEYS = ("app_name", "logo_key", "consent_version", "consent_title", "cons
 async def get_all(conn) -> dict:
     rows = await fetch_all(conn, "select key, value from settings")
     values = dict(DEFAULTS)
+    values["web_front"] = config.settings.web_front  # a fork can pick its front page in the environment
     values.update({r["key"]: r["value"] for r in rows})
     if not values["sms_sender"]:
         values["sms_sender"] = config.settings.sms_sender
