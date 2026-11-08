@@ -2,6 +2,7 @@
 // (missing features, pending MCP drafts).
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { useAuth } from "../auth";
 
 export type Impersonated = { id: number; display_name: string; role: "user" | "admin" };
 export type Health = { ok: boolean; version: string; ms: number } | null;
@@ -45,16 +46,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Badges only for the sections this admin's roles open (the server would refuse the rest).
+  const { user } = useAuth();
+  const sections = user?.admin_sections ?? [];
+  const may = (section: string) => sections.includes(section);
   useEffect(() => {
-    void refreshImpersonation();
-    void refreshDrafts();
-    api.get<{ missing: unknown[] }>("/api/admin/features").then((r) => setMissingFeatures(r.missing.length), () => {});
+    if (may("/impersonation")) void refreshImpersonation();
+    if (may("/mcp")) void refreshDrafts();
+    if (may("/features")) api.get<{ missing: unknown[] }>("/api/admin/features").then((r) => setMissingFeatures(r.missing.length), () => {});
     const t0 = performance.now();
     fetch("/health", { credentials: "same-origin" })
       .then((r) => r.json())
       .then((h: { ok: boolean; version: string }) => setHealth({ ...h, ms: Math.round(performance.now() - t0) }))
       .catch(() => setHealth({ ok: false, version: "", ms: 0 }));
-  }, [refreshImpersonation, refreshDrafts]);
+  }, [refreshImpersonation, refreshDrafts, sections.join(",")]);
 
   return (
     <AdminContext.Provider value={{ range, setRange, impersonating, refreshImpersonation, missingFeatures, setMissingFeatures, pendingDrafts, refreshDrafts, health }}>

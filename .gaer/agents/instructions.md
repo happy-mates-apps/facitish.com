@@ -79,7 +79,9 @@ Rules for routes:
    logins or the step-up for admin security actions.
 2. **Every data change is audited** in the same transaction (skill `gaer-audit`). Logs are append-only; only the
    purge database user deletes, and the deletion is logged.
-3. **Admin = admin role.** Everything under `/api/admin` is guarded and audited.
+3. **Admin = admin role** plus one or more **admin roles** (Fuld adgang, Support, Indhold, Produkt, Data, Privatliv,
+   Drift) that decide which parts of /admin an admin may use (`server/app/admin_roles.py`, skill `gaer-auth`).
+   Everything under `/api/admin` is guarded and audited; a new /admin section must be added to `admin_roles.SECTIONS`.
 4. **Personal data** goes into the GDPR export and is removed on erasure — both live in `server/app/gdpr.py`,
    used by `/admin/gdpr` and by users themselves (`/api/me/export`, `/api/me/delete`). A new table with personal
    data is not done until it is in both. Analytics only identify a visitor after consent. Nothing is sent to

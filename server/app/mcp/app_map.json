@@ -100,6 +100,7 @@
     },
     "/admin/users": {
       "anchors": [
+        "user-admin-roles",
         "user-block",
         "user-drawer",
         "user-mfa",

@@ -6,7 +6,7 @@ import { ArrowLeft, ExternalLink, VenetianMask, X } from "lucide-react";
 import { api, errorText } from "../api";
 import { useAuth } from "../auth";
 import { useAdmin } from "./context";
-import { NAV, type NavBadge } from "./nav";
+import { navFor, sectionFor, type NavBadge } from "./nav";
 import ToergaerMark from "./ToergaerMark";
 import { initials, MONO, SANS } from "./theme";
 import { useToast } from "./ui";
@@ -56,7 +56,7 @@ export default function AdminShell() {
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontFamily: MONO }}>/admin · {instance}</span>
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {NAV.map((g) => (
+          {navFor(user?.admin_sections).map((g) => (
             <div key={g.label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <div style={{ padding: "0 10px 4px", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}>
                 {g.label}
@@ -147,7 +147,7 @@ export default function AdminShell() {
 
         <main style={{ flex: 1, padding: "28px 24px 64px", boxSizing: "border-box", width: "100%", maxWidth: 1240, display: "flex", flexDirection: "column", gap: 20 }}>
           <GraceBanner />
-          <Outlet />
+          {user?.admin_sections.includes(sectionFor(pathname)) ? <Outlet /> : <NoAccess roles={user?.admin_roles ?? []} />}
         </main>
       </div>
 
@@ -169,4 +169,21 @@ function RangeBtn({ on, onClick, children }: { on: boolean; onClick: () => void;
   const style: CSSProperties = { border: 0, cursor: "pointer", padding: "4px 10px", borderRadius: 6, font: `500 12px ${SANS}`,
     background: on ? "#ffffff" : "transparent", color: on ? "#020817" : "#64748b", boxShadow: on ? "0 1px 2px rgba(0,0,0,0.08)" : "none" };
   return <button type="button" onClick={onClick} style={style}>{children}</button>;
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  fuld: "Fuld adgang", support: "Support", indhold: "Indhold", produkt: "Produkt", data: "Data", privatliv: "Privatliv", drift: "Drift",
+};
+
+/** A section the admin's roles do not open (the server refuses its API as well). */
+function NoAccess({ roles }: { roles: string[] }) {
+  return (
+    <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 10 }}>
+      <h1 style={{ margin: 0, fontSize: 26 }}>Ingen adgang</h1>
+      <p style={{ margin: 0, color: "#64748b" }}>
+        Dine admin-roller ({roles.map((r) => ROLE_LABEL[r] ?? r).join(", ") || "ingen"}) giver ikke adgang til denne del af /admin. En admin med
+        fuld adgang kan give dig flere roller under Brugere og roller.
+      </p>
+    </div>
+  );
 }
