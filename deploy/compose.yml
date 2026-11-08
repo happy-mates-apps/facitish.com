@@ -1,0 +1,49 @@
+# Production stack on the UpCloud server, in ~/gaer next to .env (stack secrets) and app.env (app settings).
+# Driven by deploy.sh; IMAGE is passed in by it. Traffic arrives through the Cloudflare Tunnel — no open ports.
+
+name: gaer
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      DB_NAME: ${DB_NAME:?}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
+      DB_PURGE_PASSWORD: ${DB_PURGE_PASSWORD:?}
+      DB_MCP_RO_PASSWORD: ${DB_MCP_RO_PASSWORD:-}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-gaer.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      retries: 20
+
+  app:
+    image: ${IMAGE:?}
+    restart: unless-stopped
+    env_file: app.env
+    environment:
+      GAER_ENV: production
+      TRUST_PROXY: "1"
+      GAER_VERSION: ${GAER_VERSION:-unknown}
+      DATABASE_URL: postgresql://${DB_NAME}_app:${DB_APP_PASSWORD}@postgres:5432/${DB_NAME}
+      PURGE_DATABASE_URL: postgresql://${DB_NAME}_purge:${DB_PURGE_PASSWORD}@postgres:5432/${DB_NAME}
+      MIGRATION_DATABASE_URL: postgresql://${DB_NAME}_owner:${DB_OWNER_PASSWORD}@postgres:5432/${DB_NAME}
+      # db_query in /mcp/admin (read only); empty when DB_MCP_RO_PASSWORD is not set
+      MCP_DB_QUERY_URL: ${DB_MCP_RO_PASSWORD:+postgresql://${DB_NAME}_mcp_ro:${DB_MCP_RO_PASSWORD}@postgres:5432/${DB_NAME}}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --url http://app:8000
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?}
+
+volumes:
+  postgres:

@@ -22,6 +22,7 @@ DEFAULTS: dict = {
     "retention_mcp_log_days": 90,
     "retention_last_run": None,
     "ai_default_monthly_tokens": 200_000,   # per user; 0 turns AI off for users without their own limit
+    "web_front": "markdown",                # /w/: "markdown" (the page with slug '') or "facit246" (app/web_front.py)
 }
 
 PUBLIC_KEYS = ("app_name", "logo_key", "consent_version", "consent_title", "consent_text",

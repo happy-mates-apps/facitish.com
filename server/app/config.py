@@ -93,7 +93,7 @@ class Settings:
     max_upload_mb: int = field(default_factory=lambda: _int("MAX_UPLOAD_MB", 25))
     download_link_seconds: int = field(default_factory=lambda: _int("DOWNLOAD_LINK_SECONDS", 300))
 
-    # Set to 1 when running behind the Caddy proxy from deploy/, so client IPs come from X-Forwarded-For.
+    # Set to 1 when running behind the proxy in deploy/ (cloudflared), so client IPs come from X-Forwarded-For.
     trust_proxy: bool = field(default_factory=lambda: _env("TRUST_PROXY", "0") == "1")
 
     # Static frontend (built Vite output)

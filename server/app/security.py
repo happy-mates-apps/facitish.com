@@ -100,7 +100,7 @@ def token_hash(token: str) -> str:
 
 
 def client_ip(request: Request) -> str | None:
-    """In production the container sits behind Caddy (TRUST_PROXY=1). Caddy appends the real
+    """In production the container sits behind a proxy (TRUST_PROXY=1). The proxy appends the real
     peer address to X-Forwarded-For, so the last entry is the one we can trust."""
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded and config.settings.trust_proxy:

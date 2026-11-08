@@ -84,45 +84,58 @@ rettighederne på log-tabellerne bliver testet. Passkeys testes med en software-
 ## Arkitektur
 
 ```
-           Caddy (TLS, Let's Encrypt)
-                     │
-        ┌────────────▼────────────┐
-        │  Container  gaer        │        OVHcloud · managed
-        │  ┌───────────────────┐  │     ┌──────────────────────────────┐
-        │  │ Python (FastAPI)  │──┼────►│ PostgreSQL-cluster (fælles)  │
-        │  │  /api  /w  /health│  │     │  gaer_<kunde>  ← egen db     │
-        │  │  serverer web/dist│──┼──┐  └──────────────────────────────┘
-        │  └───────────────────┘  │  │  ┌──────────────────────────────┐
-        └─────────────────────────┘  └─►│ Object Storage (S3)          │
+        Cloudflare Tunnel (TLS, ingen åbne porte)
+                     │  cloudflared
+   Server · docker compose (deploy/compose.yml)
+        ┌────────────▼────────────┐     ┌──────────────────────────────┐
+        │  Container  app         │────►│ Container  postgres          │
+        │  Python (FastAPI)       │     │  gaer_<kunde>  ← egen db     │
+        │  /api /w /mcp /health   │     └──────────────────────────────┘
+        │  serverer web/dist      │     ┌──────────────────────────────┐
+        └─────────────────────────┘────►│ Object Storage (S3)          │
                                         └──────────────────────────────┘
 ```
 
-Tre databasebrugere pr. container, oprettet med `deploy/provision_database.py`:
+Databasebrugere, oprettet af `deploy/postgres-init.sh`, første gang Postgres-volumet er tomt (eller med
+`deploy/provision_database.py` på en managed PostgreSQL-klynge):
 
 | Bruger | Miljøvariabel | Rettigheder |
 | --- | --- | --- |
 | `gaer_<navn>_owner` | `MIGRATION_DATABASE_URL` | ejer skemaet, kører migrationer |
 | `gaer_<navn>_app` | `DATABASE_URL` | appen; kun SELECT/INSERT på log-tabeller |
 | `gaer_<navn>_purge` | `PURGE_DATABASE_URL` | sletning af logdata fra /admin |
+| `gaer_<navn>_mcp_ro` | `MCP_DB_QUERY_URL` | kun SELECT, for `db_query` i /mcp/admin; aldrig hemmeligheder (valgfri) |
 
-Ingen af dem kan forbinde til andre containeres databaser.
+Ingen af dem kan forbinde til andre instansers databaser.
 
 ## Udrulning
 
 Push til `main` → `.github/workflows/deploy.yml`:
 
 1. Test (Python mod Postgres, build af frontend)
-2. Byg ét image, tagget med commit-sha
-3. Push til OVHcloud Managed Private Registry
-4. Migrér containerens egen database (kører på instansen, som er den eneste med adgang til clusteren)
-5. Start den nye version ved siden af den gamle. Svarer `/health` inden for 60 sekunder, skiftes der; ellers
-   bliver den gamle stående. `deploy.sh rollback` starter den forrige version.
+2. Byg ét image, tagget med commit-sha, og send det direkte til UpCloud-serveren over SSH (`docker save | docker load`)
+3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
+4. `deploy.sh release`: start Postgres, migrér databasen, start den nye version med `docker compose`.
+   Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.
+   `deploy.sh rollback` starter den forrige version.
 
-GitHub-secrets: `OVH_REGISTRY`, `OVH_REGISTRY_USER`, `OVH_REGISTRY_PASSWORD`, `HOST`, `SSH_KEY`.
-Variabel: `DOMAIN` (til smoke test). Instansens `~/gaer/.env` laves ud fra `deploy/.env.example`.
+Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen og `cloudflared`,
+som sender trafik ind via en Cloudflare Tunnel — serveren har ingen åbne web-porte.
 
-> Afvigelse fra produktsiden: `DATABASE_URL` er ikke et GitHub-secret. Migrationerne kører på instansen,
-> så den fælles cluster kun skal åbne for instansernes IP'er og ikke for GitHubs runners.
+GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
+til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).
+På serveren laves `~/gaer/.env` ud fra `deploy/.env.example` og `~/gaer/app.env` ud fra
+`deploy/app.env.example`.
+
+`postgres-init.sh` kører kun på et tomt volume. Har en eksisterende server ikke `<db>_mcp_ro` (fra før MCP), så
+sæt `DB_MCP_RO_PASSWORD` i `~/gaer/.env` og opret rollen én gang; den næste udrulning giver den rettighederne:
+
+```bash
+cd ~/gaer && set -a && . ./.env && set +a
+docker compose -f compose.yml exec -T postgres psql -U postgres \
+  -c "create role ${DB_NAME}_mcp_ro login password '$DB_MCP_RO_PASSWORD'" \
+  -c "grant connect on database $DB_NAME to ${DB_NAME}_mcp_ro"
+```
 
 ## Browserudvidelse og Office
 
@@ -136,5 +149,6 @@ gælder inde i udvidelsen/Office.
 
 ## Konfiguration
 
-Alle indstillinger er miljøvariabler — se `.env.example` (lokalt) og `deploy/.env.example` (produktion) og
+Alle indstillinger er miljøvariabler — se `.env.example` (lokalt), `deploy/app.env.example` og `deploy/.env.example`
+(produktion: appens indstillinger og stakkens hemmeligheder) og
 `server/app/config.py`. Navn, logo, SMS-afsender, GDPR-mail, cookie-tekster og opbevaringsperioder sættes i /admin.
