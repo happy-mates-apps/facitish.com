@@ -12,7 +12,7 @@ from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
-from app.security import mask_phone, phone_hash, short_device
+from app.security import mask_contact, phone_hash, short_device
 
 
 @dataclass
@@ -40,13 +40,14 @@ def _default(o):
 
 
 async def auth_event(conn, event: str, *, ok: bool, meta: RequestMeta, user_id: int | None = None,
-                     phone: str | None = None, **detail) -> None:
+                     contact: str | None = None, **detail) -> None:
+    """contact is the e-mail address or phone number involved; only its mask and HMAC are stored."""
     if meta.impersonator_id is not None:
         detail.setdefault("impersonator_id", meta.impersonator_id)
     await conn.execute(
         """insert into auth_log (event, result, user_id, phone_masked, phone_hash, ip, device, detail)
            values (%s, %s, %s, %s, %s, %s, %s, %s)""",
-        (event, "ok" if ok else "fail", user_id, mask_phone(phone), phone_hash(phone), meta.ip,
+        (event, "ok" if ok else "fail", user_id, mask_contact(contact), phone_hash(contact), meta.ip,
          short_device(meta.user_agent) if meta.user_agent else None, Jsonb(_jsonable(detail))),
     )
 

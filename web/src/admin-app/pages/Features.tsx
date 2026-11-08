@@ -178,7 +178,7 @@ export default function Features() {
           <select value={lvlUser} onChange={(e) => setLvlUser(e.target.value)} style={{ ...small, height: 32, minWidth: 220 }}>
             <option value="">Vælg bruger</option>
             {realUsers.map((u) => (
-              <option key={u.id} value={u.id}>{u.display_name ? `${u.display_name} · ${phoneLabel(u.phone)}` : phoneLabel(u.phone)}</option>
+              <option key={u.id} value={u.id}>{u.display_name ? `${u.display_name} · ${u.email || phoneLabel(u.phone)}` : u.email || phoneLabel(u.phone)}</option>
             ))}
           </select>
           <select value={lvlRing} onChange={(e) => setLvlRing(e.target.value)} style={{ ...small, height: 32 }}><RingOptions /></select>

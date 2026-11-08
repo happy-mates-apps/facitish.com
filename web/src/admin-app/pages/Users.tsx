@@ -35,7 +35,7 @@ export default function Users() {
   const grace = data?.grace_logins ?? 3;
   const fn = (FILTERS.find((f) => f[0] === filter) ?? FILTERS[0])[2];
   const needle = q.trim().toLowerCase().replace(/^\+?45\s?/, "");
-  const rows = users.filter(fn).filter((u) => !needle || `${u.display_name ?? ""} ${u.phone}`.toLowerCase().replace(/\s/g, "").includes(needle.replace(/\s/g, "")));
+  const rows = users.filter(fn).filter((u) => !needle || `${u.display_name ?? ""} ${u.email ?? ""} ${u.phone ?? ""}`.toLowerCase().replace(/\s/g, "").includes(needle.replace(/\s/g, "")));
   const sel = users.find((u) => u.id === selected) ?? null;
 
   return (

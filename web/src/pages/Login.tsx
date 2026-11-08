@@ -36,7 +36,9 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? home;
   const [step, setStep] = useState<Step>({ kind: "phone" });
+  const [channel, setChannel] = useState<"email" | "phone">("email");
   const [phone, setPhone] = useState("");
+  const contact = channel === "email" ? { email: phone.trim() } : { phone };
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const sendCode = (e?: FormEvent) => {
     e?.preventDefault();
     run(async () => {
-      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", { phone });
+      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", contact);
       setCode("");
       setStep({ kind: "code", devCode: res.dev_code });
     });
@@ -72,7 +74,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const verify = (e: FormEvent) => {
     e.preventDefault();
     run(async () => {
-      const res = await api.post<VerifyResult>("/api/auth/otp/verify", { phone, code });
+      const res = await api.post<VerifyResult>("/api/auth/otp/verify", { ...contact, code });
       await refresh();
       if (res.status === "logged_in") {
         if (supportsPasskey || res.became_admin) setStep({ kind: "offer", graceLeft: res.grace_left, admin: !!res.became_admin });
@@ -105,23 +107,39 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
             <form className="stack" style={{ "--gap": "16px" } as React.CSSProperties} onSubmit={sendCode}>
               <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
                 <div className="eyebrow">Log ind</div>
-                <h2>Dit telefonnummer</h2>
-                <p className="muted small">Vi sender en engangskode på SMS.</p>
+                <h2>{channel === "email" ? "Din e-mailadresse" : "Dit telefonnummer"}</h2>
+                <p className="muted small">{channel === "email" ? "Vi sender en engangskode på mail." : "Vi sender en engangskode på SMS."}</p>
               </div>
               {config?.first_user && (
                 <Alert kind="warn">
-                  Instansen er ny og har ingen brugere. Du bliver den første bruger og dermed <strong>administrator</strong>.
+                  Instansen er ny og har ingen brugere. Du bliver den første bruger og dermed <strong>superadministrator</strong>.
                 </Alert>
               )}
-              <label className="field">
-                Telefonnummer
-                <input type="tel" autoComplete="tel" inputMode="tel" placeholder="12 34 56 78" value={phone}
-                       onChange={(e) => setPhone(e.target.value)} required autoFocus />
-              </label>
+              {config?.demo_mode && (
+                <Alert kind="info">Demo: koden bliver ikke sendt, men skrevet i serverens log.</Alert>
+              )}
+              {channel === "email" ? (
+                <label className="field">
+                  E-mail
+                  <input type="email" autoComplete="email" placeholder="navn@firma.dk" value={phone}
+                         onChange={(e) => setPhone(e.target.value)} required autoFocus />
+                </label>
+              ) : (
+                <label className="field">
+                  Telefonnummer
+                  <input type="tel" autoComplete="tel" inputMode="tel" placeholder="12 34 56 78" value={phone}
+                         onChange={(e) => setPhone(e.target.value)} required autoFocus />
+                </label>
+              )}
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" disabled={busy || phone.trim().length < 6}>
                 Send kode
               </button>
+              {config?.sms_login && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setChannel(channel === "email" ? "phone" : "email"); setPhone(""); setError(null); }}>
+                  {channel === "email" ? "Brug telefonnummer i stedet" : "Brug e-mail i stedet"}
+                </button>
+              )}
               {supportsPasskey && (
                 <>
                   <div className="row muted tiny" style={{ justifyContent: "center" }}>eller</div>
@@ -146,7 +164,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" disabled={busy || code.length !== 6}>Log ind</button>
               <div className="spread">
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep({ kind: "phone" })}>Skift nummer</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep({ kind: "phone" })}>{channel === "email" ? "Skift e-mail" : "Skift nummer"}</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => sendCode()} disabled={busy}>Send ny kode</button>
               </div>
             </form>
@@ -162,7 +180,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                   engangskode {GRACE_LOGINS} gange. Derefter skal du have en passkey.
                 </p>
               </div>
-              {step.admin && <Alert kind="success">Du er den første bruger og er nu administrator. Du finder administrationen under /admin.</Alert>}
+              {step.admin && <Alert kind="success">Du er den første bruger og er nu {user?.super_admin ? "superadministrator" : "administrator"}. Du finder administrationen under /admin.</Alert>}
               <GracePills used={GRACE_LOGINS - step.graceLeft} />
               <Alert>{error}</Alert>
               <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy}>Opret passkey nu</button>
@@ -179,7 +197,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                 <h2>{step.reason === "new_device" ? "Ny enhed" : "Opret en passkey for at fortsætte"}</h2>
                 <p className="muted small">
                   {step.reason === "new_device"
-                    ? "Du har bekræftet dit nummer. Opret en passkey på denne enhed for at logge ind. Det tæller ikke som et login med engangskode."
+                    ? "Du har bekræftet, at det er dig. Opret en passkey på denne enhed for at logge ind. Det tæller ikke som et login med engangskode."
                     : `Du har brugt dine ${GRACE_LOGINS} logins med engangskode. Opret en passkey for at komme videre.`}
                 </p>
               </div>
