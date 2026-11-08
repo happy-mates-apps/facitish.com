@@ -1,4 +1,4 @@
-/* The /admin app. Tokens on top of ../styles.css (Happy Mates design system: colors_and_type.css). */
+/* The /admin app. Tokens on top of ./base.css (Happy Mates design system: colors_and_type.css). */
 
 :root {
   --hm-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
