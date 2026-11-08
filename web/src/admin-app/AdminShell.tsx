@@ -16,21 +16,24 @@ import ExtensionButton from "./extension/ExtensionButton";
 import ExtensionPopover from "./extension/ExtensionPopover";
 import InstallGuide from "./extension/InstallGuide";
 import { handshake, useHappyAi } from "./extension/happyAiStore";
+import { useDeepLinkFocus } from "../deeplink";
 
 export default function AdminShell() {
   const { user, config } = useAuth();
-  const { impersonating, refreshImpersonation, missingFeatures, range, setRange, health } = useAdmin();
+  const { impersonating, refreshImpersonation, missingFeatures, pendingDrafts, range, setRange, health } = useAdmin();
   const { pathname } = useLocation();
   const say = useToast();
   const instance = config?.app_name ?? window.location.hostname;
   const me = user?.display_name || user?.email || user?.phone || "";
   const ext = useHappyAi();
+  useDeepLinkFocus();
 
   useEffect(() => handshake(true), []);
 
   const badge = (b?: NavBadge): { text: string; amber: boolean } | null => {
     if (b === "impersonation" && impersonating) return { text: "Aktiv", amber: true };
     if (b === "features" && missingFeatures) return { text: String(missingFeatures), amber: true };
+    if (b === "mcp" && pendingDrafts) return { text: String(pendingDrafts), amber: true };
     return null;
   };
 

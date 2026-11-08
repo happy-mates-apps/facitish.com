@@ -81,6 +81,11 @@ All calls via `api.get/post/put/patch/del`. Errors are `ApiError` with `status`,
 - Role, e-mail/phone, block/unblock, resets, revoking sessions and GDPR erasure need a fresh second factor — the
   step-up dialog appears by itself.
 
+**MCP** (skill `gaer-mcp`): `/mcp` has `profile_get`, `profile_update` and `security_get` (read only);
+`/mcp/admin` has `user_get`, and the drafts `user_profile_set` and `user_reset_mfa`. Deep links focus the
+`data-deeplink` anchors `account-profile`, `account-security`, `user-profile` and `user-mfa` — keep them when you
+change those screens and run `npm run app-map --prefix web`.
+
 ## Step-up: let the dialog do it
 Each app mounts one dialog that registers `setStepUpHandler` (`StepUpDialog` in `App.tsx`, `AdminStepUp` in
 `admin-app/main.tsx`). When a call returns `stepup_required` or `mfa_required`, `api.ts` opens it and repeats the

@@ -8,7 +8,7 @@ import { dateLabel, lastLabel, phoneLabel, RING, sectionLabel, SANS } from "../t
 import { CloseBtn, Drawer, Pill, useToast } from "../ui";
 import { factorCount, isTest, userView, type AdminUser } from "../users";
 
-type Action = { label: string; hint: string; icon: LucideIcon; run: () => void; danger?: boolean; disabled?: boolean };
+type Action = { label: string; hint: string; icon: LucideIcon; run: () => void; danger?: boolean; disabled?: boolean; anchor?: string };
 
 export default function UserDrawer({ user: u, users, grace, onClose, onChanged }: {
   user: AdminUser; users: AdminUser[]; grace: number; onClose: () => void; onChanged: () => void;
@@ -36,16 +36,16 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
 
   const actions: Action[] = [
     u.role === "admin"
-      ? { label: "Fjern admin", hint: sup ? "Superadministratoren er altid admin" : lastAdmin ? "Der skal altid være mindst én admin" : "Brugeren mister adgang til /admin", icon: ShieldOff,
+      ? { anchor: "user-role", label: "Fjern admin", hint: sup ? "Superadministratoren er altid admin" : lastAdmin ? "Der skal altid være mindst én admin" : "Brugeren mister adgang til /admin", icon: ShieldOff,
           run: run(() => api.patch(`/api/admin/users/${u.id}/role`, { role: "user" }), "Admin-rollen er fjernet"), disabled: lastAdmin || sup }
-      : { label: "Gør til admin", hint: "Giver adgang til /admin", icon: ShieldCheck,
+      : { anchor: "user-role", label: "Gør til admin", hint: "Giver adgang til /admin", icon: ShieldCheck,
           run: run(() => api.patch(`/api/admin/users/${u.id}/role`, { role: "admin" }), "Brugeren er nu admin") },
     u.blocked_at
-      ? { label: "Ophæv spærring", hint: "Brugeren kan logge ind igen", icon: LockOpen,
+      ? { anchor: "user-block", label: "Ophæv spærring", hint: "Brugeren kan logge ind igen", icon: LockOpen,
           run: run(() => api.post(`/api/admin/users/${u.id}/unblock`), "Spærringen er ophævet") }
-      : { label: "Spær", hint: isMe ? "Du kan ikke spærre dig selv" : sup ? "Superadministratoren kan ikke spærres" : "Logges ud alle steder og kan ikke logge ind", icon: Ban, danger: true, disabled: isMe || sup,
+      : { anchor: "user-block", label: "Spær", hint: isMe ? "Du kan ikke spærre dig selv" : sup ? "Superadministratoren kan ikke spærres" : "Logges ud alle steder og kan ikke logge ind", icon: Ban, danger: true, disabled: isMe || sup,
           run: run(() => api.post(`/api/admin/users/${u.id}/block`), "Brugeren er spærret og logget ud") },
-    { label: "Nulstil MFA", hint: isMe ? "Dine egne nøgler styrer du under Konto"
+    { anchor: "user-mfa", label: "Nulstil MFA", hint: isMe ? "Dine egne nøgler styrer du under Konto"
         : u.role === "admin" && !me?.super_admin ? "Kun superadministratoren kan nulstille en admins MFA"
         : factorCount(u) || u.mfa_required ? "Sletter passkeys, sikkerhedsnøgler og godkendelsesapps og slår “Kræv passkey” fra" : "Ingen nøgler",
       icon: ShieldAlert, danger: true, disabled: isMe || test || (u.role === "admin" && !me?.super_admin) || (!factorCount(u) && !u.mfa_required),
@@ -53,15 +53,15 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
         if (confirm(`Nulstil MFA for ${v.name}? Brugeren logges ud alle steder og logger ind med engangskode næste gang.`))
           void run(() => api.post(`/api/admin/users/${u.id}/reset-mfa`), "MFA er nulstillet")();
       } },
-    { label: "Nulstil passkeys", hint: u.passkeys ? "Sletter passkeys og sikkerhedsnøgler; godkendelsesapps bevares" : "Ingen passkeys", icon: KeyRound,
+    { anchor: "user-passkeys", label: "Nulstil passkeys", hint: u.passkeys ? "Sletter passkeys og sikkerhedsnøgler; godkendelsesapps bevares" : "Ingen passkeys", icon: KeyRound,
       disabled: !u.passkeys || isMe || (u.role === "admin" && !me?.super_admin),
       run: run(() => api.post(`/api/admin/users/${u.id}/reset-passkeys`), "Passkeys er nulstillet") },
-    { label: "Ret navn", hint: "Visningsnavn i appen og i /admin", icon: UserPen,
+    { anchor: "user-profile", label: "Ret navn", hint: "Visningsnavn i appen og i /admin", icon: UserPen,
       run: () => {
         const name = prompt(`Nyt navn for ${v.name}`, u.display_name ?? "");
         if (name !== null) void run(() => api.patch(`/api/admin/users/${u.id}/profile`, { display_name: name }), "Navnet er rettet")();
       } },
-    { label: "Log ud alle steder", hint: u.active_sessions ? `${u.active_sessions} aktive sessioner` : "Ingen aktive sessioner", icon: LogOut,
+    { anchor: "user-sessions", label: "Log ud alle steder", hint: u.active_sessions ? `${u.active_sessions} aktive sessioner` : "Ingen aktive sessioner", icon: LogOut,
       disabled: !u.active_sessions, run: run(() => api.post(`/api/admin/users/${u.id}/revoke-sessions`), "Brugeren er logget ud alle steder") },
     { label: "Ret e-mail", hint: "Rettelse efter GDPR. Brugeren logges ud alle steder", icon: Mail, disabled: test,
       run: () => {
@@ -106,7 +106,7 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
   };
 
   return (
-    <Drawer width={420} onClose={onClose} label="Bruger">
+    <Drawer width={420} onClose={onClose} label="Bruger" deeplink="user-drawer">
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 20px", borderBottom: "1px solid #e2e8f0" }}>
         <span style={{ width: 40, height: 40, flex: "none", borderRadius: 9999, background: v.avatar, color: "#ffffff", display: "flex", alignItems: "center",
           justifyContent: "center", fontSize: 14, fontWeight: 700 }}>{v.initials}</span>
@@ -143,7 +143,7 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <span style={sectionLabel}>Handlinger</span>
           {actions.map((a) => (
-            <button key={a.label} type="button" onClick={a.run} disabled={a.disabled} className="tg-row"
+            <button key={a.label} type="button" onClick={a.run} disabled={a.disabled} className="tg-row" data-deeplink={a.anchor}
               style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 40, padding: "8px 12px", boxSizing: "border-box", borderRadius: 8,
                 border: `1px solid ${a.danger ? "rgba(220,38,38,0.3)" : "#e2e8f0"}`, background: "#ffffff", cursor: "pointer", textAlign: "left",
                 font: `500 13px ${SANS}`, color: a.danger ? "#b91c1c" : "#020817", ...(a.disabled ? { opacity: 0.45, pointerEvents: "none" } : {}) }}>

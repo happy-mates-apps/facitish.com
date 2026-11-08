@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
 import { FeatureGate } from "./features";
+import { GoPage, useDeepLinkFocus } from "./deeplink";
 import ConsentBanner from "./ConsentBanner";
 import { StepUpDialog } from "./security";
 import { trackPageview } from "./tracker";
@@ -10,6 +11,7 @@ import Home from "./pages/Home";
 import Account from "./pages/Account";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
+import McpConsent from "./pages/McpConsent";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -91,6 +93,7 @@ function ExtensionClips() {
 
 export default function App() {
   const { pathname } = useLocation();
+  useDeepLinkFocus();
   const ownChrome = OWN_CHROME.some((p) => pathname === p || pathname.startsWith(p + "/"));
   return (
     <>
@@ -101,8 +104,11 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
+        <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
         <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
+        <Route path="/klip/:id" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
+        <Route path="/go" element={<GoPage />} />
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>

@@ -21,12 +21,12 @@ const BTN: Record<BtnKind, CSSProperties> = {
   dark: { border: 0, background: "#78350f", color: "#ffffff" },
 };
 
-export function Btn({ kind = "outline", icon: Icon, iconSize = 14, height = 36, onClick, disabled, children, style, title, type = "button" }: {
+export function Btn({ kind = "outline", icon: Icon, iconSize = 14, height = 36, onClick, disabled, children, style, title, type = "button", deeplink }: {
   kind?: BtnKind; icon?: LucideIcon; iconSize?: number; height?: number; onClick?: () => void; disabled?: boolean;
-  children?: ReactNode; style?: CSSProperties; title?: string; type?: "button" | "submit";
+  children?: ReactNode; style?: CSSProperties; title?: string; type?: "button" | "submit"; deeplink?: string;
 }) {
   return (
-    <button type={type} title={title} onClick={onClick} disabled={disabled} className={kind === "ghost" ? "tg-hover" : undefined}
+    <button type={type} title={title} onClick={onClick} disabled={disabled} className={kind === "ghost" ? "tg-hover" : undefined} data-deeplink={deeplink}
       style={{ display: "inline-flex", alignItems: "center", gap: 6, height, padding: "0 14px", borderRadius: 8, cursor: "pointer",
         font: `500 13px ${SANS}`, whiteSpace: "nowrap", ...BTN[kind], ...(disabled ? { opacity: 0.45, pointerEvents: "none" } : {}), ...style }}>
       {Icon && <Icon size={iconSize} strokeWidth={2} />}
@@ -61,9 +61,9 @@ export function PageTitle({ title, icon, children, aside }: { title: ReactNode; 
   );
 }
 
-export function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
+export function Toggle({ on, onChange, label, deeplink }: { on: boolean; onChange: () => void; label: string; deeplink?: string }) {
   return (
-    <button type="button" aria-label={label} aria-pressed={on} onClick={onChange}
+    <button type="button" aria-label={label} aria-pressed={on} onClick={onChange} data-deeplink={deeplink}
       style={{ width: 36, height: 20, borderRadius: 9999, border: 0, padding: 2, cursor: "pointer", background: on ? "#2563eb" : "#cbd5e1", display: "flex" }}>
       <span style={{ width: 16, height: 16, borderRadius: 9999, background: "#ffffff", boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
         transform: `translateX(${on ? 16 : 0}px)`, transition: "transform .15s" }} />
@@ -72,7 +72,9 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: () => v
 }
 
 /** Panel sliding in from the right with a dimmed backdrop. */
-export function Drawer({ width, z = 40, onClose, label, children }: { width: number; z?: number; onClose: () => void; label: string; children: ReactNode }) {
+export function Drawer({ width, z = 40, onClose, label, deeplink, children }: {
+  width: number; z?: number; onClose: () => void; label: string; deeplink?: string; children: ReactNode;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -81,7 +83,7 @@ export function Drawer({ width, z = 40, onClose, label, children }: { width: num
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: z, background: "rgba(2,8,23,0.35)" }} />
-      <aside aria-label={label} style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: z + 1, width, maxWidth: "100vw", boxSizing: "border-box",
+      <aside aria-label={label} data-deeplink={deeplink} style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: z + 1, width, maxWidth: "100vw", boxSizing: "border-box",
         background: "#ffffff", boxShadow: "var(--hm-shadow-2xl)", display: "flex", flexDirection: "column" }}>
         {children}
       </aside>

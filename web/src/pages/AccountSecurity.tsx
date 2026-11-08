@@ -81,7 +81,7 @@ export default function AccountSecurity() {
 
   const s = sec.data;
   return (
-    <div className="card" id="sikkerhed">
+    <div className="card" id="sikkerhed" data-deeplink="account-security">
       <span className="eyebrow">Sikkerhed</span>
       <Alert kind="success">{message}</Alert>
       <Alert>{error}</Alert>

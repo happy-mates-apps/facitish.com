@@ -107,6 +107,15 @@ class Settings:
     ai_max_output_tokens: int = field(default_factory=lambda: _int("AI_MAX_OUTPUT_TOKENS", 1500))
     ai_max_context_chars: int = field(default_factory=lambda: _int("AI_MAX_CONTEXT_CHARS", 24000))
 
+    # MCP servers (specs/mcp): /mcp for the app, /mcp/admin for admin. 0 turns a server off (404).
+    mcp_app_enabled: bool = field(default_factory=lambda: _env("MCP_APP_ENABLED", "1") == "1")
+    mcp_admin_enabled: bool = field(default_factory=lambda: _env("MCP_ADMIN_ENABLED", "1") == "1")
+    mcp_draft_ttl_min: int = field(default_factory=lambda: _int("MCP_DRAFT_TTL_MIN", 10))
+    mcp_access_token_minutes: int = field(default_factory=lambda: _int("MCP_ACCESS_TOKEN_MINUTES", 60))
+    mcp_refresh_token_days: int = field(default_factory=lambda: _int("MCP_REFRESH_TOKEN_DAYS", 30))
+    # The read-only <db>_mcp_ro user for db_query. Without it the tool answers "ikke tilgængelig".
+    mcp_db_query_url: str | None = field(default_factory=lambda: _env("MCP_DB_QUERY_URL"))
+
     # Browser extension source, zipped by /api/extension/download
     extension_dir: str = field(default_factory=lambda: _env("EXTENSION_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "extension")))
 

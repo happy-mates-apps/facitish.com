@@ -191,9 +191,11 @@ async def delete_passkey(passkey_id: int, p: Principal = Depends(current_user)):
 async def list_sessions(p: Principal = Depends(current_user)):
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, """
-            select id, created_at, last_seen_at, expires_at, host(ip) as ip, user_agent from sessions
-            where user_id = %s and revoked_at is null and expires_at > now() and scope = 'full'
-            order by last_seen_at desc""", (p.user_id,))
+            select s.id, s.created_at, s.last_seen_at, s.expires_at, host(s.ip) as ip, s.user_agent,
+                   c.name as mcp_client, s.mcp_scope
+            from sessions s left join mcp_clients c on c.id = s.mcp_client_id
+            where s.user_id = %s and s.revoked_at is null and s.expires_at > now() and s.scope = 'full'
+            order by s.last_seen_at desc""", (p.user_id,))
     for r in rows:
         r["current"] = r["id"] == p.session_id
     return rows

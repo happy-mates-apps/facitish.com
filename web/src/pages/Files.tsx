@@ -69,7 +69,7 @@ export default function Files() {
             <tbody>
               {files.data?.length === 0 && <tr><td colSpan={4} className="muted">Ingen filer endnu.</td></tr>}
               {files.data?.map((f) => (
-                <tr key={f.id}>
+                <tr key={f.id} data-deeplink={`file-row-${f.id}`}>
                   <td className="wrap"><strong>{f.filename}</strong><div className="muted tiny">{f.content_type}</div></td>
                   <td className="num">{fmtBytes(f.size_bytes)}</td>
                   <td>{fmtDate(f.created_at)}</td>

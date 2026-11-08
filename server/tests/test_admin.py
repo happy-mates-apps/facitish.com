@@ -83,7 +83,7 @@ async def test_retention_purge_uses_purge_user_and_is_logged(make_client, owner_
     assert detail["deleted"]["auth_log"] == 1 and detail["reason"] == "manual"
 
     stats = (await admin.get("/api/admin/retention")).json()
-    assert {s["log"] for s in stats["logs"]} == {"auth_log", "audit_log", "analytics"}
+    assert {s["log"] for s in stats["logs"]} == {"auth_log", "audit_log", "analytics", "mcp_log"}
 
 
 async def test_purge_one_user(make_client, owner_conn):

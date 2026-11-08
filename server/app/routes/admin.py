@@ -76,18 +76,66 @@ def _ensure_not_super_admin(user: dict) -> None:
         raise HTTPException(409, "Superadministratoren kan ikke mistes eller spærres")
 
 
+# The user actions take a connection, so /api/admin and the MCP drafts (app/mcp/admin_server.py) share them,
+# including the rules (super admin, last admin, who may reset whom).
+
+async def do_set_role(conn, user: dict, role: str, admin: Principal) -> None:
+    if user["role"] == role:
+        return
+    if role != "admin":
+        _ensure_not_super_admin(user)
+        await _ensure_not_last_admin(conn, user)
+    await conn.execute("update users set role = %s, updated_at = now() where id = %s", (role, user["id"]))
+    await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"role": user["role"]}, after={"role": role})
+
+
+async def do_block(conn, user: dict, admin: Principal) -> int:
+    if user["id"] == admin.user_id:
+        raise HTTPException(409, "Du kan ikke spærre dig selv")
+    _ensure_not_super_admin(user)
+    await _ensure_not_last_admin(conn, user)
+    await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user["id"],))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"blocked": False}, after={"blocked": True})
+    return await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="blocked", actor_id=admin.user_id)
+
+
+async def do_unblock(conn, user: dict, admin: Principal) -> None:
+    await conn.execute("update users set blocked_at = null, updated_at = now() where id = %s", (user["id"],))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user["id"],
+                before={"blocked": True}, after={"blocked": False})
+
+
+async def do_reset_passkeys(conn, user: dict, admin: Principal) -> int:
+    """Deletes all passkeys and sessions. "Kræv passkey" is switched off if no other factor is left."""
+    await _ensure_may_reset(user, admin)
+    user_id = user["id"]
+    rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
+    await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
+                before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
+    await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id,
+                     contact=user["email"] or user["phone"], count=len(rows), by=admin.user_id)
+    if user["mfa_required"] and not (await mfa.factors(conn, user_id))["total"]:
+        await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
+        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                    before={"mfa_required": True}, after={"mfa_required": False}, reason="admin.reset_passkeys")
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset", actor_id=admin.user_id)
+    return len(rows)
+
+
+async def do_revoke_sessions(conn, user: dict, admin: Principal) -> int:
+    """Ends every session of the user, including MCP clients (their tokens hang on the session)."""
+    n = await revoke_sessions(conn, meta=admin.meta, user_id=user["id"], reason="admin", actor_id=admin.user_id)
+    await audit(conn, "session.revoked", actor_id=admin.user_id, meta=admin.meta, table="sessions",
+                subject_user_id=user["id"], count=n)
+    return n
+
+
 @router.patch("/users/{user_id}/role")
 async def set_role(user_id: int, body: RoleIn, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        if user["role"] == body.role:
-            return {"ok": True}
-        if body.role != "admin":
-            _ensure_not_super_admin(user)
-            await _ensure_not_last_admin(conn, user)
-        await conn.execute("update users set role = %s, updated_at = now() where id = %s", (body.role, user_id))
-        await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"role": user["role"]}, after={"role": body.role})
+        await do_set_role(conn, await _user_or_404(conn, user_id), body.role, admin)
     return {"ok": True}
 
 
@@ -134,25 +182,14 @@ async def set_phone(user_id: int, body: AdminPhoneIn, admin: Principal = Depends
 @router.post("/users/{user_id}/block")
 async def block_user(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        if user_id == admin.user_id:
-            raise HTTPException(409, "Du kan ikke spærre dig selv")
-        _ensure_not_super_admin(user)
-        await _ensure_not_last_admin(conn, user)
-        await conn.execute("update users set blocked_at = now(), updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"blocked": False}, after={"blocked": True})
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="blocked", actor_id=admin.user_id)
+        await do_block(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/unblock")
 async def unblock_user(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        await _user_or_404(conn, user_id)
-        await conn.execute("update users set blocked_at = null, updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"blocked": True}, after={"blocked": False})
+        await do_unblock(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True}
 
 
@@ -161,20 +198,8 @@ async def reset_passkeys(user_id: int, admin: Principal = Depends(require_admin_
     """Deletes all passkeys and sessions. The user logs in with a one-time code and can add a new passkey
     (grace logins are not given back). "Kræv passkey" is switched off if no other factor is left."""
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        await _ensure_may_reset(user, admin)
-        rows = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name", (user_id,))
-        await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="passkeys", row_id=None,
-                    before={"passkeys": rows}, subject_user_id=user_id, reason="admin.reset_passkeys")
-        await auth_event(conn, "passkey.reset", ok=True, meta=admin.meta, user_id=user_id,
-                         contact=user["email"] or user["phone"], count=len(rows), by=admin.user_id)
-        if user["mfa_required"] and not (await mfa.factors(conn, user_id))["total"]:
-            await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
-            await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                        before={"mfa_required": True}, after={"mfa_required": False}, reason="admin.reset_passkeys")
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="passkeys_reset",
-                              actor_id=admin.user_id)
-    return {"ok": True, "deleted": len(rows)}
+        n = await do_reset_passkeys(conn, await _user_or_404(conn, user_id), admin)
+    return {"ok": True, "deleted": n}
 
 
 async def _ensure_may_reset(user: dict, admin: Principal) -> None:
@@ -191,18 +216,24 @@ async def reset_mfa(user_id: int, admin: Principal = Depends(require_admin_stepu
     """A user who lost every second factor: deletes passkeys, security keys and authenticator apps, switches
     "Kræv passkey" off and logs the user out everywhere. The next login is with a one-time code."""
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id)
-        await _ensure_may_reset(user, admin)
-        keys = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name, kind", (user_id,))
-        apps = await db.fetch_all(conn, "delete from totp_factors where user_id = %s returning id, name", (user_id,))
-        await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
-        await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={"passkeys": keys, "totp_factors": apps, "mfa_required": user["mfa_required"]},
-                    after={"mfa_required": False}, subject_user_id=user_id, reason="admin.reset_mfa")
-        await auth_event(conn, "mfa.reset", ok=True, meta=admin.meta, user_id=user_id,
-                         contact=user["email"] or user["phone"], keys=len(keys), apps=len(apps), by=admin.user_id)
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="mfa_reset", actor_id=admin.user_id)
-    return {"ok": True, "deleted": {"keys": len(keys), "apps": len(apps)}}
+        deleted = await do_reset_mfa(conn, await _user_or_404(conn, user_id), admin)
+    return {"ok": True, "deleted": deleted}
+
+
+async def do_reset_mfa(conn, user: dict, admin: Principal) -> dict:
+    """Shared with the MCP draft user_reset_mfa."""
+    await _ensure_may_reset(user, admin)
+    user_id = user["id"]
+    keys = await db.fetch_all(conn, "delete from passkeys where user_id = %s returning id, name, kind", (user_id,))
+    apps = await db.fetch_all(conn, "delete from totp_factors where user_id = %s returning id, name", (user_id,))
+    await conn.execute("update users set mfa_required = false, updated_at = now() where id = %s", (user_id,))
+    await audit(conn, "delete", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                before={"passkeys": keys, "totp_factors": apps, "mfa_required": user["mfa_required"]},
+                after={"mfa_required": False}, subject_user_id=user_id, reason="admin.reset_mfa")
+    await auth_event(conn, "mfa.reset", ok=True, meta=admin.meta, user_id=user_id,
+                     contact=user["email"] or user["phone"], keys=len(keys), apps=len(apps), by=admin.user_id)
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="mfa_reset", actor_id=admin.user_id)
+    return {"keys": len(keys), "apps": len(apps)}
 
 
 @router.get("/users/{user_id}")
@@ -262,10 +293,7 @@ async def get_user_avatar(user_id: int, admin: Principal = Depends(require_admin
 @router.post("/users/{user_id}/revoke-sessions")
 async def admin_revoke_sessions(user_id: int, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
-        await _user_or_404(conn, user_id)
-        n = await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason="admin", actor_id=admin.user_id)
-        await audit(conn, "session.revoked", actor_id=admin.user_id, meta=admin.meta, table="sessions",
-                    subject_user_id=user_id, count=n)
+        n = await do_revoke_sessions(conn, await _user_or_404(conn, user_id), admin)
     return {"ok": True, "revoked": n}
 
 
@@ -577,6 +605,7 @@ class RetentionIn(BaseModel):
     auth_log_days: int = Field(ge=30, le=3650)
     audit_log_days: int = Field(ge=30, le=3650)
     analytics_days: int = Field(ge=7, le=3650)
+    mcp_log_days: int = Field(default=90, ge=7, le=3650)
 
 
 @router.get("/retention")
@@ -587,6 +616,7 @@ async def retention_get():
         "auth_log_days": values["retention_auth_log_days"],
         "audit_log_days": values["retention_audit_log_days"],
         "analytics_days": values["retention_analytics_days"],
+        "mcp_log_days": values["retention_mcp_log_days"],
         "last_run": values["retention_last_run"],
         "logs": await retention.log_stats(),
     }
@@ -596,7 +626,8 @@ async def retention_get():
 async def retention_put(body: RetentionIn, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
         values = await settings_store.get_all(conn)
-        before = {k: values[f"retention_{k}"] for k in ("auth_log_days", "audit_log_days", "analytics_days")}
+        before = {k: values[f"retention_{k}"] for k in ("auth_log_days", "audit_log_days", "analytics_days",
+                                                                 "mcp_log_days")}
         after = body.model_dump()
         await settings_store.set_many(conn, {f"retention_{k}": v for k, v in after.items()})
         b, a = changed(before, after)

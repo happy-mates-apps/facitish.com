@@ -7,7 +7,10 @@ import AccountSecurity from "./AccountSecurity";
 import ContactChange from "./ContactChange";
 
 type Profile = { locale: string | null; time_zone: string | null };
-type Session = { id: number; created_at: string; last_seen_at: string; ip: string | null; user_agent: string; current: boolean };
+type Session = {
+  id: number; created_at: string; last_seen_at: string; ip: string | null; user_agent: string; current: boolean;
+  mcp_client: string | null; mcp_scope: string | null;
+};
 
 export default function Account() {
   const { user, refresh, config } = useAuth();
@@ -20,6 +23,8 @@ export default function Account() {
   const [avatarVersion, setAvatarVersion] = useState(0);
   const sessions = useLoad(() => api.get<Session[]>("/api/me/sessions"));
   const level = useLoad(() => api.get<{ level: number }>("/api/features"));
+  const devices = sessions.data?.filter((s) => !s.mcp_client) ?? [];
+  const mcpClients = sessions.data?.filter((s) => s.mcp_client) ?? [];
 
   useEffect(() => setName(user?.display_name ?? ""), [user?.display_name]);
   useEffect(() => {
@@ -45,7 +50,7 @@ export default function Account() {
       <Alert>{error}</Alert>
 
       <div className="grid" style={{ "--min": "320px" } as React.CSSProperties}>
-        <div className="card">
+        <div className="card" data-deeplink="account-profile">
           <span className="eyebrow">Profil</span>
           <ContactChange kind="email" />
           {(config?.sms_login || user?.phone) && <ContactChange kind="phone" />}
@@ -100,9 +105,9 @@ export default function Account() {
         <AccountSecurity />
       </div>
 
-      <div className="card">
+      <div className="card" data-deeplink="account-sessions">
         <span className="eyebrow">Aktive logins</span>
-        {sessions.data?.map((s) => (
+        {devices.map((s) => (
           <div key={s.id} className="spread" style={{ borderTop: "1px solid var(--hm-border)", paddingTop: 10 }}>
             <div className="stack" style={{ "--gap": "2px", minWidth: 0 } as React.CSSProperties}>
               <strong className="small">{s.user_agent || "Ukendt enhed"}</strong>
@@ -120,7 +125,32 @@ export default function Account() {
         ))}
       </div>
 
-      <div className="card">
+      <div className="card" data-deeplink="account-mcp">
+        <span className="eyebrow">MCP-klienter</span>
+        <p className="small muted">
+          AI-assistenter som Claude, Copilot og ChatGPT, du har forbundet til Gær. De ser kun dine egne data, og sletning kræver din bekræftelse.
+          Fjerner du en klient, mister den adgangen med det samme.
+        </p>
+        {mcpClients.length === 0 && <p className="small muted">Ingen forbundne klienter.</p>}
+        {mcpClients.map((s) => (
+          <div key={s.id} className="spread" style={{ borderTop: "1px solid var(--hm-border)", paddingTop: 10 }}>
+            <div className="stack" style={{ "--gap": "2px", minWidth: 0 } as React.CSSProperties}>
+              <strong className="small">{s.mcp_client}</strong>
+              <span className="muted tiny">
+                {s.mcp_scope === "mcp:admin" ? "Admin (/mcp/admin)" : "Appen (/mcp)"} · Forbundet {fmtDate(s.created_at)} · Sidst brugt {fmtDate(s.last_seen_at)}
+              </span>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={() => {
+              if (confirm(`Fjern ${s.mcp_client}? Klienten skal logge ind igen for at få adgang.`)) act(async () => {
+                await api.del(`/api/me/sessions/${s.id}`);
+                await sessions.reload();
+              }, "Klienten er fjernet");
+            }}>Fjern</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" data-deeplink="account-ring">
         <span className="eyebrow">Dit niveau</span>
         <p className="small muted">
           Vælg hvor tidligt du vil se nye features. Ring 4 er kun det stabile. Lavere niveau giver adgang til features, der stadig er under udvikling.
