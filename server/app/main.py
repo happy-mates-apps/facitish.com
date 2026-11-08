@@ -10,7 +10,8 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import config, db, mail, retention
-from app.routes import admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public, web
+from app.routes import (admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public,
+                        security, web)
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -88,7 +89,7 @@ def create_app() -> FastAPI:
             await conn.execute("select 1")
         return {"ok": True, "version": config.settings.version}
 
-    for r in (auth.router, ai.router, me.router, files.router, clips.router, public.router, admin.router, app_store.router,
+    for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router, admin.router, app_store.router,
               features.router, features.admin_router, impersonation.router, office.router,
               web.router, files.memory_router):
         app.include_router(r)

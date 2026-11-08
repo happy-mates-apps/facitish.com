@@ -43,7 +43,7 @@ class Settings:
     # For trying an instance before mail is set up. Only whoever can read the server log can log in.
     demo_mode: bool = field(default_factory=lambda: _env("DEMO_MODE", "0") == "1")
 
-    # Login policy
+    # Login policy. Admins without a second factor get GRACE_LOGINS logins with a code before /admin needs MFA.
     default_country_code: str = field(default_factory=lambda: _env("DEFAULT_COUNTRY_CODE", "+45"))
     grace_logins: int = field(default_factory=lambda: _int("GRACE_LOGINS", 3))
     otp_ttl_seconds: int = field(default_factory=lambda: _int("OTP_TTL_SECONDS", 300))
@@ -52,7 +52,13 @@ class Settings:
     otp_max_per_phone_per_hour: int = field(default_factory=lambda: _int("OTP_MAX_PER_PHONE_PER_HOUR", 5))
     otp_max_per_ip_per_hour: int = field(default_factory=lambda: _int("OTP_MAX_PER_IP_PER_HOUR", 30))
     session_days: int = field(default_factory=lambda: _int("SESSION_DAYS", 30))
-    enroll_session_minutes: int = field(default_factory=lambda: _int("ENROLL_SESSION_MINUTES", 15))
+    # A pending login that still needs its second factor.
+    mfa_session_minutes: int = field(default_factory=lambda: _int("MFA_SESSION_MINUTES", 15))
+    # /admin: a second factor (or a grace login) counts for this long; security actions need one within STEPUP_MINUTES.
+    admin_mfa_hours: int = field(default_factory=lambda: _int("ADMIN_MFA_HOURS", 12))
+    stepup_minutes: int = field(default_factory=lambda: _int("STEPUP_MINUTES", 15))
+    # Authenticator-app secrets are encrypted with these keys ("<version>:<base64 32 bytes>,…", first = current).
+    totp_keys: str | None = field(default_factory=lambda: _env("TOTP_KEYS"))
 
     # SMS: "console" (prints the code, dev only) or "ovh"
     sms_provider: str = field(default_factory=lambda: _env("SMS_PROVIDER", "console"))

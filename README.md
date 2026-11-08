@@ -1,7 +1,8 @@
 # Gær — Surdej i letvægt
 
 Én container med en Python-server og en Vite-frontend, koblet til managed Postgres og Object Storage på
-OVHcloud. Login med telefonnummer og engangskode, passkey efter tre logins, og fuld audit- og auth-log.
+OVHcloud. Login med e-mail og engangskode, passkeys, sikkerhedsnøgler og godkendelsesapps (MFA til /admin), og fuld
+audit- og auth-log.
 
 Gær-base er skabelonen. Hver kunde får altid en fork i sin egen GitHub-organisation og henter opdateringer
 herfra ind i sin fork.
@@ -10,7 +11,7 @@ herfra ind i sin fork.
 
 | | |
 | --- | --- |
-| **Login** | Telefonnummer → engangskode på SMS (gemt som hash, udløber, kan bruges én gang, spærring efter for mange forsøg). Tre grace logins, derefter passkey. Ny enhed: kode + ny passkey, tæller ikke som grace login. Første bruger bliver admin — eller, med `BOOTSTRAP_ADMIN_PHONE`, kun det nummer (anbefalet i produktion). |
+| **Login** | E-mail → engangskode (SMS er opt-in med `SMS_LOGIN=1`; koden gemt som hash, udløber, kan bruges én gang, spærring efter for mange forsøg). Alle tilbydes en passkey; brugere kan selv slå **Kræv passkey** (MFA) til. **/admin kræver MFA** efter tre grace logins: passkey, sikkerhedsnøgle (YubiKey) eller godkendelsesapp (TOTP), og sikkerhedshandlinger kræver en frisk bekræftelse. Første bruger bliver superadmin — eller, med `BOOTSTRAP_ADMIN_EMAIL`, kun den adresse (anbefalet i produktion). |
 | **Logning** | Auth-log og audit-log i Postgres. Kun tilføjelse: app-brugeren har ikke UPDATE/DELETE, og en trigger stopper UPDATE. Sletning kun fra /admin med en separat databasebruger, og sletningen logges. |
 | **/admin** | Brugere og roller · auth-log · audit-log (CSV) · analytics · heatmaps · GDPR-forespørgsler · sletning af logdata · samtykke og cookies · filer · website · udvidelse og Office · indstillinger. Alt i /admin skrives i audit-loggen. |
 | **Analytics og heatmaps** | Opsamles af Python-serveren og gemmes i en partitioneret tabel i containerens egen database. Ingen tredjepart. Kun anonyme sidevisninger uden samtykke. |

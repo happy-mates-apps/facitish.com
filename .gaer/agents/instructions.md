@@ -2,16 +2,18 @@
 
 Gær is the lightweight version of Surdej: **one container** with a Python server (FastAPI) and a Vite frontend
 (React + TypeScript), connected to a **shared managed PostgreSQL** (own database per container) and
-**Object Storage** on OVHcloud. Login is phone number + one-time code, passkey after three logins, with a full
-auth log and audit log. Every customer gets their own fork; updates are pulled from gaer-base.
+**Object Storage** on OVHcloud. Login is e-mail + one-time code with passkeys, security keys and authenticator apps
+(MFA for /admin, opt-in for users), with a full auth log and audit log. Every customer gets their own fork; updates are pulled from gaer-base.
 
 ## The backend already exists
 Do not scaffold a new backend, database or login. Everything below is in place and tested
 (skill `gaer-backend` has the details and code examples):
 
-- **Login** — phone number → SMS code → session cookie; three grace logins, then passkey. Roles `user` and
-  `admin`, first user becomes admin. Guard endpoints with `current_user` or `require_admin` from
-  `app.sessions`. Frontend reads the user with `useAuth()` (`web/src/auth.tsx`).
+- **Login** — e-mail (SMS opt-in) → one-time code → session cookie. Everyone is offered a passkey; users may opt
+  in to MFA ("Kræv passkey"); /admin needs a second factor (passkey, security key or authenticator app) after
+  three grace logins. Roles `user` and `admin`, first user becomes super admin. Guard endpoints with
+  `current_user`, `require_admin` or `require_admin_stepup` from `app.sessions`. Frontend reads the user with
+  `useAuth()` (`web/src/auth.tsx`); profile and security UI: skill `gaer-profile`.
 - **Postgres** — the container has its own database. Locally `docker compose up -d` (postgres:16 on :5432,
   user/password/db `gaer`); in production a database on the managed cluster that only this container reaches.
   psycopg 3, raw SQL, no ORM. Schema in `server/app/migrations/*.sql`, applied by `python -m app.migrate`.
@@ -20,14 +22,15 @@ Do not scaffold a new backend, database or login. Everything below is in place a
 
 Never add: another API server (Node/Express, Next API routes), another database (SQLite, Supabase, Firebase),
 an ORM (Prisma, SQLAlchemy), or an auth library (Auth0, NextAuth, Clerk). Never add a dev login bypass —
-use `SMS_PROVIDER=console`.
+use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 
 ## Map
 | Path | What |
 | --- | --- |
 | `server/app/main.py` | app, CSRF + security headers, CSP per path, SPA fallback, `/health` |
-| `server/app/routes/` | `auth` login · `me` account · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `app_store` App Stores · `office` manifests · `web` /w website + extension zip |
-| `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `any_session` |
+| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `app_store` App Stores · `office` manifests · `web` /w website + extension zip |
+| `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `require_admin_stepup` / `any_session` |
+| `server/app/mfa.py`, `totp.py` | second-factor rules (who needs what, changing factors), authenticator apps (TOTP) |
 | `server/app/db.py` | connection pools: `db.connection()`, `db.purge_connection()`, `fetch_one`, `fetch_all` |
 | `server/app/config.py` | all settings from environment variables |
 | `server/app/migrations/` | plain SQL, applied by `python -m app.migrate` |
@@ -49,9 +52,9 @@ They share the same login (session cookie), the same database and the same API.
 | Route | Who | What | Code |
 | --- | --- | --- | --- |
 | `/` | logged in | The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation). | `main.py` `spa()`, `web/src/pages/Home.tsx` |
-| `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_PHONE`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_static/w.css`, `w.js` |
-| `/login` | anonymous | Phone → one-time code → offer/require passkey (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
-| `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (passkeys, sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
+| `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_static/w.css`, `w.js` |
+| `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
+| `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
 | `/admin/…` | admin role | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/` (both repo root and `web/src/extension/`), `bridge/extension.ts` |
@@ -71,7 +74,8 @@ Rules for routes:
 - AI is optional: UI for it must hide itself when `/api/ai/status` says `enabled: false`.
 
 ## Rules that always apply
-1. **Login rules are fixed** (skill `gaer-auth`). Never add a way around the code, the grace logins or the passkey.
+1. **Login rules are fixed** (skill `gaer-auth`). Never add a way around the code, the second factor, the admin grace
+   logins or the step-up for admin security actions.
 2. **Every data change is audited** in the same transaction (skill `gaer-audit`). Logs are append-only; only the
    purge database user deletes, and the deletion is logged.
 3. **Admin = admin role.** Everything under `/api/admin` is guarded and audited.
@@ -90,5 +94,5 @@ Rules for routes:
 `/gaer-recover` · `/gaer-whatsup`. Source: `.gaer/agents/workflows/`.
 
 ## Skills
-`gaer-backend`, `gaer-auth`, `gaer-audit`, `gaer-python-api`, `gaer-vite`, `gaer-storage`, `gaer-integrations`, `gaer-mcp`.
+`gaer-backend`, `gaer-auth`, `gaer-audit`, `gaer-python-api`, `gaer-vite`, `gaer-profile`, `gaer-storage`, `gaer-integrations`, `gaer-mcp`.
 Source: `.gaer/agents/skills/*/SKILL.md`.

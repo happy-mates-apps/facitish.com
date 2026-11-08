@@ -7,6 +7,7 @@ import { setApiApp } from "../api";
 import { AuthProvider, useAuth } from "../auth";
 import AdminShell from "./AdminShell";
 import { AdminProvider } from "./context";
+import { AdminMfaGate, AdminStepUp } from "./mfa";
 import { ToastProvider } from "./ui";
 import { installTracer } from "./tracer/tracerStore";
 import Stats from "./pages/Stats";
@@ -48,6 +49,8 @@ function RequireAdmin({ children }: { children: ReactNode }) {
       </div>
     );
   }
+  // After the grace logins /admin needs a second factor in this session (the server enforces it as well).
+  if (!user.mfa.admin_ok) return <AdminMfaGate />;
   return <>{children}</>;
 }
 
@@ -60,6 +63,7 @@ createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <RequireAdmin>
           <ToastProvider>
+            <AdminStepUp />
             <AdminProvider>
               <Routes>
                 <Route element={<AdminShell />}>

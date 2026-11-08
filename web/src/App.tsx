@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-route
 import { useAuth } from "./auth";
 import { FeatureGate } from "./features";
 import ConsentBanner from "./ConsentBanner";
+import { StepUpDialog } from "./security";
 import { trackPageview } from "./tracker";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -128,6 +129,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <StepUpDialog />
       {!pathname.startsWith("/extension") && !pathname.startsWith("/office-addin") && <ConsentBanner />}
     </>
   );
