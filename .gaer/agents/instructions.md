@@ -63,6 +63,8 @@ They share the same login (session cookie), the same database and the same API.
 Rules for routes:
 - A new page goes in `web/src/App.tsx` (or `web/src/admin-app/main.tsx` + `nav.ts` for /admin); pick the surface deliberately. Pages with their own chrome (`/m`, `/extension`,
   `/office-addin`) are listed in `OWN_CHROME`.
+- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx` and `bridge/` with the rest of `web/src/`.
+  Neither side imports the other; `npm run build` fails if one does (`appBoundary()` in `web/vite.config.ts`).
 - Only `EMBEDDABLE` paths in `main.py` may be framed by the extension and Office hosts — add a path there only
   if it really must run inside them.
 - Anything the public may see without login lives under `/w/`, `/login`, `/privatliv` or `/api/public/…`.

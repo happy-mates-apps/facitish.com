@@ -1,5 +1,5 @@
-// Entry of the standalone admin app on /admin (web/admin.html). Shares login cookie, api.ts and
-// auth.tsx with the app on /, but has its own shell and bundle.
+// Entry of the standalone admin app on /admin (web/admin.html). Shares only the login cookie, api.ts,
+// auth.tsx and bridge/ with the app on /; shell, components and styles are its own (enforced in vite.config.ts).
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -26,7 +26,7 @@ import Web from "./pages/Web";
 import Integrations from "./pages/Integrations";
 import AiAdmin from "./pages/AiAdmin";
 import Settings from "./pages/Settings";
-import "../styles.css";
+import "./base.css";
 import "./admin.css";
 
 setApiApp("admin");
