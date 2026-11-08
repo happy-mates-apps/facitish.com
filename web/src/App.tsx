@@ -62,12 +62,11 @@ function TopBar() {
   );
 }
 
-function RequireUser({ children, admin = false, login = "/login" }: { children: ReactNode; admin?: boolean; login?: string }) {
+function RequireUser({ children, login = "/login" }: { children: ReactNode; login?: string }) {
   const { user, scope, loading } = useAuth();
   const location = useLocation();
   if (loading) return null;
   if (!user || scope !== "full") return <Navigate to={login} replace state={{ from: location.pathname + location.search }} />;
-  if (admin && user.role !== "admin") return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

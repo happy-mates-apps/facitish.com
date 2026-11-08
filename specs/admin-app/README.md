@@ -28,8 +28,10 @@ Bemærk: i skærmbillederne vises lucide-ikonerne som grå firkanter. Det skylde
 
 ## Placering i repoet
 
-Admin-appen er en **selvstændig app**: egen Vite-entry, egen layout-shell, egen bundle. Den deler
-login-cookie, `api.ts` og `auth.tsx` med appen på `/`, men ikke `TopBar`. Den eksisterende
+Admin-appen er en **selvstændig app**: egen Vite-entry, egen layout-shell, egen bundle, egne komponenter
+(`admin-app/ui.tsx`) og egne styles (`admin-app/base.css` + `admin.css`). Den deler kun login-cookie, `api.ts`,
+`auth.tsx` og `bridge/` med appen på `/` — hverken `TopBar`, `ui.tsx` eller `styles.css`. `appBoundary()` i
+`web/vite.config.ts` lader `npm run dev`/`build` fejle, hvis en af siderne importerer fra den anden. Den eksisterende
 `web/src/admin/` erstattes af den nye app. De nuværende sektioner (auth-log, audit-log, GDPR, sletning,
 samtykke, filer, website, integrationer, indstillinger) flyttes ind uændret som undersider.
 
