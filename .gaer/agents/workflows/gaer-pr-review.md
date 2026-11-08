@@ -8,8 +8,9 @@ description: Review a pull request for security, logging and migrations.
 1. Get the diff: `gh pr diff <number>` (or `git diff main...HEAD`).
 2. Read the skills `gaer-auth`, `gaer-audit` and the ones matching the changed files.
 3. Check, and report findings with file:line:
-   - **Auth**: no endpoint that changes data without `current_user`/`require_admin`; enroll sessions only
-     reach passkey registration; grace logins and passkey rules intact; no new way to log in.
+   - **Auth**: no endpoint that changes data without `current_user`/`require_admin`; pending `mfa` sessions only
+     reach `/api/auth/mfa/*`; admin security actions use `require_admin_stepup`; MFA, grace-login and factor
+     rules intact (skill `gaer-auth`); no new way to log in.
    - **CSRF**: new state-changing endpoints are under `/api/` (the `X-Gaer` header check applies).
    - **Audit**: every create/update/delete writes `audit()` in the same transaction, with before/after.
      Admin actions are audited. Logs stay append-only.

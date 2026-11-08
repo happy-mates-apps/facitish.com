@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { api } from "../../api";
 import { Empty, ErrorBox, PageTitle, Pill, useLoad } from "../ui";
 import { card, SANS, tableHead } from "../theme";
-import { isTest, userView, type AdminUser, type UsersResponse } from "../users";
+import { factorCount, isTest, userView, type AdminUser, type UsersResponse } from "../users";
 import UserDrawer from "./UserDrawer";
 
 const FILTERS: [key: string, label: string, test: (u: AdminUser) => boolean][] = [
@@ -14,6 +14,7 @@ const FILTERS: [key: string, label: string, test: (u: AdminUser) => boolean][] =
   ["blocked", "Spærrede", (u) => !!u.blocked_at],
   ["nopk", "Uden passkey", (u) => u.passkeys === 0 && !isTest(u)],
   ["admins", "Admins", (u) => u.role === "admin"],
+  ["adminnomfa", "Admins uden MFA", (u) => u.role === "admin" && !isTest(u) && factorCount(u) === 0],
   ["test", "Testkonti", isTest],
 ];
 const COLS = "minmax(240px,1.6fr) 110px 170px 130px 100px 40px";

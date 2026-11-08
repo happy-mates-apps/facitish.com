@@ -1,12 +1,12 @@
 // The user drawer on /admin/users (screen 03): facts and actions for one user.
 import { useNavigate } from "react-router-dom";
-import { Ban, KeyRound, LockOpen, LogOut, Mail, Phone, ScrollText, ShieldCheck, ShieldOff, type LucideIcon } from "lucide-react";
+import { Ban, KeyRound, LockOpen, LogOut, Mail, Phone, ScrollText, ShieldAlert, ShieldCheck, ShieldOff, UserPen, type LucideIcon } from "lucide-react";
 import { api, errorText } from "../../api";
 import { useAuth } from "../../auth";
 import { useAdmin } from "../context";
 import { dateLabel, lastLabel, phoneLabel, RING, sectionLabel, SANS } from "../theme";
 import { CloseBtn, Drawer, Pill, useToast } from "../ui";
-import { isTest, userView, type AdminUser } from "../users";
+import { factorCount, isTest, userView, type AdminUser } from "../users";
 
 type Action = { label: string; hint: string; icon: LucideIcon; run: () => void; danger?: boolean; disabled?: boolean };
 
@@ -45,8 +45,22 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
           run: run(() => api.post(`/api/admin/users/${u.id}/unblock`), "Spærringen er ophævet") }
       : { label: "Spær", hint: isMe ? "Du kan ikke spærre dig selv" : sup ? "Superadministratoren kan ikke spærres" : "Logges ud alle steder og kan ikke logge ind", icon: Ban, danger: true, disabled: isMe || sup,
           run: run(() => api.post(`/api/admin/users/${u.id}/block`), "Brugeren er spærret og logget ud") },
-    { label: "Nulstil passkeys", hint: u.passkeys ? "Skal oprette ny passkey efter login med engangskode" : "Ingen passkeys", icon: KeyRound, disabled: !u.passkeys,
+    { label: "Nulstil MFA", hint: isMe ? "Dine egne nøgler styrer du under Konto"
+        : u.role === "admin" && !me?.super_admin ? "Kun superadministratoren kan nulstille en admins MFA"
+        : factorCount(u) || u.mfa_required ? "Sletter passkeys, sikkerhedsnøgler og godkendelsesapps og slår “Kræv passkey” fra" : "Ingen nøgler",
+      icon: ShieldAlert, danger: true, disabled: isMe || test || (u.role === "admin" && !me?.super_admin) || (!factorCount(u) && !u.mfa_required),
+      run: () => {
+        if (confirm(`Nulstil MFA for ${v.name}? Brugeren logges ud alle steder og logger ind med engangskode næste gang.`))
+          void run(() => api.post(`/api/admin/users/${u.id}/reset-mfa`), "MFA er nulstillet")();
+      } },
+    { label: "Nulstil passkeys", hint: u.passkeys ? "Sletter passkeys og sikkerhedsnøgler; godkendelsesapps bevares" : "Ingen passkeys", icon: KeyRound,
+      disabled: !u.passkeys || isMe || (u.role === "admin" && !me?.super_admin),
       run: run(() => api.post(`/api/admin/users/${u.id}/reset-passkeys`), "Passkeys er nulstillet") },
+    { label: "Ret navn", hint: "Visningsnavn i appen og i /admin", icon: UserPen,
+      run: () => {
+        const name = prompt(`Nyt navn for ${v.name}`, u.display_name ?? "");
+        if (name !== null) void run(() => api.patch(`/api/admin/users/${u.id}/profile`, { display_name: name }), "Navnet er rettet")();
+      } },
     { label: "Log ud alle steder", hint: u.active_sessions ? `${u.active_sessions} aktive sessioner` : "Ingen aktive sessioner", icon: LogOut,
       disabled: !u.active_sessions, run: run(() => api.post(`/api/admin/users/${u.id}/revoke-sessions`), "Brugeren er logget ud alle steder") },
     { label: "Ret e-mail", hint: "Rettelse efter GDPR. Brugeren logges ud alle steder", icon: Mail, disabled: test,
@@ -68,7 +82,9 @@ export default function UserDrawer({ user: u, users, grace, onClose, onChanged }
     ["Telefon", test ? "—" : phoneLabel(u.phone) || "—"],
     ["Oprettet", dateLabel(u.created_at)],
     ["Sidst logget ind", lastLabel(u.last_login_at)],
-    ["Engangskoder brugt", test ? "—" : `${u.grace_logins_used} af ${grace}`],
+    ["Nøgler", test ? "—" : `${u.passkeys} passkey/sikkerhedsnøgle · ${u.totp} godkendelsesapp`],
+    ["Kræv passkey", test ? "—" : u.mfa_required ? "Til" : "Fra"],
+    ...(u.role === "admin" && !test ? [["Engangskoder til /admin", factorCount(u) ? "Har anden faktor" : `${u.grace_logins_used} af ${grace} brugt`] as [string, string]] : []),
     ["Sessioner", String(u.active_sessions)],
     ["Feature-niveau", ring ? `Ring ${ring} · ${RING[ring][0]}` : "Ring 4 · standard"],
   ];

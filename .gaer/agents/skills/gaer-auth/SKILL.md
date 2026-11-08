@@ -1,42 +1,74 @@
 ---
 name: gaer-auth
-description: Login in Gær — phone number, one-time code, three grace logins, then passkey. Use when touching login, sessions, users or anything that decides who may do what. These rules must not be bypassed.
+description: Login in Gær — e-mail (or SMS) one-time code, passkeys, security keys and authenticator apps; MFA for /admin after three grace logins, MFA opt-in for users. Use when touching login, sessions, users, MFA or anything that decides who may do what. These rules must not be bypassed.
 ---
 
-# Login (gaer-auth)
+# Login and MFA (gaer-auth)
 
-Code: `server/app/routes/auth.py`, `server/app/sessions.py`, `server/app/security.py`, `web/src/pages/Login.tsx`, `web/src/auth.tsx`.
+Code: `server/app/routes/auth.py` (login + second factor), `server/app/sessions.py` (sessions, guards),
+`server/app/mfa.py` (factor rules), `server/app/totp.py` (authenticator apps), `server/app/routes/security.py`
+(the user's own factors), `server/app/security.py`, `web/src/auth.tsx`, `web/src/pages/Login.tsx`.
+Frontend usage (components, step-up dialog, profile API): skill `gaer-profile`.
 
 ## The rules
-1. **Phone number is the identity.** Normalized to E.164 (`normalize_phone`, default `+45`). Stored in `users.phone`.
-2. **One-time code by SMS.** 6 digits, stored only as HMAC (`otp_codes.code_hash`), expires after `OTP_TTL_SECONDS`
-   (300), single use. A new code invalidates older ones. Max `OTP_MAX_ATTEMPTS` (5) failures per number within
-   `OTP_LOCK_MINUTES` (15) locks the number. Max 5 codes per number and 30 per IP per hour.
-   `otp/start` answers the same whether or not the number exists or is blocked.
-3. **First admin.** With `BOOTSTRAP_ADMIN_PHONE` set, only that number becomes admin, and only while the instance
-   has no admin (an existing normal user with that number is promoted, `role.changed`); everybody else becomes a
-   normal user. Without it, the very first user becomes admin. Decided in `_get_or_create_user` under an advisory
-   lock; `admin.first_user` is audited. `admin_open_to_anyone()` drives the "you become admin" notice on `/w` and
-   `/login` — it is false when the bootstrap number is set, so a fresh instance is not advertised.
-4. **Three grace logins.** Without a passkey and with `grace_logins_used < GRACE_LOGINS` a code gives a
-   **full** session and increments `grace_logins_used` (`grace.used`). The user is offered a passkey each time.
-5. **Then passkey is required.** When grace is used up, or the user already has a passkey, a code gives an
-   **enroll** session that can only call `/api/auth/passkey/register/*`. Registering upgrades it to full.
-   A new device / lost passkey uses this path and does **not** consume a grace login.
-6. **Passkey login** (`/api/auth/passkey/login/*`) is discoverable (no username), verifies sign count, refuses blocked users.
+1. **E-mail is the identity** (normalized, lower case, `users.email`). With `SMS_LOGIN=1` a phone number (E.164,
+   default `+45`, `users.phone`) works the same way.
+2. **One-time code.** 6 digits, stored only as HMAC (`otp_codes.code_hash`), expires after `OTP_TTL_SECONDS`
+   (300), single use. A new code invalidates older ones. Max `OTP_MAX_ATTEMPTS` (5) failures per contact within
+   `OTP_LOCK_MINUTES` (15) locks it. Max 5 codes per contact and 30 per IP per hour.
+   `otp/start` answers the same whether or not the contact exists or is blocked.
+3. **First admin.** With `BOOTSTRAP_ADMIN_EMAIL` (or `BOOTSTRAP_ADMIN_PHONE` with SMS) only that contact becomes
+   admin, and only while the instance has no admin. Without it, the very first user becomes admin. The first admin
+   is the **super admin**. Decided in `_get_or_create_user` under an advisory lock; `admin.first_user` is audited.
+4. **Second factors** (`app.mfa`): passkeys (platform), **security keys** (YubiKey …, `passkeys.kind =
+   'security_key'`) and **authenticator apps** (TOTP, `totp_factors`, confirmed with a code). Registration requires
+   user verification (PIN/biometrics). A WebAuthn assertion only counts as a second factor when the authenticator
+   **verified the user** (UV flag, checked server-side with `require_user_verification=True`).
+5. **Everybody is offered a passkey, nobody is forced** — except:
+   - **/admin**: an admin without a second factor gets `GRACE_LOGINS` (3) **grace logins** with a code
+     (`grace.used`, `sessions.grace`). A grace session may enter /admin for `ADMIN_MFA_HOURS` (12). After that, or
+     when the admin has a factor, `require_admin` needs a second factor proven within `ADMIN_MFA_HOURS`
+     (`sessions.mfa_at`) → `403` + `X-Gaer-Error: mfa_required` / `mfa_setup_required`.
+   - **Security actions** in /admin (roles, e-mail/phone, block/unblock, reset passkeys/MFA, revoke sessions,
+     GDPR erasure, purging a user's logs) use `require_admin_stepup`: a second factor within `STEPUP_MINUTES` (15).
+     A grace login is **not** enough → `X-Gaer-Error: stepup_required`.
+   - **"Kræv passkey"** (`users.mfa_required`, the user's opt-in): a code (or a passkey without UV) only gives a
+     pending **`mfa`** session that can call nothing but `/api/auth/mfa/*`. It fails closed: with no factor left
+     the user stays pending until an admin resets MFA.
+6. **Step-up** (`/api/auth/mfa/passkey/*`, `/api/auth/mfa/totp/verify`) always revokes the current session and
+   issues a **new token** with `mfa_at = now()` — a pending or code-only session is never upgraded in place.
+   Passkey step-up uses the user's own credentials (`allowCredentials`), so non-discoverable security keys work.
+   TOTP: ±1 step, replay blocked by a conditional update of `last_used_step`, wrong codes lock like one-time codes.
+7. **Changing factors** (add/remove passkey, key or app; switch "Kræv passkey" on/off) — `mfa.ensure_can_change_factors`:
+   the **first** factor may be added right after a code login (bootstrap). Once the user has one, a second factor
+   within `STEPUP_MINUTES` is required, so a stolen code cannot add the attacker's passkey or lock the owner out.
+   The user row is locked while factors change. The last factor cannot be removed while "Kræv passkey" is on.
+   Adding the first factor revokes the user's other grace sessions. The same recent second factor
+   (`mfa.require_recent_mfa`) is needed to change one's own e-mail or phone and to delete one's account.
+8. **Recovery** is an admin action: `POST /api/admin/users/{id}/reset-mfa` (deletes keys and apps, switches
+   "Kræv passkey" off, logs the user out). Only the super admin may reset another admin; nobody resets themselves.
+9. **Passkey login** (`/api/auth/passkey/login/*`) is discoverable (no username), verifies sign count, refuses
+   blocked users; with UV it counts as MFA.
+10. TOTP secrets are encrypted with AES-GCM using versioned keys (`TOTP_KEYS`, fallback derived from `SECRET_KEY`)
+    and never leave the server after setup; the GDPR export lists apps without secrets.
 
 ## Sessions
 - Random token in the `gaer_session` cookie (HttpOnly, Secure on https, SameSite=Lax). Only its SHA-256 is stored.
+- Scopes: `full`, and `mfa` (pending second factor, `MFA_SESSION_MINUTES`). Columns `mfa_at`, `grace`.
 - Embedded (browser extension / Office iframe, header `X-Gaer-Embedded: 1`): SameSite=None; Partitioned.
-- Dependencies: `any_session` (enroll or full — passkey registration only), `current_user` (full),
-  `require_admin` (full + admin role; logs `admin.read` on GET).
+- Dependencies: `any_session` (full or pending — **only** `/api/auth/mfa/*`), `current_user` (full),
+  `require_admin` (full + admin role + MFA/grace; logs `admin.read` on GET), `require_admin_stepup` (fresh MFA).
 - Blocking a user revokes all sessions. Logout revokes the current one. All revocations log `session.revoked`.
 
 ## Never
-- Add a login path that skips the code or the passkey rules, or give an enroll session access to anything else.
-- Store codes, tokens or full phone numbers in logs (logs hold `phone_masked` + `phone_hash`).
-- Return different answers from `otp/start` for known/unknown numbers.
+- Add a login path that skips the code, or a way to get a full session from a pending one without a second factor.
+- Count a WebAuthn assertion without verified UV as MFA, or upgrade a session row in place instead of a new token.
+- Let a code-only session add a factor to an account that already has one, or accept a grace login for a
+  security action.
+- Store codes, tokens, TOTP secrets or full contacts in logs (logs hold `phone_masked` + `phone_hash`).
+- Return different answers from `otp/start` for known/unknown contacts.
 - Accept state-changing requests without the `X-Gaer: 1` header (CSRF, enforced in `main.py`).
 
 ## Tests
-`server/tests/test_auth.py` uses a software authenticator (`tests/helpers.py`) — extend it for any change.
+`server/tests/test_auth.py` and `test_mfa.py` use a software authenticator (`tests/helpers.py`: `SoftAuthenticator`
+with `uv=` flag, `stepup`, `totp_code`) — extend them for any change.

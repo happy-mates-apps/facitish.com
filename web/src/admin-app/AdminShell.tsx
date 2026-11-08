@@ -1,6 +1,7 @@
 // Shell of the /admin app: dark side menu, sticky top bar and the impersonation banner.
 import { useEffect, type CSSProperties } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { GraceBanner } from "./mfa";
 import { ArrowLeft, ExternalLink, VenetianMask, X } from "lucide-react";
 import { api, errorText } from "../api";
 import { useAuth } from "../auth";
@@ -142,6 +143,7 @@ export default function AdminShell() {
         </header>
 
         <main style={{ flex: 1, padding: "28px 24px 64px", boxSizing: "border-box", width: "100%", maxWidth: 1240, display: "flex", flexDirection: "column", gap: 20 }}>
+          <GraceBanner />
           <Outlet />
         </main>
       </div>

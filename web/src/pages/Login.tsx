@@ -2,30 +2,30 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { api, errorText } from "../api";
-import { loginWithPasskey, passkeyErrorText, registerPasskey, useAuth } from "../auth";
+import { loginWithPasskey, passkeyErrorText, registerPasskey, useAuth, type LoginResult, type MfaMethod } from "../auth";
+import { SecondFactor } from "../security";
 import { Alert } from "../ui";
 
+// After the code: users with "Kræv passkey" prove their second factor (step "mfa"); everybody else is logged in
+// and offered a passkey (step "offer"). Admins also see how many grace logins /admin has left.
 type Step =
   | { kind: "phone" }
   | { kind: "code"; devCode?: string }
-  | { kind: "offer"; graceLeft: number; admin: boolean }
-  | { kind: "enroll"; reason: "grace_exhausted" | "new_device" };
-
-type VerifyResult =
-  | { status: "logged_in"; grace_left: number; offer_passkey: boolean; became_admin?: boolean }
-  | { status: "passkey_required"; reason: "grace_exhausted" | "new_device" };
+  | { kind: "offer"; adminGraceLeft: number | null; becameAdmin: boolean }
+  | { kind: "mfa"; methods: MfaMethod[] };
 
 const GRACE_LOGINS = 3;
 
-function GracePills({ used }: { used: number }) {
+function GracePills({ left }: { left: number }) {
+  const used = GRACE_LOGINS - left;
   return (
-    <div className="grace-row" aria-label={`${used} af ${GRACE_LOGINS} logins med engangskode brugt`}>
+    <div className="grace-row" aria-label={`${used} af ${GRACE_LOGINS} logins til administrationen med engangskode brugt`}>
       {Array.from({ length: GRACE_LOGINS }, (_, i) => (
         <span key={i} className={`pill ${i < used ? "blue" : ""}`}>
           {i + 1} · engangskode
         </span>
       ))}
-      <span className="pill dark">Derefter passkey</span>
+      <span className="pill dark">Derefter nøgle til /admin</span>
     </div>
   );
 }
@@ -44,11 +44,19 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const [error, setError] = useState<string | null>(null);
   const supportsPasskey = browserSupportsWebAuthn();
 
-  // Arriving with an enroll session (e.g. after a reload) goes straight to passkey creation.
+  // Arriving with a pending login (e.g. after a reload) goes straight to the second factor.
   useEffect(() => {
-    if (user && scope === "enroll" && step.kind === "phone") setStep({ kind: "enroll", reason: user.passkeys ? "new_device" : "grace_exhausted" });
+    if (user && scope === "mfa" && step.kind === "phone") setStep({ kind: "mfa", methods: user.mfa.methods });
     if (user && scope === "full" && step.kind === "phone") navigate(from, { replace: true });
   }, [user, scope, step.kind, navigate, from]);
+
+  const after = async (res: LoginResult) => {
+    await refresh();
+    if (res.status === "mfa_required") setStep({ kind: "mfa", methods: res.methods });
+    else if ((res.offer_passkey && supportsPasskey) || res.became_admin || (res.admin_grace_left ?? null) !== null)
+      setStep({ kind: "offer", adminGraceLeft: res.admin_grace_left ?? null, becameAdmin: !!res.became_admin });
+    else navigate(from, { replace: true });
+  };
 
   const run = async (fn: () => Promise<void>, passkey = false) => {
     setBusy(true);
@@ -74,14 +82,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const verify = (e: FormEvent) => {
     e.preventDefault();
     run(async () => {
-      const res = await api.post<VerifyResult>("/api/auth/otp/verify", { ...contact, code });
-      await refresh();
-      if (res.status === "logged_in") {
-        if (supportsPasskey || res.became_admin) setStep({ kind: "offer", graceLeft: res.grace_left, admin: !!res.became_admin });
-        else navigate(from, { replace: true });
-      } else {
-        setStep({ kind: "enroll", reason: res.reason });
-      }
+      await after(await api.post<LoginResult>("/api/auth/otp/verify", { ...contact, code }));
     });
   };
 
@@ -92,12 +93,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
       navigate(from, { replace: true });
     }, true);
 
-  const passkeyLogin = () =>
-    run(async () => {
-      await loginWithPasskey();
-      await refresh();
-      navigate(from, { replace: true });
-    }, true);
+  const passkeyLogin = () => run(async () => after(await loginWithPasskey()), true);
 
   return (
     <div className={`auth-shell${embedded ? " embedded" : ""}`}>
@@ -176,35 +172,31 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                 <div className="eyebrow">Du er logget ind</div>
                 <h2>Opret en passkey</h2>
                 <p className="muted small">
-                  Med en passkey logger du ind med fingeraftryk, ansigt eller enhedens kode. Du kan logge ind med
-                  engangskode {GRACE_LOGINS} gange. Derefter skal du have en passkey.
+                  Næste gang logger du ind med fingeraftryk, ansigt eller enhedens kode, uden at vente på en mail.
+                  {step.adminGraceLeft !== null && " Administrationen kræver en passkey, sikkerhedsnøgle eller godkendelsesapp efter "
+                    + `${GRACE_LOGINS} logins med engangskode.`}
                 </p>
               </div>
-              {step.admin && <Alert kind="success">Du er den første bruger og er nu {user?.super_admin ? "superadministrator" : "administrator"}. Du finder administrationen under /admin.</Alert>}
-              <GracePills used={GRACE_LOGINS - step.graceLeft} />
+              {step.becameAdmin && <Alert kind="success">Du er den første bruger og er nu {user?.super_admin ? "superadministrator" : "administrator"}. Du finder administrationen under /admin.</Alert>}
+              {step.adminGraceLeft !== null && <GracePills left={step.adminGraceLeft} />}
+              {!supportsPasskey && <Alert kind="info">Din browser understøtter ikke passkeys. Du kan bruge en godkendelsesapp under Konto.</Alert>}
               <Alert>{error}</Alert>
-              <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy}>Opret passkey nu</button>
+              {supportsPasskey && <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy}>Opret passkey nu</button>}
               <button className="btn btn-ghost btn-block" onClick={() => navigate(from, { replace: true })}>
-                {step.graceLeft > 0 ? `Senere (${step.graceLeft} ${step.graceLeft === 1 ? "login" : "logins"} tilbage)` : "Senere"}
+                {step.adminGraceLeft !== null && step.adminGraceLeft > 0
+                  ? `Ikke nu (${step.adminGraceLeft} ${step.adminGraceLeft === 1 ? "login" : "logins"} til /admin tilbage)` : "Ikke nu"}
               </button>
             </div>
           )}
 
-          {step.kind === "enroll" && (
+          {step.kind === "mfa" && (
             <div className="stack" style={{ "--gap": "16px" } as React.CSSProperties}>
               <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
-                <div className="eyebrow">Passkey kræves</div>
-                <h2>{step.reason === "new_device" ? "Ny enhed" : "Opret en passkey for at fortsætte"}</h2>
-                <p className="muted small">
-                  {step.reason === "new_device"
-                    ? "Du har bekræftet, at det er dig. Opret en passkey på denne enhed for at logge ind. Det tæller ikke som et login med engangskode."
-                    : `Du har brugt dine ${GRACE_LOGINS} logins med engangskode. Opret en passkey for at komme videre.`}
-                </p>
+                <div className="eyebrow">Totrinsbekræftelse</div>
+                <h2>Bekræft at det er dig</h2>
+                <p className="muted small">Din konto kræver en passkey, sikkerhedsnøgle eller kode fra din godkendelsesapp.</p>
               </div>
-              {step.reason === "grace_exhausted" && <GracePills used={GRACE_LOGINS} />}
-              {!supportsPasskey && <Alert kind="warn">Din browser understøtter ikke passkeys. Prøv en nyere browser eller en anden enhed.</Alert>}
-              <Alert>{error}</Alert>
-              <button className="btn btn-primary btn-block" onClick={createPasskey} disabled={busy || !supportsPasskey}>Opret passkey</button>
+              <SecondFactor methods={step.methods} onDone={async () => { await refresh(); navigate(from, { replace: true }); }} />
             </div>
           )}
         </div>

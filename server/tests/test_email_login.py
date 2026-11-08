@@ -37,13 +37,15 @@ async def test_first_user_by_email_becomes_super_admin(make_client, owner_conn):
     assert masked == {"n•••@example.com", "a•••@example.com"}
 
 
-async def test_email_grace_logins_then_passkey(make_client):
-    for _ in range(3):
-        assert (await email_login(make_client(), "anna@example.com"))["status"] == "logged_in"
+async def test_email_logins_without_passkey(make_client):
+    await email_login(make_client(), "admin@example.com")
+    for _ in range(4):
+        body = await email_login(make_client(), "anna@example.com")
+        assert body["status"] == "logged_in" and body["offer_passkey"] is True
     client = make_client()
-    assert await email_login(client, "anna@example.com") == {"status": "passkey_required", "reason": "grace_exhausted"}
+    await email_login(client, "anna@example.com")
     await register_passkey(client, SoftAuthenticator())
-    assert (await client.get("/api/auth/me")).json()["scope"] == "full"
+    assert (await client.get("/api/auth/me")).json()["user"]["passkeys"] == 1
 
 
 async def test_invalid_or_missing_email(client):
