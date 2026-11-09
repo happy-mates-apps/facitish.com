@@ -5,8 +5,11 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
-# `npm run build` ends with scripts/app-map.mjs --check, which reads these two files relative to /web
+# `npm run build` ends with scripts/app-map.mjs --check, which reads these repository files relative to /web.
+COPY .gaer/agents/instructions.md /.gaer/agents/instructions.md
+COPY README.md /README.md
 COPY specs/mcp/catalog.json /specs/mcp/catalog.json
+COPY server/app/routes.json /server/app/routes.json
 COPY server/app/mcp/app_map.json /server/app/mcp/app_map.json
 RUN npm run build
 
