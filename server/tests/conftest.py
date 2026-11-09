@@ -107,7 +107,7 @@ def clean_database():
                         files, settings, gdpr_requests, consents, analytics_events, clips, bridge_consents, ai_usage,
                         features, feature_rings, feature_usage, app_store,
                         mcp_clients, mcp_tokens, mcp_drafts, mcp_log,
-                        data_sources, datasets, dataset_fields
+                        data_sources, datasets, dataset_fields, events, kill_switches
                         restart identity cascade""")
         # The features seeded by migration 0006 (truncate cascades to them via features.created_by).
         from app.features_catalog import CATALOG
@@ -116,6 +116,8 @@ def clean_database():
                          (c.key, c.title, c.description, c.area))
     from app.storage import get_storage
     get_storage().objects.clear()
+    from app import killswitch
+    killswitch.invalidate()
     yield
 
 

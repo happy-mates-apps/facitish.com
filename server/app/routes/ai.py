@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app import ai, db, settings_store
+from app import ai, db, killswitch, settings_store
 from app.sessions import Principal, current_user
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -13,6 +13,8 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 async def status(p: Principal = Depends(current_user)):
     if not ai.enabled():
         return {"enabled": False}
+    if await killswitch.is_active("ai"):
+        return {"enabled": False, "closed": True}
     async with db.connection() as conn:
         limit = await ai.limit_for(conn, p.user_id)
         used = await ai.used_this_month(conn, p.user_id)

@@ -2,7 +2,7 @@
 
 Gær is the lightweight version of Surdej: **one container** with a Python server (FastAPI) and a Vite frontend
 (React + TypeScript), with its **own PostgreSQL** (a container in the same compose stack, own database and roles)
-and **S3 Object Storage**, plus **ClickHouse** for short-lived events (7 days TTL, no personal data). Login is e-mail + one-time code with passkeys, security keys and authenticator apps
+and **S3 Object Storage**. Login is e-mail + one-time code with passkeys, security keys and authenticator apps
 (MFA for /admin, opt-in for users), with a full auth log and audit log. Every customer gets their own fork; updates are pulled from gaer-base.
 
 ## The backend already exists
@@ -20,8 +20,7 @@ Do not scaffold a new backend, database or login. Everything below is in place a
 - **Python** — 3.12+ (image: 3.13), FastAPI + uvicorn, pinned `server/requirements.txt`, venv in `.venv`,
   settings from environment variables in `server/app/config.py`, tests with pytest against real Postgres.
 
-Never add: another API server (Node/Express, Next API routes), another database (SQLite, Supabase, Firebase —
-ClickHouse in the stack is the one exception, for events that may vanish after 7 days; see `app.clickhouse`),
+Never add: another API server (Node/Express, Next API routes), another database (SQLite, Supabase, Firebase),
 an ORM (Prisma, SQLAlchemy), or an auth library (Auth0, NextAuth, Clerk). Never add a dev login bypass —
 use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 
@@ -42,15 +41,16 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/jobs.py` | background jobs: queue in Postgres (`jobs`), workers + scheduler (`job_schedules`) in the app process, retries with backoff; `@jobs.handler("kind")`, `jobs.enqueue(conn, …)` |
 | `server/app/webhooks.py`, `secrets_box.py` | outgoing webhooks: `webhooks.emit(conn, event, data)` in the same transaction; signed (HMAC), optional auth header, retries via jobs, SSRF guard; secrets encrypted (AES-GCM) |
 | `server/app/webhooks_in.py`, `routes/hooks.py` | incoming webhooks: `POST /api/hooks/in/<key>` (CSRF-exempt), verified per endpoint (Gær signature, HMAC header, fixed header such as Authorization, or URL only) + IP filter, size and rate limits, dedupe on delivery id; stored, then `@webhooks_in.handler("name")` runs as a job |
-| `server/app/clickhouse.py`, `clickhouse_migrations/` | ClickHouse over HTTP (`CLICKHOUSE_URL`): `query`, `insert` (batches), schema files applied by `python -m app.migrate`; every table has a TTL of 7 days, no personal data |
-| `server/app/resources.py`, `routes/resources.py` | /admin/resources: every resource in use (container, Postgres, ClickHouse, Object Storage, NATS, AI, e-mail/SMS, jobs) measured live, with limits and prices from setting `resources` |
+| `server/app/events.py` | events: `await events.emit("kind", ref=…, value=…)` → NATS stream `EVENTS` (7 days) → consumer → Postgres `events` (7 days); without NATS straight to Postgres. Rules (setting `kill_rules`) close a kill switch when a kind happens too often |
+| `server/app/killswitch.py` | kill switches (`SWITCHES`, code not config): a closed one answers 503 for its paths within ~2 s in every container (guard middleware); /admin, login, /health never close |
+| `server/app/resources.py`, `routes/resources.py` | /admin/resources: resources in use (container, Postgres, events, Object Storage, NATS, AI, e-mail/SMS, jobs) with limits and prices (setting `resources`), plus kill switches, rules and events by kind |
 | `server/app/nats_monitor.py`, `routes/nats.py` | /admin/nats: reads NATS' HTTP monitoring port (`NATS_MONITOR_URL`), whitelisted endpoints and parameters, secrets masked; read only |
 | `server/app/captcha.py` | proof-of-work captcha (no third party) in front of `POST /api/auth/otp/start` |
 | `server/app/gdpr.py`, `reapply_erasures.py` | GDPR export (zip) and erasure; re-applying erasures after a backup restore |
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
 | `web/src/` | `pages/` app · `admin-app/` the standalone /admin app (own entry `web/admin.html`, spec in `specs/admin-app/`) · `features.tsx` FeatureGate · `mobile/` /m · `extension/` /extension · `office/` /office-addin · `bridge/` postMessage clients |
 | `extension/` | MV3 browser extension (side panel) |
-| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, ClickHouse, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `clickhouse.xml` (memory cap, 7-day TTL on ClickHouse' own logs), `postgres-init.sh`, `.env.example`, `app.env.example` |
+| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` |
 | `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod) |
 | `mobile/` | Expo app (iOS + Android): native login, then `/m` in a WebView — spec in `specs/mobile/` |
 | `server/app/mcp/` | MCP servers: `/mcp` (appen, as the user) and `/mcp/admin` (admin, drafts) — spec in `specs/mcp/` |
@@ -68,7 +68,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
 | `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
 | `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
-| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources with limits and prices (`/admin/resources`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
@@ -180,9 +180,10 @@ Rules for routes:
    third parties.
 5. **Migrations are new files**; never edit an applied one.
 6. **Background work goes through `app.jobs`** (never a loose `asyncio.create_task`), so it is retried, visible in
-   /admin/jobs and safe with several containers. Data that grows gets a row in `retention_policies` with its SQL in
-   `retention.CLEANUP_SQL`. A ClickHouse table always has `TTL … + INTERVAL 7 DAY DELETE` and holds ids and numbers,
-   never personal data (it is outside the GDPR export). New webhook events go in `webhooks.EVENTS` and carry ids, not personal data. What an incoming webhook may do is
+   /admin/jobs and safe with several containers. The only other long-running loops are `app.events` (NATS consumer and
+   rule check), started and stopped by the lifespan like the job workers. Things worth counting are `events.emit(…)`:
+   a kind like `area.what`, ref = an object id or route, never personal data (no user ids, e-mails, phones, IPs). Data that grows gets a row in `retention_policies` with its SQL in
+   `retention.CLEANUP_SQL`. New webhook events go in `webhooks.EVENTS` and carry ids, not personal data. What an incoming webhook may do is
    a handler in the code (`webhooks_in.HANDLERS`), never configuration.
 7. **No secrets in the repo.** Configuration comes from environment variables (`server/app/config.py`).
 8. Before you say you are done: `pytest server` and `npm run build --prefix web` pass.

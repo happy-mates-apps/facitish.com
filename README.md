@@ -139,7 +139,7 @@ Kræver Python 3.12+, Node 22 og Docker.
 cp .env.example .env
 python -m venv .venv && . .venv/bin/activate && pip install -r server/requirements-dev.txt
 npm ci --prefix web
-docker compose up -d                                   # Postgres + MinIO + NATS + ClickHouse
+docker compose up -d                                   # Postgres + MinIO + NATS
 (cd server && python -m app.migrate)
 (cd server && uvicorn app.main:app --reload --port 8000 --env-file ../.env) &
 npm run dev --prefix web                               # http://localhost:5173
@@ -196,7 +196,7 @@ Push til `main` → `.github/workflows/deploy.yml`:
    Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.
    `deploy.sh rollback` starter den forrige version.
 
-Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen, NATS, ClickHouse og `cloudflared`,
+Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen, NATS og `cloudflared`,
 som sender trafik ind via en Cloudflare Tunnel — serveren har ingen åbne web-porte.
 
 **NATS** (`nats:2.15.2-alpine`, konfiguration i `deploy/nats.conf`) kører med JetStream, og streams, key/value- og
@@ -207,17 +207,16 @@ JetStream (streams og consumers), abonnementer, cluster/gateways/leaf nodes, kon
 overvågningsport (`NATS_MONITOR_URL`, port 8222) gennem appen. Sæt `NATS_TOKEN` (`openssl rand -hex 24`) inden
 næste udrulning på en eksisterende server.
 
-**ClickHouse** (`clickhouse/clickhouse-server:25.8`, konfiguration i `deploy/clickhouse.xml`) gemmer kortlivede
-hændelser og analytics på volumet `clickhouse`. Alle tabeller i databasen `gaer` har TTL på 7 dage
-(`server/app/clickhouse_migrations/`, kørt af `python -m app.migrate`), og det samme gælder ClickHouse' egne logs.
-Der må ikke ligge persondata i ClickHouse — kun id'er og tal — så den er uden for GDPR-eksport og sletning. Appen
-logger ind som `gaer` med `CLICKHOUSE_PASSWORD` fra `~/gaer/.env` (påkrævet; `openssl rand -hex 24`), så den skal
-sættes inden næste udrulning på en eksisterende server. Hukommelsen er sat til højst 1,5 GiB i `clickhouse.xml`.
-
-**Ressourcer** (`/admin/resources`, rollen Drift) viser alt instansen bruger — container (CPU, hukommelse, disk),
-Postgres, ClickHouse (lager, hukommelse, retention, indtag), Object Storage, NATS, AI-tokens, e-mail, SMS og jobkøen —
-med forbrug, grænse og anslået pris pr. måned. Grænser appen ikke kan måle og priserne sættes på siden under
-"Priser og grænser" (gemmes i indstillingen `resources`, auditeret).
+**Ressourcer, hændelser og nødstop** (`/admin/resources`, rollen Drift). Siden viser alt instansen bruger — container
+(CPU, hukommelse, disk), Postgres, hændelser, Object Storage, NATS, AI-tokens, e-mail, SMS og jobkøen — med forbrug,
+grænse og anslået pris pr. måned; grænser appen ikke kan måle og priserne sættes under "Priser og grænser".
+Appen tæller hændelser med `events.emit(…)` (serverfejl, 429, forkerte koder, AI-tokens, fejlede jobs): de går
+gennem NATS-streamen `EVENTS` (gemt 7 dage, højst `EVENTS_STREAM_MAX_MB`), og en consumer gemmer dem i Postgres-tabellen
+`events` (7 dage, oprydningspolitikken "Hændelser"). Uden NATS skrives de direkte i Postgres. Ingen persondata.
+Under **Nødstop** lukkes hele tjenesten eller dele af den (AI, filer, MCP, indgående webhooks, analytics) inden for et
+par sekunder i alle containere; /admin, login og /health lukker aldrig. **Automatiske regler** lukker et område af sig
+selv ("mindst 50 × http.5xx på 1 minut → luk AI i 15 minutter"). Ændringer logges i audit-loggen og sendes som
+webhook-hændelsen `killswitch.changed`.
 
 GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
 til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).

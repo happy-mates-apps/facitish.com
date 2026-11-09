@@ -149,13 +149,10 @@ class Settings:
     nats_monitor_url: str | None = field(default_factory=lambda: _env("NATS_MONITOR_URL"))
     nats_monitor_timeout: float = field(default_factory=lambda: float(_env("NATS_MONITOR_TIMEOUT", "5")))
 
-    # ClickHouse (the "clickhouse" service in compose): short-lived events and analytics, 7 days TTL (app.clickhouse).
-    # CLICKHOUSE_URL is the HTTP interface (port 8123). Empty = no ClickHouse; /admin/resources says so.
-    clickhouse_url: str | None = field(default_factory=lambda: _env("CLICKHOUSE_URL"))
-    clickhouse_user: str = field(default_factory=lambda: _env("CLICKHOUSE_USER", "default"))
-    clickhouse_password: str | None = field(default_factory=lambda: _env("CLICKHOUSE_PASSWORD"))
-    clickhouse_database: str = field(default_factory=lambda: _env("CLICKHOUSE_DATABASE", "gaer"))
-    clickhouse_timeout: float = field(default_factory=lambda: float(_env("CLICKHOUSE_TIMEOUT", "5")))
+    # Events (app.events): with NATS_URL they go through the JetStream stream EVENTS (kept 7 days, at most
+    # EVENTS_STREAM_MAX_MB) and a consumer stores them in Postgres; without NATS they are written to Postgres directly.
+    events_stream_max_mb: int = field(default_factory=lambda: _int("EVENTS_STREAM_MAX_MB", 1024))
+    events_rules_seconds: float = field(default_factory=lambda: float(_env("EVENTS_RULES_SECONDS", "5")))
 
     @property
     def is_production(self) -> bool:

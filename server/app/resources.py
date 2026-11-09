@@ -1,14 +1,14 @@
 """/admin/resources: every resource the instance uses, with how much is used, the limit and an estimated price.
 
 Measured live on each request; nothing is stored except the admin's own limits and prices (setting "resources").
-Each source is measured on its own, so one that fails (NATS down, ClickHouse not set up) shows as an error row
+Each source is measured on its own, so one that fails (NATS down, a monitoring port not set up) shows as an error row
 and the rest of the page still works.
 
 - Server and container: cgroup v2 (/sys/fs/cgroup: cpu.max, cpu.stat, memory.max, memory.current), else the load
   average and /proc/meminfo; disk from the container's root filesystem.
 - Postgres: pg_database_size, pg_stat_activity, max_connections.
-- ClickHouse: system.parts, system.disks, system.metrics, system.server_settings; TTL of every table; rows older
-  than clickhouse.TTL_DAYS.
+- Events (app.events): the JetStream stream EVENTS (jsz), the events table in Postgres, events the last 24 hours and
+  whether cleanup keeps them to the retention policy (7 days).
 - Object Storage: the sizes the app recorded (files, knowledge_documents) — the bucket itself is not listed.
 - NATS: varz from the monitoring port (app.nats_monitor).
 - AI: ai_usage this calendar month. E-mail and SMS: one-time codes sent this month (auth_log otp.sent).
@@ -26,7 +26,7 @@ import shutil
 import time
 from datetime import datetime, timezone
 
-from app import ai, clickhouse, config, db, nats_monitor, settings_store
+from app import ai, config, db, events, nats_monitor, settings_store
 
 CGROUP = pathlib.Path("/sys/fs/cgroup")
 PROC_MEMINFO = pathlib.Path("/proc/meminfo")
@@ -43,10 +43,10 @@ RESOURCES: dict[str, tuple[str, str, str | None]] = {
     "disk": ("server", "bytes", "gb"),
     "pg_storage": ("database", "bytes", "gb"),
     "pg_connections": ("database", "count", None),
-    "ch_storage": ("clickhouse", "bytes", "gb"),
-    "ch_memory": ("clickhouse", "bytes", None),
-    "ch_retention": ("clickhouse", "seconds", None),
-    "ch_ingest": ("clickhouse", "count", None),
+    "ev_stream": ("events", "bytes", None),
+    "ev_table": ("events", "bytes", None),
+    "ev_ingest": ("events", "count", None),
+    "ev_retention": ("events", "seconds", None),
     "s3_storage": ("storage", "bytes", "gb"),
     "nats_storage": ("nats", "bytes", "gb"),
     "nats_memory": ("nats", "bytes", None),
@@ -60,7 +60,7 @@ RESOURCES: dict[str, tuple[str, str, str | None]] = {
 CATEGORIES: dict[str, str] = {
     "server": "Server og container",
     "database": "Database",
-    "clickhouse": "ClickHouse",
+    "events": "Hændelser",
     "storage": "Object Storage",
     "nats": "NATS",
     "ai": "AI",
@@ -112,6 +112,8 @@ def _status(row: dict) -> None:
         return
     used, max_ = row["used"], row["max"]
     row["pct"] = round(used / max_ * 100, 1) if used is not None and max_ else None
+    if row["status"] == "info":
+        row["pct"] = None  # e.g. retention: the age of the oldest event is not a share of anything to fill up
     if row["status"]:
         return
     if row["pct"] is None:
@@ -227,54 +229,46 @@ async def measure_nats() -> list[dict]:
     return rows
 
 
-async def measure_clickhouse() -> list[dict]:
-    if not clickhouse.configured():
-        return [item("ch_storage", "Ikke sat op", "CLICKHOUSE_URL mangler", None,
-                     status="none", status_label="Ikke sat op")]
-    parts, disks, memory, settings, tables = await asyncio.gather(
-        clickhouse.query("SELECT sum(bytes_on_disk) AS bytes, sum(rows) AS rows FROM system.parts WHERE active"),
-        clickhouse.query("SELECT total_space FROM system.disks WHERE name = 'default'"),
-        clickhouse.query("SELECT value FROM system.metrics WHERE metric = 'MemoryTracking'"),
-        clickhouse.query("""SELECT name, value FROM system.server_settings
-                            WHERE name IN ('max_server_memory_usage', 'max_server_memory_usage_to_ram_ratio')"""),
-        clickhouse.query("""SELECT name, position(create_table_query, ' TTL ') > 0 AS has_ttl FROM system.tables
-                            WHERE database = currentDatabase() AND engine LIKE '%MergeTree' AND name != {skip:String}""",
-                         {"skip": clickhouse.MIGRATIONS_TABLE}),
-    )
+async def measure_events() -> list[dict]:
     rows = []
-    stored = int((parts[0] if parts else {}).get("bytes") or 0)
-    rows.append(item("ch_storage", "Lagring", "system.parts · bytes_on_disk", stored,
-                     int(disks[0]["total_space"]) if disks else None))
-
-    values = {r["name"]: r["value"] for r in settings}
-    limit = int(float(values.get("max_server_memory_usage") or 0))
-    if not limit:
-        total = await clickhouse.query("SELECT value FROM system.asynchronous_metrics WHERE metric = 'OSMemoryTotal'")
-        ratio = float(values.get("max_server_memory_usage_to_ram_ratio") or 0.9)
-        limit = int(float(total[0]["value"]) * ratio) if total else 0
-    rows.append(item("ch_memory", "Hukommelse", "MemoryTracking · max_server_memory_usage",
-                     int(float(memory[0]["value"])) if memory else 0, limit or None))
-
-    # Retention: every table must have a TTL, and nothing may be older than TTL_DAYS (plus a day for merges).
-    missing = [t["name"] for t in tables if not t["has_ttl"]]
-    oldest = None
-    if any(t["name"] == "events" for t in tables):
-        res = await clickhouse.query("SELECT toUnixTimestamp(min(ts)) AS oldest, count() AS n FROM events")
-        if res and int(res[0]["n"]):
-            oldest = max(0, int(time.time()) - int(res[0]["oldest"]))
-    ttl = clickhouse.TTL_DAYS * 86400
-    if missing:
-        status, label, note = "crit", "Mangler TTL", "Uden TTL: " + ", ".join(missing)
-    elif oldest is not None and oldest > ttl + 86400:
-        status, label, note = "crit", "Sletning halter", "Ældste række er ældre end TTL"
+    if events.bus() == "nats" or nats_monitor.configured():
+        try:
+            _, jsz = await nats_monitor.fetch("jsz", {"accounts": "true", "streams": "true", "config": "true"})
+            stream = next((sd for acc in jsz.get("account_details") or [] for sd in acc.get("stream_detail") or []
+                           if sd.get("name") == events.STREAM), None)
+            if stream:
+                state, cfg = stream.get("state") or {}, stream.get("config") or {}
+                msgs = f"{state.get('messages', 0):,}".replace(",", ".")
+                rows.append(item("ev_stream", "Event-stream", f"NATS JetStream · {events.STREAM} · {msgs} beskeder",
+                                 state.get("bytes", 0), (cfg.get("max_bytes") or 0) if (cfg.get("max_bytes") or 0) > 0 else None))
+            else:
+                rows.append(item("ev_stream", "Event-stream", f"NATS JetStream · {events.STREAM} findes ikke endnu", None,
+                                 status="warn", status_label="Ikke oprettet"))
+        except nats_monitor.MonitorError as e:
+            rows.append(item("ev_stream", "Event-stream", e.message, None, status="error", status_label="Fejl"))
     else:
-        status, label, note = "info", "TTL aktiv", None
-    rows.append(item("ch_retention", "Retention", f"TTL på {len(tables)} tabel(ler) · ældste række",
-                     oldest, ttl, note=note, status=status, status_label=label))
+        rows.append(item("ev_stream", "Event-stream", "NATS er ikke sat op: hændelser skrives direkte i Postgres", None,
+                         status="none", status_label="Uden NATS"))
 
-    if any(t["name"] == "events" for t in tables):
-        res = await clickhouse.query("SELECT count() AS n FROM events WHERE ts > now() - INTERVAL 1 DAY")
-        rows.append(item("ch_ingest", "Indtag", "events · seneste døgn", int(res[0]["n"]) if res else 0))
+    async with db.connection() as conn:
+        row = await db.fetch_one(conn, """
+            select pg_total_relation_size('events') as size,
+                   (select count(*) from events where ts > now() - interval '1 day') as day,
+                   (select extract(epoch from now() - min(ts))::bigint from events) as oldest,
+                   (select days from retention_policies where key = 'events') as days,
+                   (select enabled from retention_policies where key = 'events') as enabled""")
+    rows.append(item("ev_table", "Event-tabel", "Postgres · pg_total_relation_size(events)", row["size"]))
+    rows.append(item("ev_ingest", "Indtag", "hændelser · seneste døgn", row["day"]))
+    days = row["days"] or events.TTL_DAYS
+    keep = days * 86400
+    if not row["enabled"]:
+        status, label, note = "warn", "Oprydning slået fra", "Slå politikken »Hændelser« til under Jobs og oprydning"
+    elif row["oldest"] is not None and row["oldest"] > keep + 2 * 86400:
+        status, label, note = "crit", "Oprydning halter", "Ældste hændelse er ældre end politikken"
+    else:
+        status, label, note = "info", "Oprydning aktiv", None
+    rows.append(item("ev_retention", "Retention", "retention_policies · events · ældste hændelse", row["oldest"], keep,
+                     note=note, status=status, status_label=label))
     return rows
 
 
@@ -306,7 +300,7 @@ async def measure_usage() -> list[dict]:
 MEASURES = {
     "server": measure_server,
     "database": measure_postgres,
-    "clickhouse": measure_clickhouse,
+    "events": measure_events,
     "storage": measure_storage,
     "nats": measure_nats,
     "usage": measure_usage,
@@ -348,5 +342,6 @@ async def overview() -> dict:
         "total_cost": round(sum(costs), 2) if costs else None,
         "count": sum(1 for r in rows if r["status"] != "error"),
         "near_limit": sum(1 for r in rows if r["status"] in ("warn", "crit")),
-        "clickhouse": {"configured": clickhouse.configured(), "ttl_days": clickhouse.TTL_DAYS},
+        "events": {"bus": events.bus(), "nats_configured": bool(config.settings.nats_url), "stream": events.STREAM,
+                   "ttl_days": events.TTL_DAYS},
     }

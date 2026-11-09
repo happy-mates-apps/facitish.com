@@ -1,11 +1,13 @@
-// /admin/resources → Ressourcer. Everything the instance uses — server, Postgres, ClickHouse, Object Storage, NATS,
+// /admin/resources → Ressourcer. Everything the instance uses — server, Postgres, events, Object Storage, NATS,
 // AI, e-mail/SMS and the job queue — with use, limit and an estimated monthly price (/api/admin/resources).
 // Limits the app cannot measure and the prices are set in "Priser og grænser" (PUT /api/admin/resources/config).
+// Below the table: kill switches, automatic rules and events by kind (./ResourcesControl).
 import { useMemo, useState, type CSSProperties } from "react";
 import { AlertTriangle, Download, Gauge, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { api, errorText } from "../../api";
 import { card, fmt, input, label as labelStyle } from "../theme";
 import { Btn, CloseBtn, Drawer, ErrorBox, fmtBytes, PageTitle, useLoad, useToast } from "../ui";
+import ResourcesControl from "./ResourcesControl";
 
 type Unit = "bytes" | "vcpu" | "count" | "tokens" | "seconds";
 type PriceUnit = "gb" | "mtokens" | "piece" | null;
@@ -19,7 +21,7 @@ type Item = {
 type Category = { key: string; label: string; items: Item[]; cost: number | null };
 type Overview = {
   measured_at: string; currency: string; categories: Category[]; total_cost: number | null; count: number; near_limit: number;
-  clickhouse: { configured: boolean; ttl_days: number };
+  events: { bus: "nats" | "postgres"; nats_configured: boolean; stream: string; ttl_days: number };
 };
 
 type Filter = "alle" | "graense" | "pris" | "naer";
@@ -41,7 +43,7 @@ function duration(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (d) return `${d} d ${h} t`;
+  if (d) return h ? `${d} d ${h} t` : `${d} ${d === 1 ? "dag" : "dage"}`;
   if (h) return `${h} t ${m} min`;
   return `${m} min`;
 }
@@ -104,7 +106,7 @@ export default function Resources() {
         <Btn icon={SlidersHorizontal} kind="primary" onClick={() => setEditing(true)} disabled={!o} deeplink="resources-config">Priser og grænser</Btn>
       </div>
     }>
-      Alt instansen bruger: server, database, ClickHouse, Object Storage, NATS og eksterne tjenester. Forbrug, grænse og anslået
+      Alt instansen bruger: server, database, hændelser, Object Storage, NATS og eksterne tjenester. Forbrug, grænse og anslået
       pris pr. måned. Priserne beregnes ud fra de enhedspriser, du sætter under "Priser og grænser".
     </PageTitle>
   );
@@ -184,7 +186,8 @@ export default function Resources() {
               <div key={c.key}>
                 <div style={{ padding: "14px 20px 6px", display: "flex", alignItems: "baseline", gap: 10, background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</span>
-                  {c.key === "clickhouse" && o.clickhouse.configured && <span style={{ fontSize: 12, color: "#64748b" }}>Hændelser og analytics · TTL {o.clickhouse.ttl_days} dage</span>}
+                  {c.key === "events" && <span style={{ fontSize: 12, color: "#64748b" }}>
+                    {o.events.bus === "nats" ? `Via NATS (${o.events.stream})` : "Direkte i Postgres"} · gemmes {o.events.ttl_days} dage</span>}
                   <span style={{ flex: "1 1 auto" }} />
                   <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{c.cost !== null ? money(c.cost, o.currency) : ""}</span>
                 </div>
@@ -198,9 +201,11 @@ export default function Resources() {
         </div>
       </div>
 
+      <ResourcesControl tick={tick} />
+
       <p style={{ margin: 0, fontSize: 12, color: "#64748b", maxWidth: 860 }}>
-        Server og container måles i app-containeren (cgroup), Postgres med pg_database_size og max_connections, ClickHouse fra
-        system.parts og system.metrics — data ældre end {o.clickhouse.ttl_days} dage slettes af tabellernes TTL. Object Storage tælles
+        Server og container måles i app-containeren (cgroup), Postgres med pg_database_size og max_connections, hændelser fra
+        NATS-streamen og events-tabellen — hændelser ældre end {o.events.ttl_days} dage slettes af oprydningen. Object Storage tælles
         fra de filer appen har gemt, NATS fra overvågningsporten, AI fra ai_usage og e-mail/SMS fra login-koderne i auth-loggen.
         Månedstal gælder fra den 1. i måneden.
       </p>
@@ -259,7 +264,7 @@ const parse = (v: string): number | null => {
 
 function ConfigDrawer({ items, currency, onClose, onSaved }: { items: Item[]; currency: string; onClose: () => void; onSaved: () => void }) {
   const say = useToast();
-  const editable = items.filter((i) => i.status !== "error" && !(i.category === "clickhouse" && i.status_label === "Ikke sat op"));
+  const editable = items.filter((i) => i.status !== "error");
   const [draft, setDraft] = useState<Draft>(() => Object.fromEntries(editable.map((i) => [i.key, {
     max: str(i.config?.max), monthly: str(i.config?.monthly), unit_price: str(i.config?.unit_price),
   }])));

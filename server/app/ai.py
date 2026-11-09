@@ -150,6 +150,8 @@ async def record_usage(user_id: int, surface: str, prompt: int, completion: int,
             insert into ai_usage (user_id, surface, model, prompt_tokens, completion_tokens, estimated)
             values (%s, %s, %s, %s, %s, %s)""",
             (user_id, surface, config.settings.ai_model, prompt, completion, estimated))
+    from app import events
+    await events.emit("ai.tokens", ref=surface, value=prompt + completion)
 
 
 # ── Streaming ──────────────────────────────────────────────────────────────

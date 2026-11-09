@@ -5,8 +5,7 @@
 
 Each file runs in its own transaction. An advisory lock stops two deploys migrating at once.
 After the run, gaer_apply_grants() re-applies privileges for the app and purge users,
-so new tables are covered automatically. Then ClickHouse's schema (app/clickhouse_migrations/) is applied when
-CLICKHOUSE_URL is set (app.clickhouse.migrate).
+so new tables are covered automatically.
 """
 
 import pathlib
@@ -14,7 +13,7 @@ import sys
 
 import psycopg
 
-from app import clickhouse, config
+from app import config
 
 MIGRATIONS_DIR = pathlib.Path(__file__).parent / "migrations"
 LOCK_ID = 7_301_947  # arbitrary, constant
@@ -65,4 +64,3 @@ if __name__ == "__main__":
         status()
     else:
         migrate()
-        clickhouse.migrate()

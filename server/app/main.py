@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import captcha, config, db, jobs, mail, retention, webhooks
+from app import captcha, config, db, events, jobs, killswitch, mail, retention, webhooks
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
@@ -48,6 +49,16 @@ def csp_for(path: str) -> str:
             f"frame-ancestors {ancestors}; base-uri 'self'; form-action 'self'; object-src 'none'")
 
 
+_ID_SEGMENT = re.compile(r"/(\d+|[0-9a-fA-F-]{32,36})(?=/|$)")
+
+
+def _route(request: Request) -> str:
+    """The route template (/api/files/{file_id}) for an event, never the raw path with ids in it."""
+    route = request.scope.get("route")
+    template = getattr(route, "path", None)
+    return (template or _ID_SEGMENT.sub("/{id}", request.url.path))[:200]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log = logging.getLogger("gaer")
@@ -63,8 +74,10 @@ async def lifespan(app: FastAPI):
         log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
     await db.open_pools()
     workers = jobs.start() if retention.enabled() else None
+    event_loops = events.start(maintenance=retention.enabled())
     async with mcp_sessions(app):
         yield
+    await events.stop_all(*event_loops)
     if workers:
         await jobs.stop_all(*workers)
     await db.close_pools()
@@ -90,7 +103,19 @@ def create_app() -> FastAPI:
                 and path not in CSRF_EXEMPT and not path.startswith(CSRF_EXEMPT_PREFIXES)
                 and request.headers.get(CSRF_HEADER) != "1"):
             return JSONResponse({"detail": "Mangler X-Gaer header"}, status_code=403)
-        response = await call_next(request)
+        # Kill switches (app.killswitch): a closed part of the service answers 503; /admin and login never close.
+        if killswitch.may_block(path) and (closed := await killswitch.blocked(request.method, path)):
+            await events.emit("http.blocked", ref=closed["key"])
+            return JSONResponse({"detail": f"{closed['label']} er midlertidigt lukket. Prøv igen senere.",
+                                 "code": "kill_switch", "switch": closed["key"]},
+                                status_code=503, headers={"Retry-After": "60", "Cache-Control": "no-store"})
+        try:
+            response = await call_next(request)
+        except Exception:
+            await events.emit("http.5xx", ref=_route(request))
+            raise
+        if response.status_code >= 500 or response.status_code == 429:
+            await events.emit("http.5xx" if response.status_code >= 500 else "http.429", ref=_route(request))
         response.headers.setdefault("Content-Security-Policy", csp_for(path))
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")

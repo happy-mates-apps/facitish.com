@@ -29,7 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSele
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import admin_roles, captcha, config, db, mfa, settings_store, totp, webhooks
+from app import admin_roles, captcha, config, db, events, mfa, settings_store, totp, webhooks
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
@@ -166,6 +166,7 @@ async def issue_code(conn, channel: str, contact: str, meta: RequestMeta, *, pur
         raise HTTPException(502, "Vi kunne ikke sende mailen. Prøv igen." if channel == "email"
                             else "Vi kunne ikke sende SMS'en. Prøv igen.")
     await auth_event(conn, "otp.sent", ok=True, meta=meta, contact=contact, user_id=user_id, **detail)
+    await events.emit("auth.otp_sent", ref=channel)
     return code
 
 
@@ -192,6 +193,7 @@ async def consume_code(conn, contact: str, code: str, meta: RequestMeta, *, purp
         await auth_event(conn, "otp.failed", ok=False, meta=meta, contact=contact, user_id=user_id,
                          reason="no_active_code" if otp is None else "wrong_code", **detail)
         await conn.commit()
+        await events.emit("auth.otp_failed")
         raise HTTPException(400, "Koden er forkert eller udløbet")
     await conn.execute("update otp_codes set consumed_at = now() where id = %s", (otp["id"],))
 
