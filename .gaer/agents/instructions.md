@@ -28,7 +28,7 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | Path | What |
 | --- | --- |
 | `server/app/main.py` | app, CSRF + security headers, CSP per path, SPA fallback, `/health` |
-| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `app_store` App Stores · `office` manifests · `web` /w website + extension zip |
+| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `app_store` App Stores · `data` /api/admin/data catalog, Udforsk, API sources · `office` manifests · `web` /w website + extension zip |
 | `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `require_admin_stepup` / `any_session` |
 | `server/app/mfa.py`, `totp.py` | second-factor rules (who needs what, changing factors), authenticator apps (TOTP) |
 | `server/app/db.py` | connection pools: `db.connection()`, `db.purge_connection()`, `fetch_one`, `fetch_all` |
@@ -58,7 +58,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
 | `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
 | `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
-| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
@@ -67,7 +67,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (51)</summary>
+<details><summary>All routes (55)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -99,6 +99,10 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/ai` | admin app (`admin.html`) | admin | AI |
 | `/admin/integrations` | admin app (`admin.html`) | admin | Udvidelse og Office |
 | `/admin/mcp` | admin app (`admin.html`) | admin | MCP-servere |
+| `/admin/data` | admin app (`admin.html`) | admin | Katalog |
+| `/admin/data/explore` | admin app (`admin.html`) | admin | Udforsk |
+| `/admin/data/connect` | admin app (`admin.html`) | admin | Forbind API |
+| `/admin/data/:id` | admin app (`admin.html`) | admin | Datasæt |
 | `/admin/gdpr` | admin app (`admin.html`) | admin | GDPR-forespørgsler |
 | `/admin/retention` | admin app (`admin.html`) | admin | Sletning af logdata |
 | `/admin/consent` | admin app (`admin.html`) | admin | Samtykke og cookies |
@@ -148,7 +152,9 @@ Rules for routes:
    logins or the step-up for admin security actions.
 2. **Every data change is audited** in the same transaction (skill `gaer-audit`). Logs are append-only; only the
    purge database user deletes, and the deletion is logged.
-3. **Admin = admin role.** Everything under `/api/admin` is guarded and audited.
+3. **Admin = admin role** plus one or more **admin roles** (Fuld adgang, Support, Indhold, Produkt, Data, Privatliv,
+   Drift) that decide which parts of /admin an admin may use (`server/app/admin_roles.py`, skill `gaer-auth`).
+   Everything under `/api/admin` is guarded and audited; a new /admin section must be added to `admin_roles.SECTIONS`.
 4. **Personal data** goes into the GDPR export and is removed on erasure — both live in `server/app/gdpr.py`,
    used by `/admin/gdpr` and by users themselves (`/api/me/export`, `/api/me/delete`). A new table with personal
    data is not done until it is in both. Analytics only identify a visitor after consent. Nothing is sent to

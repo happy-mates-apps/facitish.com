@@ -39,6 +39,22 @@
       "title": "Samtykke og cookies",
       "anchors": []
     },
+    "/admin/data": {
+      "title": "Katalog",
+      "anchors": []
+    },
+    "/admin/data/:id": {
+      "title": "Datasæt",
+      "anchors": []
+    },
+    "/admin/data/connect": {
+      "title": "Forbind API",
+      "anchors": []
+    },
+    "/admin/data/explore": {
+      "title": "Udforsk",
+      "anchors": []
+    },
     "/admin/features": {
       "title": "Features og ringe",
       "anchors": [
@@ -108,6 +124,7 @@
     "/admin/users": {
       "title": "Brugere og roller",
       "anchors": [
+        "user-admin-roles",
         "user-block",
         "user-drawer",
         "user-mfa",

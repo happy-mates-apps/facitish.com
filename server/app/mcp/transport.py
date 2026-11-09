@@ -97,10 +97,11 @@ class McpEndpoint:
                                headers={"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'})(scope, receive, send)
             return
         needed = oauth.scope_for(self.server)
-        if grant.scope != needed or (self.server == "admin" and grant.role != "admin"):
+        # /mcp/admin's tools span every part of /admin, so it needs the admin role 'fuld' (app/admin_roles.py).
+        if grant.scope != needed or (self.server == "admin" and (grant.role != "admin" or "fuld" not in grant.admin_roles)):
             await log_call(server=self.server, user_id=grant.user_id, client_id=grant.client_id, method=request.method,
                            tool=None, args=None, ms=0, status="forbidden", ip=client_ip(request))
-            await JSONResponse({"error": "insufficient_scope", "error_description": "Kræver admin-rollen"
+            await JSONResponse({"error": "insufficient_scope", "error_description": "Kræver admin-rollen med fuld adgang"
                                 if self.server == "admin" else "Forkert scope"}, status_code=403,
                                headers={"WWW-Authenticate": f'Bearer error="insufficient_scope", scope="{needed}"'})(
                 scope, receive, send)
@@ -109,7 +110,7 @@ class McpEndpoint:
                               role=grant.role,
                               scope="full", display_name=grant.display_name,
                               meta=RequestMeta(ip=client_ip(request), user_agent=user_agent(request)),
-                              super_admin=grant.super_admin)
+                              super_admin=grant.super_admin, admin_roles=grant.admin_roles)
         scope["gaer_mcp_caller"] = Caller(server=self.server, principal=principal, client_id=grant.client_id)
         # The SDK binds each MCP session to the credential that opened it.
         scope["user"] = AuthenticatedUser(AccessToken(token="-", client_id=grant.client_id, scopes=[grant.scope],

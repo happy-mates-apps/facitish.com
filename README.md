@@ -45,7 +45,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (51)</summary>
+<details><summary>Alle ruter (55)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -77,6 +77,10 @@ herfra ind i sin fork.
 | `/admin/ai` | admin-appen | admin | AI |
 | `/admin/integrations` | admin-appen | admin | Udvidelse og Office |
 | `/admin/mcp` | admin-appen | admin | MCP-servere |
+| `/admin/data` | admin-appen | admin | Katalog |
+| `/admin/data/explore` | admin-appen | admin | Udforsk |
+| `/admin/data/connect` | admin-appen | admin | Forbind API |
+| `/admin/data/:id` | admin-appen | admin | Datasæt |
 | `/admin/gdpr` | admin-appen | admin | GDPR-forespørgsler |
 | `/admin/retention` | admin-appen | admin | Sletning af logdata |
 | `/admin/consent` | admin-appen | admin | Samtykke og cookies |

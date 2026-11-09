@@ -9,6 +9,9 @@ export type User = {
   display_name: string | null;
   role: "user" | "admin";
   super_admin: boolean;
+  /** Admins: roles (server/app/admin_roles.py) and the /admin sections they open, e.g. ["/", "/users"]. */
+  admin_roles: string[];
+  admin_sections: string[];
   locale: "da" | "en" | null;
   avatar_url: string | null;
   /** Passkeys and security keys. */

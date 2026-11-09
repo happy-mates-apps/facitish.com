@@ -96,7 +96,7 @@
     "da": "admin (+ MFA)"
    },
    "what": {
-    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), settings. Every read and change is audited.",
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
     "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
    },
    "code": [
@@ -422,6 +422,34 @@
    "app": "admin",
    "access": "admin",
    "title": "MCP-servere"
+  },
+  {
+   "path": "/admin/data",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Katalog"
+  },
+  {
+   "path": "/admin/data/explore",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Udforsk"
+  },
+  {
+   "path": "/admin/data/connect",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Forbind API"
+  },
+  {
+   "path": "/admin/data/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Datasæt"
   },
   {
    "path": "/admin/gdpr",

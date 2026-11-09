@@ -76,7 +76,7 @@ type: rest                       # rest | graphql | openapi | mcp | postgres
 base_url: https://api.dataforsyningen.dk
 auth:
   type: ingen                    # ingen | bearer | header | oauth2
-  # hemmelighed: DAWA_TOKEN      # navnet på en miljøvariabel, aldrig selve nøglen
+  # hemmelighed: DATA_SECRET_DAWA  # navnet på en miljøvariabel, aldrig selve nøglen
 grænser: { kald_pr_minut: 60, timeout_s: 10, cache_min: 60 }
 
 datasæt:
@@ -105,7 +105,8 @@ datasæt:
 - **Kald går fra serveren.** Browseren kalder aldrig et eksternt API. Værter i en kildebeskrivelse kommer på
   en tilladt-liste, når beskrivelsen gemmes; kald har timeout, grænse pr. minut og cache.
 - **Ingen hemmeligheder i beskrivelsen.** `auth.hemmelighed` er navnet på en miljøvariabel, læst via
-  `server/app/config.py`. Gemmes en beskrivelse med noget, der ligner en nøgle, afvises den.
+  `config.data_secret()` i `server/app/config.py`. Kun navne, der starter med `DATA_SECRET_`, kan læses, så en beskrivelse
+  aldrig kan sende fx `DATABASE_URL` til et API. Gemmes en beskrivelse med noget, der ligner en nøgle, afvises den.
 - **Klassifikation** Hvid/Grøn/Gul/Rød pr. felt og datasæt (som i datakataloget). Gule og røde felter vises
   maskeret. Afmaskering kræver en årsag, gælder i 15 minutter og skrives i audit-loggen. Tabeller, der ikke er
   i kataloget, kan udforskes, men gule og røde kolonner skjules, til de er katalogiseret.
@@ -115,6 +116,30 @@ datasæt:
   Kataloget ændrer ikke, hvad der er persondata.
 - **Migrationer** er nye filer. Forslag til tabeller: `data_sources`, `datasets`, `dataset_fields`,
   `dataset_versions`, `dataset_views`, `dataset_feedback`, `data_unmask_grants`.
+
+## Status — bygget (v1)
+Kode: `server/app/routes/data.py`, `server/app/data_sources.py`, migration `0012_data_catalog.sql`,
+`web/src/admin-app/pages/data/`, tests i `server/tests/test_data.py`.
+
+Bygget:
+- Menugruppen **Data**: Katalog (`/admin/data`), Udforsk (`/admin/data/explore`), Forbind API (`/admin/data/connect`;
+  `?source=<id>` redigerer en kilde). Datasæt: `/admin/data/:id` med fanerne Beskrivelse, Felter, Udforsk og MCP.
+- Tabeller fra egen database tilføjes fra Udforsk. Alle felter starter **gule** (maskeret), og kolonner, der ligner
+  hemmeligheder (`SECRET_COLUMN` fra `mcp/db_tools.py`), kommer aldrig med. Tabellerne `otp_codes`, `webauthn_challenges`,
+  `sessions`, `mcp_tokens`, `mcp_clients`, `totp_factors`, `auth_log`, `settings` og katalogets egne kan ikke tilføjes.
+- Udforsk læser tabeller i en READ ONLY-transaktion med 5 s timeout; filtre er parametre og felter skal findes i kataloget.
+  Maskerede felter kan ikke filtreres eller sorteres. Afmaskering = en `data.unmask`-linje i audit-loggen med årsag; den
+  giver adgang i 15 minutter for den admin, der skrev den.
+- API-kilder af typen `rest`: https, tilladte værter, ingen interne adresser (DNS-opslag tjekkes), ingen redirects,
+  5 MB, timeout, kald pr. minut og cache i hukommelsen. Filtre "er lig med" på en parameter sendes til API'et, resten
+  filtreres i Gær.
+
+Ikke bygget endnu:
+- Fanerne Versioner, Adgang og Feedback; `dataset_views` og `dataset_feedback`.
+- Tabeller uden for kataloget kan ikke udforskes direkte — de skal tilføjes først (og er så maskeret).
+- Typerne openapi, graphql, mcp og postgres (ekstern); "Hent fra OpenAPI-URL" og "Lad AI foreslå felter".
+- MCP-markeringen gemmes, men endpointet `/mcp/data` findes ikke endnu (`specs/mcp/APP.md`).
+- Sidemenuens søgefelt, sticky overskrifter, serverfelt (`/api/admin/system`) og sammenklapning.
 
 ## Åbne spørgsmål
 - Skal kildebeskrivelser ligge i databasen (redigeres i admin) eller som filer i repoet (`kilder/*.yaml`) eller begge?
