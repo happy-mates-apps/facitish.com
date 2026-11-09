@@ -18,7 +18,7 @@ type Usage = {
   upcoming: { monthly_tokens: number; warn_pcts: number[]; hard: boolean; total_tokens: number | null; starts_on: string; ends_on: string | null }[];
 };
 
-const SURFACE: Record<string, string> = { app: "Web-appen", extension: "Browserudvidelsen", word: "Word", outlook: "Outlook", document: "Excel og PowerPoint", mobile: "Mobil" };
+const SURFACE: Record<string, string> = { app: "Web-appen", extension: "Browserudvidelsen", word: "Word", outlook: "Outlook", document: "Excel og PowerPoint", mobile: "Mobil", knowledge: "Viden" };
 const n = (v: unknown) => Number(v ?? 0);
 const day = (iso: string) => new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
 const monthName = (iso: string) => {

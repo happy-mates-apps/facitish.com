@@ -1,6 +1,6 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, BookOpen, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, LogIn, MousePointerClick, PlugZap, Puzzle, ScrollText,
+  Archive, BookOpen, KeySquare, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText,
   Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +32,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: "/web", label: "Website", icon: Globe },
       { path: "/files", label: "Filer", icon: FolderOpen },
+      { path: "/knowledge", label: "Viden", icon: Library },
       { path: "/app-stores", label: "App Stores", icon: Smartphone },
     ],
   },
@@ -50,12 +51,14 @@ export const NAV: NavGroup[] = [
       { path: "/data", label: "Katalog", icon: BookOpen },
       { path: "/data/explore", label: "Udforsk", icon: Table2 },
       { path: "/data/connect", label: "Forbind API", icon: Plug },
+      { path: "/data/tools", label: "MCP-værktøjer", icon: Wrench },
     ],
   },
   {
     label: "Privatliv og compliance",
     items: [
       { path: "/gdpr", label: "GDPR-forespørgsler", icon: FileSearch },
+      { path: "/access", label: "Adgangsanmodninger", icon: KeySquare },
       { path: "/consent", label: "Samtykke og cookies", icon: Cookie },
       { path: "/retention", label: "Sletning af logdata", icon: Archive },
       { path: "/jobs", label: "Jobs og oprydning", icon: Timer },
@@ -68,6 +71,7 @@ export const NAV: NavGroup[] = [
       { path: "/mcp", label: "MCP-servere", icon: PlugZap, badge: "mcp" },
       { path: "/integrations", label: "Udvidelse og Office", icon: Puzzle },
       { path: "/webhooks", label: "Webhooks", icon: Webhook },
+      { path: "/nats", label: "NATS", icon: RadioTower },
       { path: "/settings", label: "Indstillinger", icon: Settings },
     ],
   },

@@ -48,7 +48,7 @@ type Tab = (typeof TABS)[number][0];
 const RANGES: [Range, string][] = [["day", "I dag"], ["week", "7 dage"], ["month", "30 dage"], ["year", "12 måneder"], ["custom", "Periode"]];
 const PREV: Record<Range, string> = { day: "i går", week: "forrige 7 dage", month: "forrige 30 dage", year: "forrige 12 måneder", custom: "forrige periode" };
 const COLORS = ["#2563eb", "#0d9488", "#f59e0b", "#7c3aed", "#e11d48", "#64748b"];
-const SURFACE: Record<string, string> = { app: "Web-appen", extension: "Udvidelsen", word: "Word", outlook: "Outlook", document: "Excel og PowerPoint", mobile: "Mobil" };
+const SURFACE: Record<string, string> = { app: "Web-appen", extension: "Udvidelsen", word: "Word", outlook: "Outlook", document: "Excel og PowerPoint", mobile: "Mobil", knowledge: "Viden" };
 const STATUS: Record<Status, [string, Tone]> = {
   ok: ["OK", "green"], warning: ["Advarsel", "orange"], over: ["Over loft · kun advarsel", "orange"], blocked: ["Over loft · blokeret", "red"], off: ["AI slået fra", "gray"],
 };

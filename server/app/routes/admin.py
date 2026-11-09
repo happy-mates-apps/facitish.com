@@ -40,7 +40,7 @@ async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, ad
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""
             select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.admin_roles, u.grace_logins_used, u.blocked_at,
-                   u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required,
+                   u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required, u.audience,
                    (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
                    (select count(*) from totp_factors t where t.user_id = u.id and t.confirmed_at is not null) as totp,

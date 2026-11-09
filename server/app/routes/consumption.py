@@ -30,6 +30,12 @@ async def _period(conn, range_: str, start: date | None, end: date | None) -> di
         raise HTTPException(400, str(e))
 
 
+def _cell(text: str | None) -> str:
+    """User-written text in a CSV cell: a leading =, +, - or @ would run as a formula in Excel."""
+    text = text or ""
+    return "'" + text if text and text[0] in "=+-@" else text
+
+
 # ── Overview ────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -66,7 +72,7 @@ async def export(range_: Range = Query("month", alias="range"), start: date | No
     writer.writerow(["dag", "bruger-id", "navn", "e-mail", "model", "overflade", "forespørgsler", "input-tokens",
                      "output-tokens", "anslået pris"])
     for r in rows:
-        writer.writerow([r["day"].isoformat(), r["user_id"], r["display_name"] or "", r["email"] or "", r["model"],
+        writer.writerow([r["day"].isoformat(), r["user_id"], _cell(r["display_name"]), _cell(r["email"]), r["model"],
                          r["surface"], r["requests"], r["prompt_tokens"], r["completion_tokens"],
                          f"{r['cost']:.4f}".replace(".", ",")])
     filename = f"ai-forbrug-{datetime.now():%Y%m%d-%H%M}.csv"

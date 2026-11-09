@@ -114,12 +114,23 @@ class Settings:
     ai_max_output_tokens: int = field(default_factory=lambda: _int("AI_MAX_OUTPUT_TOKENS", 1500))
     ai_max_context_chars: int = field(default_factory=lambda: _int("AI_MAX_CONTEXT_CHARS", 24000))
 
+    # Viden (specs/knowledge): embeddings for the vidensrum. Empty KNOWLEDGE_EMBED_MODEL (or no AI_API_KEY) = full-text
+    # search only. Answers are written by AI_MODEL; without AI the agent returns the best excerpts.
+    knowledge_embed_model: str = field(default_factory=lambda: _env("KNOWLEDGE_EMBED_MODEL", "bge-m3"))
+    knowledge_max_zip_files: int = field(default_factory=lambda: _int("KNOWLEDGE_MAX_ZIP_FILES", 1000))
+    knowledge_max_zip_mb: int = field(default_factory=lambda: _int("KNOWLEDGE_MAX_ZIP_MB", 200))
+
     # MCP servers (specs/mcp): /mcp for the app, /mcp/admin for admin. 0 turns a server off (404).
     mcp_app_enabled: bool = field(default_factory=lambda: _env("MCP_APP_ENABLED", "1") == "1")
     mcp_admin_enabled: bool = field(default_factory=lambda: _env("MCP_ADMIN_ENABLED", "1") == "1")
     mcp_draft_ttl_min: int = field(default_factory=lambda: _int("MCP_DRAFT_TTL_MIN", 10))
     mcp_access_token_minutes: int = field(default_factory=lambda: _int("MCP_ACCESS_TOKEN_MINUTES", 60))
     mcp_refresh_token_days: int = field(default_factory=lambda: _int("MCP_REFRESH_TOKEN_DAYS", 30))
+    # Access requests from MCP clients (app/access.py): e-mail links live this long; new users with an e-mail on one
+    # of these domains (comma separated, e.g. "firma.dk,firma.com") start as internal instead of external.
+    mcp_access_link_hours: int = field(default_factory=lambda: _int("MCP_ACCESS_LINK_HOURS", 72))
+    internal_email_domains: tuple[str, ...] = field(default_factory=lambda: tuple(
+        d.strip().lower().lstrip("@") for d in (_env("INTERNAL_EMAIL_DOMAINS", "") or "").split(",") if d.strip()))
     # The read-only <db>_mcp_ro user for db_query. Without it the tool answers "ikke tilgængelig".
     mcp_db_query_url: str | None = field(default_factory=lambda: _env("MCP_DB_QUERY_URL"))
 
@@ -136,6 +147,12 @@ class Settings:
     # WEBHOOK_ALLOW_PRIVATE=1 allows http and private/loopback addresses (development only).
     secret_box_keys: str | None = field(default_factory=lambda: _env("SECRET_BOX_KEYS"))
     webhook_allow_private: bool = field(default_factory=lambda: _env("WEBHOOK_ALLOW_PRIVATE", "0") == "1")
+
+    # NATS (the "nats" service in compose). NATS_URL is for clients in the app; NATS_MONITOR_URL is the server's
+    # HTTP monitoring port, read by /admin/nats. Without NATS_MONITOR_URL the page says NATS is not set up.
+    nats_url: str | None = field(default_factory=lambda: _env("NATS_URL"))
+    nats_monitor_url: str | None = field(default_factory=lambda: _env("NATS_MONITOR_URL"))
+    nats_monitor_timeout: float = field(default_factory=lambda: float(_env("NATS_MONITOR_TIMEOUT", "5")))
 
     @property
     def is_production(self) -> bool:

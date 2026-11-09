@@ -22,7 +22,7 @@ async def build_user_export(conn, user_id: int) -> dict:
         return await db.fetch_all(conn, sql, params)
 
     user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin, admin_roles,
-                                              mfa_required, grace_logins_used, blocked_at, created_at, updated_at,
+                                              mfa_required, grace_logins_used, blocked_at, audience, created_at, updated_at,
                                               last_login_at, avatar_file_id
                                        from users where id = %s""", (user_id,))
     if user is None:
@@ -48,6 +48,17 @@ async def build_user_export(conn, user_id: int) -> dict:
                                       where space = 'shared' and uploaded_by = %s order by created_at""", user_id),
         "clips": await rows("""select id, source, title, body, url, created_at, updated_at from clips
                                where user_id = %s order by created_at""", user_id),
+        "knowledge_agent_members": await rows("""select a.name as agent, a.slug, m.privilege, m.created_at
+                                                 from knowledge_agent_members m join knowledge_agents a on a.id = m.agent_id
+                                                 where m.user_id = %s order by a.name""", user_id),
+        "knowledge_conversations": await rows("""
+            select c.id, a.name as agent, c.title, c.created_at, c.updated_at,
+                   coalesce((select jsonb_agg(jsonb_build_object('role', m.role, 'text', m.text, 'citations', m.citations,
+                                                                 'agent_version', m.agent_version, 'created_at', m.created_at)
+                                              order by m.id)
+                             from knowledge_messages m where m.conversation_id = c.id), '[]'::jsonb) as messages
+            from knowledge_conversations c join knowledge_agents a on a.id = c.agent_id
+            where c.user_id = %s order by c.created_at""", user_id),
         "bridge_consents": await rows("select domain, created_at from bridge_consents where user_id = %s order by domain",
                                       user_id),
         "gdpr_requests": await rows("""select id, kind, status, message, received_at, completed_at from gdpr_requests
@@ -73,6 +84,11 @@ async def build_user_export(conn, user_id: int) -> dict:
                                          where r.user_id = %s group by r.id order by r.created_at""", user_id),
         "test_accounts": await rows("""select id, display_name, role, created_at from users
                                        where impersonation_only and impersonation_owner_id = %s""", user_id),
+        "mcp_access_requests": await rows("""select r.id, r.endpoint, r.client_name, r.target, r.tool_name, r.level,
+                                                    r.reason, r.status, r.user_decided_at, r.user_via,
+                                                    r.approver_decided_at, r.approver_via, r.note, r.expires_at,
+                                                    r.created_at from mcp_access_requests r
+                                             where r.user_id = %s order by r.created_at""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
                                   where user_id = %s order by ts""", user_id),
         "ai_budgets": await rows("""select monthly_tokens, warn_pcts, hard, total_tokens, starts_on, ends_on, note,
@@ -92,6 +108,7 @@ data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnø
             (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), filer du har lagt i /shared
             (kun oversigt), tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
+            MCP-adgangsanmodninger (hvad dine MCP-klienter har bedt om, og hvem der godkendte),
             review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
 
@@ -139,8 +156,11 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
-    """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, AI budgets and their alerts, one-time
-    codes, feature level, review sessions and notes and their test accounts cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage (their whole home, folders cascade; files they put in /shared stay, the link to them is set to null), the contact details on their GDPR requests, and
+    """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage,
+    AI budgets and their alerts, one-time codes, feature level, review sessions and notes and their test accounts, Viden
+    conversations and agent memberships cascade; review screenshots and audio are files; feature usage is purged with the
+    logs), their files in Object Storage (their whole home and folders cascade; files they put in /shared stay, with the
+    uploader link set to null), the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)
