@@ -21,7 +21,7 @@ async def build_user_export(conn, user_id: int) -> dict:
     async def rows(sql, *params):
         return await db.fetch_all(conn, sql, params)
 
-    user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin,
+    user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin, admin_roles,
                                               mfa_required, grace_logins_used, blocked_at, created_at, updated_at,
                                               last_login_at, avatar_file_id
                                        from users where id = %s""", (user_id,))

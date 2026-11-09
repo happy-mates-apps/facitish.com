@@ -149,6 +149,14 @@ class Settings:
 settings = Settings()
 
 
+def data_secret(name: str) -> str | None:
+    """Keys for API sources in /admin → Data. A kildebeskrivelse names the variable; only DATA_SECRET_* can be read,
+    so a description can never send another setting (DATABASE_URL, SECRET_KEY …) to an API."""
+    if not name.startswith("DATA_SECRET_") or not name.replace("_", "").isalnum() or not name.isupper():
+        return None
+    return _env(name)
+
+
 def reload() -> Settings:
     global settings
     settings = Settings()

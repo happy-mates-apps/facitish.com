@@ -8,6 +8,7 @@ export type AdminUser = {
   display_name: string | null;
   role: "user" | "admin";
   super_admin?: boolean;
+  admin_roles?: string[];
   grace_logins_used: number;
   blocked_at: string | null;
   created_at: string;
@@ -23,7 +24,9 @@ export type AdminUser = {
   feature_ring?: number | null;
 };
 
-export type UsersResponse = { items: AdminUser[]; total: number; grace_logins: number };
+/** An administrative role as the server describes it (server/app/admin_roles.py). */
+export type AdminRole = { key: string; label: string; description: string; sections: string[] };
+export type UsersResponse = { items: AdminUser[]; total: number; grace_logins: number; admin_roles: AdminRole[] };
 
 export const isTest = (u: AdminUser) => !!u.impersonation_only;
 export const contactLabel = (u: Pick<AdminUser, "email" | "phone">) => u.email || phoneLabel(u.phone);

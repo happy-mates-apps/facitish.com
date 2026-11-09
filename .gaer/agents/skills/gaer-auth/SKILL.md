@@ -52,6 +52,27 @@ Frontend usage (components, step-up dialog, profile API): skill `gaer-profile`.
 10. TOTP secrets are encrypted with AES-GCM using versioned keys (`TOTP_KEYS`, fallback derived from `SECRET_KEY`)
     and never leave the server after setup; the GDPR export lists apps without secrets.
 
+## Administrative roles (`server/app/admin_roles.py`)
+An admin (`users.role = 'admin'`) also has one or more **admin roles** in `users.admin_roles`. They decide which parts
+of /admin the admin may use; they never widen anything a plain admin could not do before.
+
+| Role | Opens |
+| --- | --- |
+| `fuld` Fuld adgang | everything — and only it may change who is admin and their roles, change another admin's account, or use `/mcp/admin` |
+| `support` | Brugere og roller, Efterligning, Auth-log |
+| `indhold` | Website, Filer, App Stores |
+| `produkt` | Features og ringe, AI, Analytics, Heatmaps |
+| `data` | Data: Katalog, Udforsk, Forbind API |
+| `privatliv` | GDPR, Samtykke og cookies, Sletning af logdata, Audit-log, Auth-log |
+| `drift` | MCP-servere, Udvidelse og Office, Indstillinger |
+
+- Statistik (`/admin`) is open to every admin. Several roles add up.
+- One table (`SECTIONS` + `ROLE_SECTIONS`) drives both the menu (`/api/auth/me` → `admin_sections`) and the check in
+  `require_admin` (path + method). An `/api/admin` path no section names is `fuld` only — **add new sections there**.
+- A database trigger keeps the rules: new admins get `fuld`, users have no roles, the super admin always has `fuld`.
+  `PUT /api/admin/users/{id}/admin-roles` (step-up, `fuld` only) refuses removing the last `fuld` admin. Changes are
+  audited as `role.changed` with `admin_roles` before/after.
+
 ## Sessions
 - Random token in the `gaer_session` cookie (HttpOnly, Secure on https, SameSite=Lax). Only its SHA-256 is stored.
 - Scopes: `full`, and `mfa` (pending second factor, `MFA_SESSION_MINUTES`). Columns `mfa_at`, `grace`.

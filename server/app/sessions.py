@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request, Response
 
-from app import config, db, mfa
+from app import admin_roles, config, db, mfa
 from app.logs import RequestMeta, audit, auth_event
 from app.mfa import mfa_error
 from app.security import client_ip, new_token, token_hash, user_agent
@@ -35,6 +35,7 @@ class Principal:
     meta: RequestMeta
     impersonator_id: int | None = None  # set when an admin is viewing the app as this test account
     super_admin: bool = False
+    admin_roles: tuple[str, ...] = ()    # app/admin_roles.py: which parts of /admin
     mfa_at: datetime | None = None       # when this session proved a second factor
     grace: bool = False                  # an admin grace login without a second factor
     created_at: datetime | None = None
@@ -128,7 +129,7 @@ async def _session_row(conn, token: str, impersonator_id: int | None = None) -> 
     row = await db.fetch_one(conn, f"""
         select s.id as session_id, s.scope, s.last_seen_at, s.mfa_at, s.grace, s.created_at,
                u.id as user_id, u.email, u.phone, u.role,
-               u.super_admin, u.display_name, u.blocked_at
+               u.super_admin, u.admin_roles, u.display_name, u.blocked_at
         from sessions s join users u on u.id = s.user_id
         where s.token_hash = %s and s.revoked_at is null and s.expires_at > now() and {where}""", params)
     if row is None or row["blocked_at"] is not None:
@@ -157,7 +158,7 @@ async def _load(request: Request) -> Principal | None:
                                  display_name=imp["display_name"], meta=meta, impersonator_id=row["user_id"])
     return Principal(session_id=row["session_id"], user_id=row["user_id"], email=row["email"], phone=row["phone"],
                      role=row["role"], scope=row["scope"], display_name=row["display_name"], meta=meta,
-                     super_admin=row["super_admin"], mfa_at=row["mfa_at"], grace=row["grace"],
+                     super_admin=row["super_admin"], admin_roles=tuple(row["admin_roles"] or ()), mfa_at=row["mfa_at"], grace=row["grace"],
                      created_at=row["created_at"])
 
 
@@ -191,6 +192,8 @@ async def require_admin(request: Request, principal: Principal = Depends(current
     After the grace logins /admin also needs a second factor (403 + X-Gaer-Error: mfa_required / mfa_setup_required)."""
     if not principal.is_admin:
         raise HTTPException(403, "Kræver admin-rollen")
+    if not admin_roles.allows(principal.admin_roles, request.method, request.url.path):
+        raise HTTPException(403, "Din admin-rolle giver ikke adgang til denne del af /admin")
     async with db.connection() as conn:
         if not admin_mfa_ok(principal):
             if (await mfa.factors(conn, principal.user_id))["total"]:

@@ -13,7 +13,8 @@ from app import captcha, config, db, jobs, mail, retention, webhooks
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
-from app.routes import (admin, admin_ops, ai, app_store, auth, clips, features, files, hooks, impersonation, me,
+from app import route_manifest
+from app.routes import (admin, admin_ops, ai, app_store, auth, clips, data, features, files, hooks, impersonation, me,
                         office, public, review, security, web)
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
@@ -31,7 +32,7 @@ CSRF_EXEMPT_PREFIXES = ("/api/hooks/in/",)  # incoming webhooks: other systems, 
 OFFICE_HOSTS = ("https://*.officeapps.live.com https://*.office.com https://*.office365.com https://*.office.net "
                 "https://*.microsoft.com https://*.sharepoint.com https://outlook.live.com")
 EXTENSION_HOSTS = "chrome-extension: moz-extension: safari-web-extension:"
-EMBEDDABLE = ("/extension", "/office-addin", "/login", "/assets/", "/api/")
+EMBEDDABLE = route_manifest.EMBEDDABLE  # routes with "embeddable": true in web/src/routes.json
 
 
 def csp_for(path: str) -> str:
@@ -108,7 +109,7 @@ def create_app() -> FastAPI:
         return {"ok": True, "version": config.settings.version}
 
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router, admin.router,
-              app_store.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
+              app_store.router, data.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
               mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router,
               web.router, files.memory_router):
         app.include_router(r)
@@ -133,8 +134,8 @@ def create_app() -> FastAPI:
         candidate = os.path.abspath(os.path.join(static_dir, full_path))
         if full_path and candidate.startswith(static_dir + os.sep) and os.path.isfile(candidate):
             return FileResponse(candidate)
-        # /admin is a separate Vite entry (web/admin.html); everything else is the app on /.
-        page = admin_index if full_path == "admin" or full_path.startswith("admin/") else index
+        # /admin is a separate Vite entry (web/admin.html); everything else is the app on / (web/src/routes.json).
+        page = admin_index if route_manifest.app_for("/" + full_path) == "admin" else index
         if os.path.isfile(page):
             return FileResponse(page, headers={"Cache-Control": "no-cache"})
         return JSONResponse({"detail": "Frontend er ikke bygget. Kør npm run build i web/."}, status_code=404)

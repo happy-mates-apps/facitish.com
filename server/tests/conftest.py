@@ -106,7 +106,8 @@ def clean_database():
         conn.execute("""truncate users, otp_codes, passkeys, sessions, webauthn_challenges, auth_log, audit_log,
                         files, settings, gdpr_requests, consents, analytics_events, clips, bridge_consents, ai_usage,
                         features, feature_rings, feature_usage, app_store,
-                        mcp_clients, mcp_tokens, mcp_drafts, mcp_log
+                        mcp_clients, mcp_tokens, mcp_drafts, mcp_log,
+                        data_sources, datasets, dataset_fields
                         restart identity cascade""")
         # The features seeded by migration 0006 (truncate cascades to them via features.created_by).
         from app.features_catalog import CATALOG

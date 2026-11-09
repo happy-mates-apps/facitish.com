@@ -102,7 +102,7 @@ export default function Users() {
         </div>
         <div style={{ padding: "10px 16px", fontSize: 12, color: "#64748b" }}>{rows.length} af {users.length} brugere</div>
       </div>
-      {sel && <UserDrawer user={sel} users={users} grace={grace} onClose={() => setParam("user", null)} onChanged={reload} />}
+      {sel && <UserDrawer user={sel} users={users} grace={grace} roles={data?.admin_roles ?? []} onClose={() => setParam("user", null)} onChanged={reload} />}
     </div>
   );
 }

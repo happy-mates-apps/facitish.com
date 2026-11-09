@@ -29,7 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSele
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import captcha, config, db, mfa, settings_store, totp, webhooks
+from app import admin_roles, captcha, config, db, mfa, settings_store, totp, webhooks
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
@@ -636,7 +636,7 @@ async def me(principal: Principal | None = Depends(optional_principal)):
         return {"user": None}
     async with db.connection() as conn:
         user = await db.fetch_one(conn, """
-            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used, u.mfa_required,
+            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.admin_roles, u.grace_logins_used, u.mfa_required,
                    u.locale, u.avatar_file_id is not null as has_avatar
             from users u where u.id = %s""", (principal.user_id,))
         f = await mfa.factors(conn, principal.user_id)
@@ -650,6 +650,9 @@ async def me(principal: Principal | None = Depends(optional_principal)):
             "display_name": user["display_name"],
             "role": user["role"],
             "super_admin": user["super_admin"],
+            # app/admin_roles.py: the admin's roles and the /admin sections they open (the menu shows only these)
+            "admin_roles": user["admin_roles"] if is_admin else [],
+            "admin_sections": admin_roles.sections(user["admin_roles"]) if is_admin else [],
             "locale": user["locale"],
             "avatar_url": "/api/me/avatar" if user["has_avatar"] else None,
             "passkeys": f["passkeys"] + f["security_keys"],
