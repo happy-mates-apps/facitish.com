@@ -448,3 +448,31 @@ async def test_gdpr_and_admin_roles(make_client, mailserver, owner_conn):
     other = make_client()
     await email_login(other, "o@example.com")
     assert (await other.get("/api/admin/mail/overview")).status_code == 403
+
+
+async def test_stalwart_client_auth_and_principal(monkeypatch):
+    """The Stalwart client logs in with "<principal>:<secret>" as HTTP Basic (deploy/mail/bootstrap.sh) or a bearer token."""
+    import base64
+
+    import httpx
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, request.headers.get("authorization")))
+        if request.url.path == "/api/principal/anne@firma.dk":
+            return httpx.Response(200, json={"data": {"type": "individual", "emails": ["anne@firma.dk"],
+                                                      "quota": 2 * 1_048_576, "usedQuota": 5,
+                                                      "disabledPermissions": ["authenticate"]}})
+        return httpx.Response(404, json={"error": "notFound"})
+
+    monkeypatch.setattr(mb_backend.StalwartBackend, "transport", httpx.MockTransport(handler))
+    for key, expected in (("gaer-api:hemmelig", "Basic " + base64.b64encode(b"gaer-api:hemmelig").decode()),
+                          ("token123", "Bearer token123")):
+        monkeypatch.setattr(config, "settings", dataclasses.replace(
+            config.settings, mailbox_backend="stalwart", stalwart_url="https://mail.firma.dk:8443", stalwart_api_key=key))
+        be = mb_backend.get_backend()
+        info = await be.principal("anne@firma.dk")
+        assert info["emails"] == ["anne@firma.dk"] and info["quota_mb"] == 2 and info["enabled"] is False
+        assert await be.principal("ingen@firma.dk") is None
+        assert seen[-1][2] == expected

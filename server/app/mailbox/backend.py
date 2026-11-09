@@ -5,7 +5,7 @@ builds a Stalwart request itself. Every write is idempotent and keyed by princip
 failed call can simply be retried.
 
 Stalwart is reached on the private network only (STALWART_URL):
-  management API  /api/principal, /api/queue, /api/settings   Bearer STALWART_API_KEY (admin permissions)
+  management API  /api/principal, /api/queue, /api/settings   STALWART_API_KEY ("<user>:<secret>" or a bearer token)
   JMAP            /.well-known/jmap                           as an account, via the master user
   WebDAV          /dav/cal/<account>/…, /dav/card/<account>/…  as an account, via the master user
 The master user ("<account>%<STALWART_MASTER_USER>" + STALWART_MASTER_SECRET) lets the backend act as an account
@@ -294,7 +294,12 @@ class StalwartBackend:
                                  headers=headers, transport=self.transport)
 
     def _admin(self) -> httpx.AsyncClient:
-        return self._client(headers={"Authorization": f"Bearer {config.settings.stalwart_api_key}"})
+        """STALWART_API_KEY is "<principal>:<secret>" (an admin principal or API key, HTTP Basic) or a bearer token."""
+        key = config.settings.stalwart_api_key or ""
+        if ":" in key:
+            user, secret = key.split(":", 1)
+            return self._client(auth=httpx.BasicAuth(user, secret))
+        return self._client(headers={"Authorization": f"Bearer {key}"})
 
     def _as(self, account: str) -> httpx.AsyncClient:
         s = config.settings
