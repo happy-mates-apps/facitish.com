@@ -1,4 +1,4 @@
-"""Sends e-mail: the one-time login codes. MAIL_PROVIDER picks the service; all are plain HTTPS APIs.
+"""Sends e-mail: the one-time login codes and AI budget warnings (app/consumption.py). MAIL_PROVIDER picks the service; all are plain HTTPS APIs.
 
     ahasend   AhaSend (default)               AHASEND_API_KEY, AHASEND_ACCOUNT_ID
     scaleway  Scaleway Transactional Email    SCALEWAY_SECRET_KEY, SCALEWAY_PROJECT_ID, SCALEWAY_REGION
@@ -58,6 +58,38 @@ def otp_mail(code: str, app_name: str, minutes: int) -> tuple[str, str, str]:
             f'<p style="font:700 28px/1.2 monospace;letter-spacing:4px">{code}</p>'
             f"<p>Den udløber om {minutes} minutter og kan kun bruges én gang. Del den ikke med andre.</p>"
             '<p style="color:#64748b;font-size:13px">Har du ikke bedt om koden, kan du se bort fra denne mail.</p>')
+    return subject, text, body
+
+
+def _n(value: int) -> str:
+    return f"{value:,}".replace(",", ".")
+
+
+def ai_budget_mail(kind: str, pct: int, used: int, limit: int, hard: bool, app_name: str, link: str,
+                   resets_on: str) -> tuple[str, str, str]:
+    """Subject, text and HTML for an AI budget warning. kind: warning (pct passed), cap (monthly cap) or total
+    (the budget's total for the period). Only counts are mentioned, never what was asked."""
+    if kind == "warning":
+        subject = f"Du har brugt {pct} % af dit AI-budget i {app_name}"
+        lead = f"Du har nu brugt {_n(used)} af {_n(limit)} tokens ({pct} %) af din AI-kvote i denne måned."
+        then = (f"Når loftet er nået, holder AI pause til {resets_on}." if hard
+                else "AI virker videre, også hvis du kommer over loftet.")
+    elif kind == "cap":
+        subject = f"Du har nået dit AI-loft for måneden i {app_name}"
+        lead = f"Du har brugt {_n(used)} tokens, og månedens loft er {_n(limit)}."
+        then = (f"AI holder pause til {resets_on}." if hard
+                else "AI virker videre, men forbruget over loftet er markeret for din administrator.")
+    else:
+        subject = f"Du har brugt hele dit AI-budget i {app_name}"
+        lead = f"Du har brugt {_n(used)} af {_n(limit)} tokens, som var budgettet for hele perioden."
+        then = ("AI holder pause, til en administrator giver dig et nyt budget." if hard
+                else "AI virker videre, men forbruget er markeret for din administrator.")
+    more = "Kontakt en administrator, hvis du har brug for mere."
+    text = f"{lead}\n\n{then} {more}\n\nSe dit forbrug: {link}"
+    e = html.escape
+    body = (f"<p>{e(lead)}</p><p>{e(then)} {e(more)}</p>"
+            f'<p><a href="{e(link)}">Se dit forbrug</a></p>'
+            f'<p style="color:#64748b;font-size:13px">Vi gemmer kun antal tokens, aldrig hvad du skrev, eller hvad AI svarede.</p>')
     return subject, text, body
 
 

@@ -10,6 +10,7 @@ import { trackPageview } from "./tracker";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Account from "./pages/Account";
+import AiUsage from "./pages/AiUsage";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
 import McpConsent from "./pages/McpConsent";
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
+        <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />

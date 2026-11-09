@@ -57,14 +57,14 @@
   },
   {
    "id": "account",
-   "docs_path": "`/klip`, `/filer`, `/konto`, `/privatliv`",
+   "docs_path": "`/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv`",
    "who": {
     "en": "logged in (privatliv: everyone)",
     "da": "logget ind (privatliv: alle)"
    },
    "what": {
-    "en": "Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, \"Kræv passkey\", sessions), privacy + consent + GDPR requests.",
-    "da": "Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), privatliv og GDPR."
+    "en": "Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, \"Kræv passkey\", sessions), own AI consumption and budget (`/konto/forbrug`), privacy + consent + GDPR requests.",
+    "da": "Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), eget AI-forbrug og budget, privatliv og GDPR."
    },
    "code": [
     "pages/",
@@ -96,7 +96,7 @@
     "da": "admin (+ MFA)"
    },
    "what": {
-    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
     "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
    },
    "code": [
@@ -291,6 +291,13 @@
    "title": "Konto"
   },
   {
+   "path": "/konto/forbrug",
+   "group": "account",
+   "app": "app",
+   "access": "user",
+   "title": "Mit AI-forbrug"
+  },
+  {
    "path": "/privatliv",
    "group": "account",
    "app": "app",
@@ -436,6 +443,13 @@
    "app": "admin",
    "access": "admin",
    "title": "AI"
+  },
+  {
+   "path": "/admin/consumption",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "AI-forbrug"
   },
   {
    "path": "/admin/integrations",
