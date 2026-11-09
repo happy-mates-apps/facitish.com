@@ -11,9 +11,14 @@ import { noteVisit } from "./adoption";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Account from "./pages/Account";
+import AiUsage from "./pages/AiUsage";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
 import McpConsent from "./pages/McpConsent";
+import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/UserArea";
+import UserMail, { UserMailById } from "./pages/Mail";
+import Approve from "./pages/Approve";
+import Develop from "./pages/Develop";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -24,27 +29,37 @@ import OfficeShell from "./office/OfficeShell";
 import { DocumentTool, OutlookTool, ToolLayout, WordTool } from "./office/Tools";
 import { MobileClips, MobileFiles, MobileHome, MobileLayout } from "./mobile/Mobile";
 import ReviewLauncher from "./review/ReviewLauncher";
+import { AgentChat, AgentList } from "./knowledge/Agents";
+import { AppShell } from "./shell";
 
+function ImpersonationBanner() {
+  const { user, impersonator } = useAuth();
+  if (!impersonator) return null;
+  return (
+    <div style={{ padding: "8px 16px", background: "#fffbeb", borderBottom: "1px solid rgba(245,158,11,0.4)", color: "#78350f", fontSize: 13, textAlign: "center" }}>
+      Du ser appen som testkontoen <strong>{user?.display_name}</strong>. Stop efterligningen i <a href="/admin/impersonation">/admin</a>.
+    </div>
+  );
+}
+
+/** The top bar for visitors who are not (fully) logged in: /login, /privatliv, /go. Signed-in users get AppShell. */
 function TopBar() {
-  const { user, impersonator, scope, config, logout } = useAuth();
+  const { user, scope, config, logout } = useAuth();
   const full = user && scope === "full";
   return (
     <>
-    {impersonator && (
-      <div style={{ padding: "8px 16px", background: "#fffbeb", borderBottom: "1px solid rgba(245,158,11,0.4)", color: "#78350f", fontSize: 13, textAlign: "center" }}>
-        Du ser appen som testkontoen <strong>{user?.display_name}</strong>. Stop efterligningen i <a href="/admin/impersonation">/admin</a>.
-      </div>
-    )}
+    <ImpersonationBanner />
     <header className="topbar">
       <div className="topbar-inner">
         <Link to="/" className="brand">
           {config?.logo_url ? <img src={config.logo_url} alt="" /> : <span className="brand-dot" />}
-          {config?.app_name ?? "Gær"}
+          {config?.app_name ?? "Tørgær"}
         </Link>
         <nav className="nav">
           {full && <FeatureGate feature="klip"><NavLink to="/klip">Klip</NavLink></FeatureGate>}
           {full && <FeatureGate feature="filer"><NavLink to="/filer">Filer</NavLink></FeatureGate>}
-          {full && <NavLink to="/konto">Konto</NavLink>}
+          {full && <NavLink to="/develop">Udvikling</NavLink>}
+          {full && <NavLink to="/user">Mit område</NavLink>}
           {full && user.role === "admin" && <a href="/admin">Admin</a>}
           {user ? (
             <button
@@ -103,21 +118,30 @@ function ExtensionClips() {
 export default function App() {
   const { pathname } = useLocation();
   useDeepLinkFocus();
+  const { user, scope } = useAuth();
   const ownChrome = OWN_CHROME.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  return (
-    <>
-      {!ownChrome && <TopBar />}
-      <PageTracker />
+  // Signed-in pages get the shell (sidepanel, assistant, phone toolbar); everyone else the plain top bar.
+  const shelled = !ownChrome && !!user && scope === "full" && pathname !== "/login";
+  const routes = (
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
+        <Route path="/user" element={<RequireUser><UserHome /></RequireUser>} />
+        <Route path="/user/indstillinger" element={<RequireUser><UserSettings /></RequireUser>} />
+        <Route path="/user/deling" element={<RequireUser><UserSharing /></RequireUser>} />
+        <Route path="/user/mail" element={<RequireUser><FeatureGate feature="mail"><UserMail /></FeatureGate></RequireUser>} />
+        <Route path="/user/:id" element={<RequireUser><DelegatedArea /></RequireUser>} />
+        <Route path="/user/:id/mail" element={<RequireUser><FeatureGate feature="mail"><UserMailById /></FeatureGate></RequireUser>} />
+        <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
+        <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
         <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/klip/:id" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/go" element={<GoPage />} />
+        <Route path="/develop" element={<RequireUser><Develop /></RequireUser>} />
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>
@@ -125,6 +149,8 @@ export default function App() {
           <Route path="outlook" element={<OutlookTool />} />
           <Route path="document" element={<DocumentTool />} />
         </Route>
+        <Route path="/extension/agent" element={<RequireUser login="/extension/login"><FeatureGate feature="knowledge"><AgentList /></FeatureGate></RequireUser>} />
+        <Route path="/extension/agent/:slug" element={<RequireUser login="/extension/login"><FeatureGate feature="knowledge"><AgentChat /></FeatureGate></RequireUser>} />
         <Route path="/extension" element={<RequireUser login="/extension/login"><ExtensionLayout /></RequireUser>}>
           <Route index element={<ExtensionPage />} />
           <Route path="chat" element={<ExtensionChat />} />
@@ -144,6 +170,12 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+  );
+  return (
+    <>
+      {shelled ? <ImpersonationBanner /> : !ownChrome && <TopBar />}
+      <PageTracker />
+      {shelled ? <AppShell>{routes}</AppShell> : routes}
       <StepUpDialog />
       {/* The review panel (⌃⌥⌘W or ?review=1): logged-in users only, loaded when it opens. Not in embedded surfaces. */}
       {!ownChrome && <ReviewLauncher />}
