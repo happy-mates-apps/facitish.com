@@ -37,6 +37,12 @@ the registered tools and the catalog differ. Code: `server/app/mcp/`.
   `user_reset_mfa`. Factors are never added or removed over MCP — that needs the browser (WebAuthn) and a second
   factor; link to `/konto#sikkerhed`.
 
+## Files (skill `gaer-storage`, `server/app/filetree.py`)
+- `/mcp`: `files_browse`, `file_read`, `file_write`, `folder_create`, `file_move` on the caller's home (`~/`) and
+  `/shared/`; `file_delete` is a draft. `/mcp/admin`: `files_browse`, `file_read`, `file_link` on the whole tree;
+  `file_write`, `folder_create`, `file_move`, `file_delete`, `folder_delete` are drafts. All go through `filetree`
+  (same rules and audit rows as `/api/files` and `/admin/files`); links open `/admin/files?folder=…`.
+
 ## Adding a tool
 - Add it to `specs/mcp/catalog.json` and copy the file to `server/app/mcp/catalog.json`.
 - Read or write tool: `@tool("app", "name") async def run(args, caller) -> ToolOutput(data, links, text)`.

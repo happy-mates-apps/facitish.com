@@ -9,11 +9,11 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from app import config, db, gdpr, mfa, settings_store
+from app import config, db, filetree, gdpr, mfa, settings_store
 from app.features_catalog import CATALOG as FEATURE_CATALOG
 from app.logs import audit, changed
 from app.mcp import app_map, db_tools
-from app.mcp.common import limit, masked, store_file
+from app.mcp.common import absolute, limit, masked, store_file
 from app.mcp.links import build, link_for, links_for, resolve
 from app.mcp.registry import Caller, DraftPlan, ToolError, ToolOutput, draft, tool
 from app.routes import admin as admin_routes
@@ -563,6 +563,160 @@ async def gdpr_export(args, caller: Caller, conn) -> DraftPlan:
                                          "Gemmes under /admin/files; linket udløber efter "
                                          f"{config.settings.download_link_seconds} sekunder"]},
                      state={"id": u["id"]}, execute=execute, links=_links(link_for(S, "gdpr_export", {"userId": u["id"]})))
+
+
+# ── Files ───────────────────────────────────────────────────────────────────
+# The whole tree (/users/<id>/…, /shared/…) through app/filetree.py with admin=True, like /admin/files.
+
+def _files_links(folder: str | None = None) -> list[dict]:
+    return _links(link_for(S, "files_browse", {"folder": folder} if folder else {}))
+
+
+async def _admin_file(conn, args, caller: Caller, lock: bool = False) -> dict:
+    if not args.get("path") and not args.get("fileId"):
+        raise ToolError("Angiv path eller fileId")
+    if args.get("path"):
+        return await filetree.get_by_path(conn, args["path"], caller.principal, admin=True, lock=lock)
+    return await filetree.get_file(conn, args["fileId"], caller.principal, admin=True, lock=lock)
+
+
+def _folder_of(path: str | None) -> str | None:
+    return path.rsplit("/", 1)[0] + "/" if path else None
+
+
+@tool(S, "files_browse")
+async def files_browse(args, caller: Caller) -> ToolOutput:
+    async with db.connection() as conn:
+        listing = await filetree.list_dir(conn, filetree.parse(args.get("path") or "/", me=caller.user_id),
+                                          caller.principal, admin=True, q=args.get("q"))
+        listing["totals"] = await filetree.totals(conn)
+    return ToolOutput(listing, links=_files_links(listing["path"]))
+
+
+@tool(S, "file_read")
+async def file_read(args, caller: Caller) -> ToolOutput:
+    from app.mcp.app_server import file_read_impl
+    out = await file_read_impl(args, caller, admin=True)
+    return ToolOutput(out, links=_files_links(_folder_of(out["path"])))
+
+
+@tool(S, "file_link")
+async def file_link(args, caller: Caller) -> ToolOutput:
+    async with db.connection() as conn:
+        row = await _admin_file(conn, args, caller)
+    link = await filetree.download_link(row)
+    return ToolOutput({"fileId": str(row["id"]), "filename": row["filename"], "path": filetree.file_path(row),
+                       "download_url": absolute(link["url"]), "expires_in": link["expires_in"]},
+                      links=_files_links(_folder_of(filetree.file_path(row))))
+
+
+@draft(S, "file_write")
+async def file_write(args, caller: Caller, conn) -> DraftPlan:
+    loc, name = filetree.split_file(args["path"], me=caller.user_id)
+    if not loc.in_space:
+        raise ToolError("Filer ligger i et hjem (/users/<id>/…) eller i /shared/…")
+    overwrite = args.get("overwrite") is not False
+    data = args["content"].encode()
+    try:
+        existing = await filetree.get_by_path(conn, args["path"], caller.principal, admin=True)
+    except HTTPException:
+        existing = None
+    owner = await db.fetch_one(conn, "select id, display_name, email, phone from users where id = %s", (loc.user_id,)) \
+        if loc.kind == "home" else None
+    if loc.kind == "home" and owner is None:
+        raise ToolError(f"Bruger #{loc.user_id} findes ikke")
+
+    async def execute(conn):
+        row = await filetree.write(conn, loc, name, data, None, caller.principal, admin=True, overwrite=overwrite,
+                                   via="mcp:admin")
+        return {"file": filetree.out(row, admin=True)}
+
+    where = f"i hjemmet for {_name(owner)}" if owner else "i /shared"
+    bullets = [f"{len(data)} bytes tekst {where}"]
+    if existing and overwrite:
+        bullets.append(f"Erstatter den nuværende fil ({existing['size_bytes']} bytes)")
+    elif existing:
+        bullets.append("Der findes allerede en fil med det navn – den nye får et ledigt navn")
+    return DraftPlan(summary=f"Gem tekstfilen {loc.path}{name}.",
+                     impact={"bullets": bullets, "counts": {"files": 1, "bytes": len(data)}},
+                     state={"existing": str(existing["id"]) if existing else None,
+                            "updated_at": existing["updated_at"] if existing else None},
+                     execute=execute, links=_files_links(loc.path))
+
+
+@draft(S, "folder_create")
+async def folder_create(args, caller: Caller, conn) -> DraftPlan:
+    loc = filetree.parse(args["path"], me=caller.user_id)
+    if not loc.in_space or loc.folder == "/":
+        raise ToolError("Angiv en ny mappe under /users/<id>/ eller /shared/")
+
+    async def execute(conn):
+        return await filetree.make_folder(conn, loc, caller.principal, admin=True, via="mcp:admin")
+
+    return DraftPlan(summary=f"Opret mappen {loc.path}.", impact={"bullets": ["Mapper over den oprettes også"],
+                                                                 "counts": {"folders": 1}},
+                     state={"path": loc.path}, execute=execute, links=_files_links(loc.parent))
+
+
+@draft(S, "file_move")
+async def file_move(args, caller: Caller, conn) -> DraftPlan:
+    if not args.get("toFolder") and not args.get("newName"):
+        raise ToolError("Angiv toFolder og/eller newName")
+    row = await filetree.get_by_path(conn, args["path"], caller.principal, admin=True)
+    dest = filetree.parse(args.get("toFolder") or _folder_of(filetree.file_path(row)), me=caller.user_id)
+    if not dest.in_space:
+        raise ToolError("Destinationen skal være under /users/<id>/ eller /shared/")
+    target = dest.path + filetree.clean_name(args.get("newName") or row["filename"])
+
+    async def execute(conn):
+        current = await filetree.get_file(conn, row["id"], caller.principal, admin=True, lock=True)
+        new = await filetree.move(conn, current, caller.principal, admin=True, folder=args.get("toFolder"),
+                                  filename=args.get("newName"), via="mcp:admin")
+        return {"file": filetree.out(new, admin=True)}
+
+    bullets = [f"{filetree.file_path(row)} → {target}"]
+    if row["space"] != dest.space or row["user_id"] != dest.user_id:
+        bullets.append("Filen skifter ejer: den følger hjemmet eller /shared, den flyttes til")
+    return DraftPlan(summary=f"Flyt {filetree.file_path(row)} til {target}.", impact={"bullets": bullets,
+                                                                                         "counts": {"files": 1}},
+                     state={"id": str(row["id"]), "path": filetree.file_path(row), "updated_at": row["updated_at"]},
+                     execute=execute, links=_files_links(dest.path))
+
+
+@draft(S, "file_delete")
+async def file_delete(args, caller: Caller, conn) -> DraftPlan:
+    row = await _admin_file(conn, args, caller)
+    label = filetree.file_path(row) or f"{row['filename']} ({row['kind']})"
+
+    async def execute(conn):
+        current = await filetree.get_file(conn, row["id"], caller.principal, admin=True, lock=True)
+        await filetree.delete(conn, current, caller.principal, admin=True, via="mcp:admin")
+        return {"deleted": label}
+
+    return DraftPlan(summary=f"Slet filen {label}.",
+                     impact={"bullets": [f"{row['size_bytes']} bytes · {row['content_type']}",
+                                         "Filen slettes fra lageret og kan ikke hentes igen"], "counts": {"files": 1}},
+                     state={"id": str(row["id"]), "updated_at": row["updated_at"], "size": row["size_bytes"]},
+                     execute=execute, links=_files_links(_folder_of(filetree.file_path(row))))
+
+
+@draft(S, "folder_delete")
+async def folder_delete(args, caller: Caller, conn) -> DraftPlan:
+    loc = filetree.parse(args["path"], me=caller.user_id)
+    if not loc.in_space or loc.folder == "/":
+        raise ToolError("Angiv en mappe under /users/<id>/ eller /shared/ – et hjem eller /shared kan ikke slettes")
+    counts = await filetree.folder_contents(conn, loc)
+    if not counts["files"] and not counts["folders"]:
+        raise ToolError(f"Mappen {loc.path} findes ikke")
+
+    async def execute(conn):
+        return await filetree.delete_folder(conn, loc, caller.principal, admin=True, via="mcp:admin")
+
+    return DraftPlan(summary=f"Slet mappen {loc.path} med alt indhold.",
+                     impact={"bullets": [f"{counts['files']} filer ({counts['bytes']} bytes) og {counts['folders']} mapper "
+                                         "slettes og kan ikke hentes igen"], "counts": counts,
+                             "warnings": ["Kan ikke fortrydes"]},
+                     state=counts, execute=execute, links=_files_links(loc.parent))
 
 
 # ── Database ────────────────────────────────────────────────────────────────
