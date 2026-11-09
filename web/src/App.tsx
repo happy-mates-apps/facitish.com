@@ -15,6 +15,7 @@ import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
 import McpConsent from "./pages/McpConsent";
 import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/UserArea";
+import UserMail, { UserMailById } from "./pages/Mail";
 import Approve from "./pages/Approve";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
@@ -114,7 +115,9 @@ export default function App() {
         <Route path="/user" element={<RequireUser><UserHome /></RequireUser>} />
         <Route path="/user/indstillinger" element={<RequireUser><UserSettings /></RequireUser>} />
         <Route path="/user/deling" element={<RequireUser><UserSharing /></RequireUser>} />
+        <Route path="/user/mail" element={<RequireUser><FeatureGate feature="mail"><UserMail /></FeatureGate></RequireUser>} />
         <Route path="/user/:id" element={<RequireUser><DelegatedArea /></RequireUser>} />
+        <Route path="/user/:id/mail" element={<RequireUser><FeatureGate feature="mail"><UserMailById /></FeatureGate></RequireUser>} />
         <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
