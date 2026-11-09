@@ -84,6 +84,8 @@ async def run_one() -> bool:
         retry = isinstance(e, Retry)
         if not retry:
             log.warning("job %s (%s) failed: %s", job["id"], job["kind"], e)
+            from app import events
+            await events.emit("job.failed", ref=job["kind"])
         error = str(e) if retry else "".join(traceback.format_exception_only(e)).strip()
         dead = job["attempts"] >= job["max_attempts"] or fn is None
         async with db.connection() as conn:

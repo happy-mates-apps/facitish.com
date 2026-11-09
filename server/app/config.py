@@ -29,7 +29,7 @@ class Settings:
 
     # WebAuthn / passkeys
     rp_id: str = field(default_factory=lambda: _env("RP_ID", "localhost"))
-    rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Gær"))
+    rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Tørgær"))
     origin: str = field(default_factory=lambda: _env("ORIGIN", "http://localhost:5173"))
 
     # Optional: the only e-mail address (or, with SMS login, phone number) that may become the first admin.
@@ -153,6 +153,11 @@ class Settings:
     nats_url: str | None = field(default_factory=lambda: _env("NATS_URL"))
     nats_monitor_url: str | None = field(default_factory=lambda: _env("NATS_MONITOR_URL"))
     nats_monitor_timeout: float = field(default_factory=lambda: float(_env("NATS_MONITOR_TIMEOUT", "5")))
+
+    # Events (app.events): with NATS_URL they go through the JetStream stream EVENTS (kept 7 days, at most
+    # EVENTS_STREAM_MAX_MB) and a consumer stores them in Postgres; without NATS they are written to Postgres directly.
+    events_stream_max_mb: int = field(default_factory=lambda: _int("EVENTS_STREAM_MAX_MB", 1024))
+    events_rules_seconds: float = field(default_factory=lambda: float(_env("EVENTS_RULES_SECONDS", "5")))
 
     # Mail, calendar and contacts (specs/mail): Stalwart holds the mailboxes, Lettermint relays all outbound mail.
     # MAILBOX_BACKEND: "off" (the module answers "not set up"), "stalwart", or "memory" (development and tests).

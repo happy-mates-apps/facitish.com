@@ -2,23 +2,25 @@
 
 import logging
 import os
+import re
+from html import escape
 from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import captcha, config, db, jobs, mail, retention, webhooks
+from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, webhooks
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
 from app import route_manifest
 from app.routes import access as access_routes
-from app.routes import (admin, admin_files, admin_ops, ai, app_store, auth, clips, consumption, data, features, files, hooks,
-                        impersonation, knowledge, knowledge_admin, me, mcp_tools, nats, office, public, review, security,
-                        user_area, web)
+from app.routes import (admin, admin_files, admin_ops, adoption, ai, app_store, auth, clips, consumption, data, features, files,
+                        hooks, impersonation, knowledge, knowledge_admin, me, mcp_tools, nats, office, public, resources, review,
+                        security, user_area, web)
 from app.routes import admin_mail
 from app.routes import mail as mail_routes
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
@@ -53,6 +55,16 @@ def csp_for(path: str) -> str:
             f"frame-ancestors {ancestors}; base-uri 'self'; form-action 'self'; object-src 'none'")
 
 
+_ID_SEGMENT = re.compile(r"/(\d+|[0-9a-fA-F-]{32,36})(?=/|$)")
+
+
+def _route(request: Request) -> str:
+    """The route template (/api/files/{file_id}) for an event, never the raw path with ids in it."""
+    route = request.scope.get("route")
+    template = getattr(route, "path", None)
+    return (template or _ID_SEGMENT.sub("/{id}", request.url.path))[:200]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log = logging.getLogger("gaer")
@@ -68,8 +80,10 @@ async def lifespan(app: FastAPI):
         log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
     await db.open_pools()
     workers = jobs.start() if retention.enabled() else None
+    event_loops = events.start(maintenance=retention.enabled())
     async with mcp_sessions(app):
         yield
+    await events.stop_all(*event_loops)
     if workers:
         await jobs.stop_all(*workers)
     await db.close_pools()
@@ -84,8 +98,32 @@ async def mcp_sessions(app: FastAPI):
         yield
 
 
+_html_cache: dict[str, tuple[float, str]] = {}
+
+
+async def app_html(page: str, path: str) -> str:
+    """index.html with the page's title and sharing tags (og:image etc., app/og.py), so links to /login,
+    /privatliv and the app's pages get a preview when they are shared."""
+    mtime = os.path.getmtime(page)
+    cached = _html_cache.get(page)
+    if not cached or cached[0] != mtime:
+        with open(page, encoding="utf-8") as f:
+            cached = _html_cache[page] = (mtime, f.read())
+    async with db.connection() as conn:
+        values = await settings_store.get_all(conn)
+    name = values["app_name"]
+    route = route_manifest.route_for(path)
+    title = f"{route['title']} · {name}" if route and path != "/" else name
+    surface = og.surface_for(path)
+    tags = og.meta_tags(title=title, description=og.DESCRIPTIONS.get(surface, ""), site_name=name,
+                        image=og.image_url(surface, values["og_images"]),
+                        url=config.settings.origin.rstrip("/") + (path if route else "/"))
+    html = re.sub(r"<title>.*?</title>", lambda _: f"<title>{escape(title)}</title>", cached[1], count=1)
+    return html.replace("</head>", f"{tags}\n</head>", 1)
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Gær", lifespan=lifespan, docs_url="/api/docs" if not config.settings.is_production else None,
+    app = FastAPI(title="Tørgær", lifespan=lifespan, docs_url="/api/docs" if not config.settings.is_production else None,
                   redoc_url=None, openapi_url="/api/openapi.json" if not config.settings.is_production else None)
 
     @app.middleware("http")
@@ -95,7 +133,19 @@ def create_app() -> FastAPI:
                 and path not in CSRF_EXEMPT and not path.startswith(CSRF_EXEMPT_PREFIXES)
                 and request.headers.get(CSRF_HEADER) != "1"):
             return JSONResponse({"detail": "Mangler X-Gaer header"}, status_code=403)
-        response = await call_next(request)
+        # Kill switches (app.killswitch): a closed part of the service answers 503; /admin and login never close.
+        if killswitch.may_block(path) and (closed := await killswitch.blocked(request.method, path)):
+            await events.emit("http.blocked", ref=closed["key"])
+            return JSONResponse({"detail": f"{closed['label']} er midlertidigt lukket. Prøv igen senere.",
+                                 "code": "kill_switch", "switch": closed["key"]},
+                                status_code=503, headers={"Retry-After": "60", "Cache-Control": "no-store"})
+        try:
+            response = await call_next(request)
+        except Exception:
+            await events.emit("http.5xx", ref=_route(request))
+            raise
+        if response.status_code >= 500 or response.status_code == 429:
+            await events.emit("http.5xx" if response.status_code >= 500 else "http.429", ref=_route(request))
         response.headers.setdefault("Content-Security-Policy", csp_for(path))
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -117,8 +167,8 @@ def create_app() -> FastAPI:
               admin_files.router, admin.router,  # admin_files first: /files/folders before /files/{file_id}
               app_store.router, mcp_tools.router, data.router, access_routes.router, features.router, features.admin_router,
               impersonation.router, mcp_oauth.router,
-              mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, nats.router, consumption.router,
-              user_area.router, mail_routes.router, admin_mail.router,
+              mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, nats.router, resources.router, consumption.router,
+              user_area.router, mail_routes.router, admin_mail.router, adoption.router, adoption.admin_router,
               knowledge.router, knowledge_admin.router,
               web.router, files.memory_router):
         app.include_router(r)
@@ -145,9 +195,11 @@ def create_app() -> FastAPI:
             return FileResponse(candidate)
         # /admin is a separate Vite entry (web/admin.html); everything else is the app on / (web/src/routes.json).
         page = admin_index if route_manifest.app_for("/" + full_path) == "admin" else index
-        if os.path.isfile(page):
+        if not os.path.isfile(page):
+            return JSONResponse({"detail": "Frontend er ikke bygget. Kør npm run build i web/."}, status_code=404)
+        if page == admin_index:
             return FileResponse(page, headers={"Cache-Control": "no-cache"})
-        return JSONResponse({"detail": "Frontend er ikke bygget. Kør npm run build i web/."}, status_code=404)
+        return HTMLResponse(await app_html(page, "/" + full_path), headers={"Cache-Control": "no-cache"})
 
     return app
 

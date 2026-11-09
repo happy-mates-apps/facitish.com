@@ -35,12 +35,19 @@ import KnowledgeOverview from "./pages/knowledge/Overview";
 import KnowledgeSpace from "./pages/knowledge/Space";
 import KnowledgeAgent from "./pages/knowledge/Agent";
 import Nats from "./pages/Nats";
+import Resources from "./pages/Resources";
 import MailAdmin from "./pages/mail/MailAdmin";
 import MailUser from "./pages/mail/MailUser";
 import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
 import DataConnect from "./pages/data/Connect";
+import { AdoptionLayout } from "./pages/adoption/shared";
+import AdoptionOverview from "./pages/adoption/Overview";
+import AdoptionJourney, { AdoptionJourneys } from "./pages/adoption/Journey";
+import AdoptionRoutes from "./pages/adoption/Routes";
+import AdoptionConsole from "./pages/adoption/Console";
+import AdoptionAccess from "./pages/adoption/Access";
 import DataTools from "./pages/data/Tools";
 import Access from "./pages/Access";
 import { AdminGo } from "./go";
@@ -93,6 +100,15 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="app-stores/:tab" element={<AppStores />} />
                   <Route path="analytics" element={legacy(<Analytics />)} />
                   <Route path="heatmaps" element={legacy(<Heatmaps />)} />
+                  <Route path="adoption" element={<AdoptionLayout />}>
+                    <Route index element={<AdoptionOverview />} />
+                    <Route path="journeys" element={<AdoptionJourneys />} />
+                    <Route path="journeys/:id" element={<AdoptionJourney />} />
+                    <Route path="journeys/:id/setup" element={<AdoptionJourney setup />} />
+                    <Route path="routes" element={<AdoptionRoutes />} />
+                    <Route path="console" element={<AdoptionConsole />} />
+                    <Route path="access" element={<AdoptionAccess />} />
+                  </Route>
                   <Route path="logs/auth" element={legacy(<AuthLog />)} />
                   <Route path="logs/audit" element={legacy(<AuditLog />)} />
                   <Route path="web" element={legacy(<Web />)} />
@@ -107,6 +123,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="webhooks" element={legacy(<Webhooks />)} />
                   <Route path="jobs" element={legacy(<Jobs />)} />
                   <Route path="nats" element={<Nats />} />
+                  <Route path="resources" element={<Resources />} />
                   <Route path="mail" element={<MailAdmin />} />
                   <Route path="mail/users/:id" element={<MailUser />} />
                   <Route path="data" element={<DataCatalog />} />

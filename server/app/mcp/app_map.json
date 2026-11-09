@@ -2,7 +2,7 @@
   "generated_by": "npm run app-map --prefix web",
   "routes": {
     "/": {
-      "title": "Forside",
+      "title": "Overblik",
       "anchors": []
     },
     "/admin": {
@@ -17,6 +17,34 @@
       "anchors": [
         "access-requests"
       ]
+    },
+    "/admin/adoption": {
+      "title": "Adoption",
+      "anchors": []
+    },
+    "/admin/adoption/access": {
+      "title": "Adgang til forløb",
+      "anchors": []
+    },
+    "/admin/adoption/console": {
+      "title": "Live-strøm",
+      "anchors": []
+    },
+    "/admin/adoption/journeys": {
+      "title": "Forløb",
+      "anchors": []
+    },
+    "/admin/adoption/journeys/:id": {
+      "title": "Forløb",
+      "anchors": []
+    },
+    "/admin/adoption/journeys/:id/setup": {
+      "title": "Opsætning af forløb",
+      "anchors": []
+    },
+    "/admin/adoption/routes": {
+      "title": "Ruter og URL'er",
+      "anchors": []
     },
     "/admin/ai": {
       "title": "AI",
@@ -184,6 +212,20 @@
         "nats-tab-{x}"
       ]
     },
+    "/admin/resources": {
+      "title": "Ressourcer",
+      "anchors": [
+        "killswitch-{x}",
+        "resource-{x}",
+        "resources-config",
+        "resources-config-drawer",
+        "resources-events",
+        "resources-filter-{x}",
+        "resources-killswitches",
+        "resources-refresh",
+        "resources-rules"
+      ]
+    },
     "/admin/retention": {
       "title": "Sletning af logdata",
       "anchors": []
@@ -212,7 +254,9 @@
     },
     "/admin/web": {
       "title": "Website",
-      "anchors": []
+      "anchors": [
+        "web-og"
+      ]
     },
     "/admin/webhooks": {
       "title": "Webhooks",

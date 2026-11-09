@@ -19,10 +19,10 @@ ROLES: dict[str, dict] = {
     FULL: {"label": "Fuld adgang", "description": "Alt i /admin, også hvem der er admin og med hvilke roller, og MCP for admin."},
     "support": {"label": "Support", "description": "Hjælper brugere: konti, spærring, nulstilling af login, efterligning og auth-loggen."},
     "indhold": {"label": "Indhold", "description": "Website, filer, App Stores og Viden (vidensrum og agenter)."},
-    "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics og heatmaps."},
+    "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics, heatmaps og adoptionsforløb."},
     "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad)."},
     "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, og godkendelse af adgang til fortrolige data."},
-    "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, MCP-servere, udvidelse og Office, webhooks, jobs, NATS og indstillinger."},
+    "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, MCP-servere, udvidelse og Office, webhooks, jobs, NATS, ressourcer og indstillinger."},
 }
 
 # /admin section (path under the router basename) → the API path prefixes it uses.
@@ -30,6 +30,11 @@ SECTIONS: dict[str, list[str]] = {
     "/": ["/api/admin/analytics"],
     "/analytics": ["/api/admin/analytics"],
     "/heatmaps": ["/api/admin/heatmaps"],
+    "/adoption": ["/api/admin/adoption"],
+    "/adoption/journeys": ["/api/admin/adoption"],
+    "/adoption/routes": ["/api/admin/adoption"],
+    "/adoption/console": ["/api/admin/adoption"],
+    "/adoption/access": ["/api/admin/adoption"],
     "/users": ["/api/admin/users"],
     "/impersonation": ["/api/impersonation"],
     "/logs/auth": ["/api/admin/logs/auth"],
@@ -55,6 +60,7 @@ SECTIONS: dict[str, list[str]] = {
     "/jobs": ["/api/admin/jobs", "/api/admin/retention"],
     "/nats": ["/api/admin/nats"],
     "/mail": ["/api/admin/mail"],
+    "/resources": ["/api/admin/resources"],
     "/settings": ["/api/admin/settings"],
 }
 
@@ -62,10 +68,11 @@ EVERYONE = ["/"]
 ROLE_SECTIONS: dict[str, list[str]] = {
     "support": ["/users", "/impersonation", "/logs/auth"],
     "indhold": ["/web", "/files", "/app-stores", "/knowledge"],
-    "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption"],
+    "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption", "/adoption", "/adoption/journeys",
+                "/adoption/routes", "/adoption/console", "/adoption/access"],
     "data": ["/data", "/data/explore", "/data/connect", "/data/tools"],
     "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth", "/access"],
-    "drift": ["/mail", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/settings"],
+    "drift": ["/mail", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/resources", "/settings"],
 }
 
 # Only `fuld`, even for roles whose sections contain the path.

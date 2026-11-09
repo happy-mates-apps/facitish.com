@@ -58,6 +58,7 @@ EVENTS: dict[str, str] = {
     "review.feedback.created": "En review-note er gemt (id, sti, feature, indtryk)",
     "review.session.ended": "En review-session er afsluttet (id, arketype, opgaver)",
     "job.dead": "Et baggrundsjob er opgivet efter alle forsøg (id, type)",
+    "adoption.nudge.sent": "Et skub fra et adoptionsforløb til brugere, der sidder fast (forløb-id, bruger-id'er)",
     "ai.budget.warning": "En bruger har passeret en advarselsgrænse for AI-forbrug (bruger-id, budget-id, procent)",
     "ai.budget.cap": "En bruger har nået sit månedlige AI-loft (bruger-id, budget-id, om AI er blokeret)",
     "ai.budget.total": "En bruger har brugt hele sit AI-budget for perioden (bruger-id, budget-id)",
@@ -65,6 +66,7 @@ EVENTS: dict[str, str] = {
     "mail.mailbox.suspended": "En postkasse er suspenderet (postkasse-id)",
     "mail.mailbox.deleted": "En postkasse er slettet eller lavet om til et alias (postkasse-id)",
     "mail.retention.completed": "Sletningen af gammel mail har kørt (kørsel-id, antal slettet, fejl)",
+    "killswitch.changed": "Et nødstop er lukket eller åbnet, i hånden eller af en regel (nøgle, lukket, automatisk)",
 }
 
 # Tests replace this with an httpx.MockTransport.

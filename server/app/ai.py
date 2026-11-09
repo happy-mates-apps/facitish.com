@@ -228,6 +228,8 @@ async def record_usage(user_id: int, surface: str, prompt: int, completion: int,
             (user_id, surface, config.settings.ai_model, prompt, completion, estimated))
         # Warnings and caps of the user's budget: stored once per month and sent as webhooks (app/consumption.py).
         await consumption.after_usage(conn, user_id)
+    from app import events
+    await events.emit("ai.tokens", ref=surface, value=prompt + completion)
 
 
 # ── Streaming ──────────────────────────────────────────────────────────────
