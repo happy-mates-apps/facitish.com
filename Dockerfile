@@ -5,10 +5,9 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
-# `npm run build` ends with scripts/app-map.mjs --check, which reads these two files relative to /web
-COPY specs/mcp/catalog.json /specs/mcp/catalog.json
-COPY server/app/mcp/app_map.json /server/app/mcp/app_map.json
-RUN npm run build
+# Only typecheck + bundle here. `npm run build` also runs scripts/app-map.mjs --check, which needs the whole
+# repo (server/, specs/, README.md, .gaer/); that check runs in the test workflow, which deploy depends on.
+RUN npm run build:dist
 
 FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 STATIC_DIR=/app/web/dist

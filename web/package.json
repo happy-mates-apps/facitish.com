@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/app-map.mjs --check",
+    "build": "npm run build:dist && node scripts/app-map.mjs --check",
+    "build:dist": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "app-map": "node scripts/app-map.mjs"
