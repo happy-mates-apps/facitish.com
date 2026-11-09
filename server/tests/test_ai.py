@@ -63,7 +63,7 @@ async def test_streams_text_and_records_usage_without_storing_text(client, ai_on
     assert sent[0]["url"].startswith("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions")
     assert sent[0]["auth"] == "Bearer test-key"
     assert body["messages"][1] == {"role": "system", "content": "Websiden:\n\nSidetekst"}
-    assert [t["function"]["name"] for t in body["tools"]] == ["save_clip"]
+    assert [t["function"]["name"] for t in body["tools"]] == ["save_clip", "list_files", "read_file", "save_file"]
 
     row = owner_conn.execute("select surface, prompt_tokens, completion_tokens, estimated from ai_usage").fetchone()
     assert row == ("extension", 120, 7, False)
