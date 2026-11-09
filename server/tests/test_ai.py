@@ -67,7 +67,8 @@ async def test_streams_text_and_records_usage_without_storing_text(client, ai_on
 
     row = owner_conn.execute("select surface, prompt_tokens, completion_tokens, estimated from ai_usage").fetchone()
     assert row == ("extension", 120, 7, False)
-    assert (await client.get("/api/ai/status")).json() == {"enabled": True, "used": 127, "limit": 200000}
+    assert (await client.get("/api/ai/status")).json() == {"enabled": True, "used": 127, "limit": 200000, "hard": True,
+                                                       "warning": None, "blocked": False, "status": "ok"}
 
 
 async def test_word_tool_calls_are_assembled(client, ai_on):

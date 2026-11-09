@@ -4,7 +4,7 @@ so prompts are processed in Europe. Off unless AI_API_KEY is set.
 The server is stateless: the client sends the conversation each time. Tools are *client tools*:
 the model asks for e.g. insert_text, the browser runs it (in Word/Outlook via the Office shell)
 and sends the result back in the next request. Prompts and answers are never stored; only token
-usage is, for the monthly limit per user (ai_usage).
+usage is, for the monthly limit and budgets per user (ai_usage, app/consumption.py).
 """
 
 import json
@@ -145,11 +145,14 @@ async def used_this_month(conn, user_id: int) -> int:
 
 
 async def record_usage(user_id: int, surface: str, prompt: int, completion: int, estimated: bool) -> None:
+    from app import consumption
     async with db.connection() as conn:
         await conn.execute("""
             insert into ai_usage (user_id, surface, model, prompt_tokens, completion_tokens, estimated)
             values (%s, %s, %s, %s, %s, %s)""",
             (user_id, surface, config.settings.ai_model, prompt, completion, estimated))
+        # Warnings and caps of the user's budget: stored once per month and sent as webhooks (app/consumption.py).
+        await consumption.after_usage(conn, user_id)
 
 
 # ── Streaming ──────────────────────────────────────────────────────────────

@@ -112,6 +112,7 @@ CLEANUP_SQL = {
     "sessions": "delete from sessions where expires_at < now() - make_interval(days => %s)",
     "webhook_inbound": """delete from webhook_inbound where status in ('processed', 'ignored', 'failed')
                           and received_at < now() - make_interval(days => %s)""",
+    "ai_budget_alerts": "delete from ai_budget_alerts where created_at < now() - make_interval(days => %s)",
     "captcha_spent": "delete from captcha_spent where expires_at < now() - make_interval(days => %s)",
     "user_delegations": "delete from user_delegations where expires_at < now() - make_interval(days => %s)",
     "mcp_access_requests": """delete from mcp_access_requests where updated_at < now() - make_interval(days => %s)
