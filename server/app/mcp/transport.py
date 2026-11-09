@@ -16,10 +16,10 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app import config
+from app import config, db
 from app.logs import RequestMeta
-from app.mcp import oauth
-from app.mcp.registry import CATALOG, Caller, annotations, catalog_tools, input_schema, invoke, log_call
+from app.mcp import oauth, toolmap
+from app.mcp.registry import CATALOG, HANDLERS, Caller, annotations, input_schema, invoke, log_call
 from app.security import client_ip, user_agent
 from app.sessions import Principal
 
@@ -53,13 +53,23 @@ def build_server(server: str) -> Server:
         caller = _caller(ctx.request.scope)
         await log_call(server=server, user_id=caller.user_id, client_id=caller.client_id, method="tools/list", tool=None,
                        args=None, ms=0, status="ok", ip=caller.principal.meta.ip)
-        return types.ListToolsResult(tools=[
-            types.Tool(name=t["name"], description=t["description"], input_schema=input_schema(t),
-                       annotations=types.ToolAnnotations(read_only_hint=annotations(t)["readOnlyHint"],
-                                                         destructive_hint=annotations(t)["destructiveHint"],
-                                                         idempotent_hint=annotations(t)["idempotentHint"],
-                                                         open_world_hint=False))
-            for t in catalog_tools(server)])
+        tools = []
+        async with db.connection() as conn:
+            for t in await toolmap.for_endpoint(conn, server):
+                if t["kind"] == "code" and (server, t["name"]) not in HANDLERS:
+                    continue
+                spec = toolmap.spec_for(t, server)
+                if t["classification"] != "white" and t["name"] not in toolmap.CORE:
+                    d = await toolmap.decide(conn, t, caller.user_id, caller.principal.session_id)
+                    if not d["allowed"]:
+                        spec = {**spec, "description": f"{spec['description']} [Låst: {d['message']}]"}
+                hints = annotations(spec)
+                tools.append(types.Tool(name=spec["name"], description=spec["description"], input_schema=input_schema(spec),
+                                        annotations=types.ToolAnnotations(read_only_hint=hints["readOnlyHint"],
+                                                                          destructive_hint=hints["destructiveHint"],
+                                                                          idempotent_hint=hints["idempotentHint"],
+                                                                          open_world_hint=False)))
+        return types.ListToolsResult(tools=tools)
 
     async def call_tool(ctx, params):
         caller = _caller(ctx.request.scope)
@@ -120,5 +130,5 @@ class McpEndpoint:
 
 def endpoints() -> dict[str, McpEndpoint]:
     # Importing the tool modules registers their handlers.
-    from app.mcp import admin_server, app_server, drafts  # noqa: F401
+    from app.mcp import access_tools, admin_server, app_server, drafts  # noqa: F401
     return {"app": McpEndpoint("app"), "admin": McpEndpoint("admin")}

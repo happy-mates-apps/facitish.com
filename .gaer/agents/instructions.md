@@ -51,6 +51,7 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod) |
 | `mobile/` | Expo app (iOS + Android): native login, then `/m` in a WebView — spec in `specs/mobile/` |
 | `server/app/mcp/` | MCP servers: `/mcp` (appen, as the user) and `/mcp/admin` (admin, drafts) — spec in `specs/mcp/` |
+| `server/app/access.py`, `mcp/toolmap.py` | the endpoint → tool map (Code and Data tools) governed from /admin/data, internal/external users, MCP access requests with approval from a list or an e-mail link — `specs/mcp/ACCESS.md` |
 
 ## Routes — one server, many surfaces
 Everything is served by the one Python server on one domain. Which surface answers depends on the path.
@@ -74,7 +75,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (63)</summary>
+<details><summary>All routes (66)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -89,6 +90,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/konto` | app (`index.html`) | logged in | Konto |
 | `/privatliv` | app (`index.html`) | everyone | Privatliv |
 | `/forbind` | app (`index.html`) | logged in | Forbind MCP-klient |
+| `/godkend` | app (`index.html`) | logged in | Godkend adgang |
 | `/go` | app (`index.html`) | everyone | Deep link |
 | `/admin` | admin app (`admin.html`) | admin | Statistik |
 | `/admin/go` | admin app (`admin.html`) | admin | Deep link |
@@ -115,8 +117,10 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/data` | admin app (`admin.html`) | admin | Katalog |
 | `/admin/data/explore` | admin app (`admin.html`) | admin | Udforsk |
 | `/admin/data/connect` | admin app (`admin.html`) | admin | Forbind API |
+| `/admin/data/tools` | admin app (`admin.html`) | admin | MCP-værktøjer |
 | `/admin/data/:id` | admin app (`admin.html`) | admin | Datasæt |
 | `/admin/gdpr` | admin app (`admin.html`) | admin | GDPR-forespørgsler |
+| `/admin/access` | admin app (`admin.html`) | admin | Adgangsanmodninger |
 | `/admin/retention` | admin app (`admin.html`) | admin | Sletning af logdata |
 | `/admin/consent` | admin app (`admin.html`) | admin | Samtykke og cookies |
 | `/admin/settings` | admin app (`admin.html`) | admin | Indstillinger |

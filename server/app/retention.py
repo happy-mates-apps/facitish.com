@@ -112,6 +112,10 @@ CLEANUP_SQL = {
     "webhook_inbound": """delete from webhook_inbound where status in ('processed', 'ignored', 'failed')
                           and received_at < now() - make_interval(days => %s)""",
     "captcha_spent": "delete from captcha_spent where expires_at < now() - make_interval(days => %s)",
+    "mcp_access_requests": """delete from mcp_access_requests where updated_at < now() - make_interval(days => %s)
+                              and (status in ('denied', 'withdrawn', 'revoked')
+                                   or (status = 'approved' and expires_at < now())
+                                   or (status in ('awaiting_user', 'awaiting_approver') and session_id is null))""",
     "knowledge_ingest_log": "delete from knowledge_ingest_log where created_at < now() - make_interval(days => %s)",
     "knowledge_conversations": "delete from knowledge_conversations where updated_at < now() - make_interval(days => %s)",
     "review_orphans": """delete from review_sessions s where ended_at < now() - make_interval(days => %s)

@@ -45,7 +45,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (63)</summary>
+<details><summary>Alle ruter (66)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -60,6 +60,7 @@ herfra ind i sin fork.
 | `/konto` | appen | logget ind | Konto |
 | `/privatliv` | appen | alle | Privatliv |
 | `/forbind` | appen | logget ind | Forbind MCP-klient |
+| `/godkend` | appen | logget ind | Godkend adgang |
 | `/go` | appen | alle | Deep link |
 | `/admin` | admin-appen | admin | Statistik |
 | `/admin/go` | admin-appen | admin | Deep link |
@@ -86,8 +87,10 @@ herfra ind i sin fork.
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
+| `/admin/data/tools` | admin-appen | admin | MCP-værktøjer |
 | `/admin/data/:id` | admin-appen | admin | Datasæt |
 | `/admin/gdpr` | admin-appen | admin | GDPR-forespørgsler |
+| `/admin/access` | admin-appen | admin | Adgangsanmodninger |
 | `/admin/retention` | admin-appen | admin | Sletning af logdata |
 | `/admin/consent` | admin-appen | admin | Samtykke og cookies |
 | `/admin/settings` | admin-appen | admin | Indstillinger |

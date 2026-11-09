@@ -53,11 +53,13 @@ async def overview(server: str = ServerParam, admin: Principal = Depends(require
 @router.get("/tools")
 async def tools(server: str = ServerParam):
     """The catalog for one server: tools with mode, domain, parameters and link template, plus domains and prompts."""
-    used = {t["domain"] for t in CATALOG["tools"] if t["server"] == server}
+    tools = await tool_list(server)
+    used = {t["domain"] for t in tools}
+    domains = {**CATALOG["domains"], "data": {"label": "Data (dataværktøjer)", "src": ["server/app/mcp/data_tools.py"]}}
     return {"server": CATALOG["servers"][server], "origin": oauth.origin().rstrip("/"),
-            "domains": {k: v for k, v in CATALOG["domains"].items() if k in used},
+            "domains": {k: v for k, v in domains.items() if k in used},
             "prompts": [p for p in CATALOG["prompts"] if p["server"] == server],
-            "tools": tool_list(server)}
+            "tools": tools}
 
 
 class InvokeIn(BaseModel):
@@ -67,7 +69,7 @@ class InvokeIn(BaseModel):
 @router.post("/tools/{name}/invoke")
 async def invoke_tool(name: str, body: InvokeIn, server: str = ServerParam, admin: Principal = Depends(require_admin)):
     """Runs a tool as the admin. App tools run as the admin's own user; draft tools only return the draft."""
-    if (server, name) not in {(t["server"], t["name"]) for t in CATALOG["tools"]}:
+    if name not in {t["name"] for t in await tool_list(server)}:
         raise HTTPException(404, "Ukendt værktøj")
     started = time.monotonic()
     result, is_error = await invoke(server, name, body.args, _caller(server, admin))
