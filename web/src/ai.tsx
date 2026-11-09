@@ -18,6 +18,7 @@ export type ToolRunner = (name: string, args: Record<string, unknown>) => Promis
 const TOOL_LABEL: Record<string, string> = {
   get_selection: "Læser markeringen", insert_text: "Indsætter tekst", insert_paragraph: "Tilføjer afsnit",
   add_comment: "Tilføjer kommentar", set_subject: "Sætter emne", open_reply: "Åbner svar", save_clip: "Gemmer klip",
+  list_files: "Ser i filerne", read_file: "Læser fil", save_file: "Gemmer fil",
 };
 const MAX_TOOL_ROUNDS = 4;
 
@@ -55,6 +56,30 @@ async function* streamChat(body: object, signal: AbortSignal): AsyncGenerator<[s
   }
 }
 
+type TreeEntry = { name: string; path: string; files?: number };
+type TreeFile = { path: string; size_bytes: number; content_type: string; uploaded_by_name?: string | null };
+
+/** The file tools (server/app/ai.py FILE_TOOLS) run here against /api/files with the user's own session:
+ *  their home (~/) and the common /shared/ folder. Returns null for other tools. */
+async function fileTool(name: string, args: Record<string, unknown>): Promise<string | null> {
+  const path = String(args.path ?? "");
+  if (name === "list_files") {
+    const dir = await api.get<{ path: string; folders: TreeEntry[]; files: TreeFile[] }>(`/api/files/tree?path=${encodeURIComponent(path || "~/")}`);
+    return JSON.stringify({ path: dir.path, folders: dir.folders.map((f) => f.path),
+      files: dir.files.map((f) => ({ path: f.path, bytes: f.size_bytes, type: f.content_type, by: f.uploaded_by_name ?? undefined })) });
+  }
+  if (name === "read_file") {
+    const f = await api.get<{ path: string; text?: string; truncated?: boolean; content_type: string }>(`/api/files/by-path?path=${encodeURIComponent(path)}`);
+    if (f.text === undefined) return `${f.path} er ikke en tekstfil (${f.content_type}) og kan ikke læses her.`;
+    return f.truncated ? `${f.text}\n\n[… afkortet]` : f.text;
+  }
+  if (name === "save_file") {
+    const f = await api.put<{ path: string; size_bytes: number }>("/api/files/text", { path, content: String(args.content ?? "") });
+    return `Gemt som ${f.path} (${f.size_bytes} bytes)`;
+  }
+  return null;
+}
+
 /** A chat panel. `getContext` adds e.g. the web page or the document; `runTool` performs client tools. */
 export function Chat({ surface, getContext, runTool, contextHint, placeholder = "Spørg om noget …" }: {
   surface: Surface;
@@ -86,6 +111,8 @@ export function Chat({ surface, getContext, runTool, contextHint, placeholder = 
         await saveClip({ title: String(args.title ?? "AI-klip"), body: String(args.body ?? ""), source: surface === "word" || surface === "outlook" ? surface : surface === "mobile" ? "mobile" : surface === "extension" ? "extension" : "manual" });
         return "Gemt som klip";
       }
+      const file = await fileTool(call.name, args);
+      if (file !== null) return file;
       if (!runTool) return "Værktøjet findes ikke her";
       return await runTool(call.name, args);
     } catch (e) {

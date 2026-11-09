@@ -38,6 +38,18 @@ TEXT = {"text": {"type": "string", "description": "Teksten"}}
 SAVE_CLIP = _fn("save_clip", "Gem en tekst som klip, så brugeren kan finde den igen.",
                 {"title": {"type": "string"}, "body": {"type": "string"}}, ["title", "body"])
 
+# Files in the user's home (~/) and the common /shared/ folder (app/filetree.py). The browser runs them against
+# /api/files with the user's own session, so the same access rules apply as in the app.
+PATH = {"path": {"type": "string", "description": "Sti, fx ~/noter.md eller /shared/projekt/brief.md"}}
+FILE_TOOLS = [
+    _fn("list_files", "Vis mapper og filer i en mappe. Brugerens egne filer ligger i ~/, fælles projektfiler i /shared/.",
+        {"path": {"type": "string", "description": "Mappe, fx ~/ eller /shared/projekt/"}}),
+    _fn("read_file", "Læs en tekstfil (Markdown, CSV, JSON …) fra ~/ eller /shared/.", PATH, ["path"]),
+    _fn("save_file", "Gem tekst som en fil. Brug /shared/<projekt>/ til projektfiler, som andre skal kunne se, og ~/ til "
+        "brugerens egne. En eksisterende fil med samme navn erstattes.",
+        {**PATH, "content": {"type": "string", "description": "Hele teksten"}}, ["path", "content"]),
+]
+
 TOOLS: dict[str, list[dict]] = {
     "word": [
         _fn("get_selection", "Hent den tekst, brugeren har markeret i dokumentet."),
@@ -45,19 +57,20 @@ TOOLS: dict[str, list[dict]] = {
         _fn("insert_paragraph", "Tilføj et afsnit i starten eller slutningen af dokumentet.",
             {**TEXT, "location": {"type": "string", "enum": ["Start", "End"]}}, ["text"]),
         _fn("add_comment", "Tilføj en kommentar til markeringen.", TEXT, ["text"]),
-        SAVE_CLIP,
+        SAVE_CLIP, *FILE_TOOLS,
     ],
     "outlook": [
         _fn("insert_text", "Indsæt tekst ved markøren i den mail, brugeren skriver.", TEXT, ["text"]),
         _fn("set_subject", "Sæt emnet på den mail, brugeren skriver.", {"subject": {"type": "string"}}, ["subject"]),
         _fn("open_reply", "Åbn et svar på den viste mail med teksten som udkast.",
             {**TEXT, "all": {"type": "boolean", "description": "Svar alle"}}, ["text"]),
-        SAVE_CLIP,
+        SAVE_CLIP, *FILE_TOOLS,
     ],
-    "document": [_fn("insert_text", "Indsæt tekst i den markerede celle eller tekstboks.", TEXT, ["text"]), SAVE_CLIP],
-    "extension": [SAVE_CLIP],
-    "mobile": [SAVE_CLIP],
-    "app": [SAVE_CLIP],
+    "document": [_fn("insert_text", "Indsæt tekst i den markerede celle eller tekstboks.", TEXT, ["text"]), SAVE_CLIP,
+                 *FILE_TOOLS],
+    "extension": [SAVE_CLIP, *FILE_TOOLS],
+    "mobile": [SAVE_CLIP, *FILE_TOOLS],
+    "app": [SAVE_CLIP, *FILE_TOOLS],
 }
 
 SURFACE_TEXT = {
@@ -97,7 +110,8 @@ def build_messages(body: ChatIn, app_name: str) -> list[dict]:
     system = (f"Du er en hjælpsom assistent i {app_name}. {SURFACE_TEXT[body.surface]} "
               "Svar kort og præcist på dansk, medmindre brugeren skriver på et andet sprog. "
               "Brug kun værktøjerne, når brugeren beder om at ændre noget eller gemme noget. "
-              "Opfind ikke fakta; sig det, hvis konteksten ikke indeholder svaret.")
+              "Opfind ikke fakta; sig det, hvis konteksten ikke indeholder svaret. "
+              "Brugeren har egne filer i ~/ og fælles projektfiler i /shared/; læs og gem dem med fil-værktøjerne.")
     out = [{"role": "system", "content": system}]
     if body.context:
         label = body.context_label or "Kontekst"
