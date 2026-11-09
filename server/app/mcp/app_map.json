@@ -218,6 +218,12 @@
       "title": "Webhooks",
       "anchors": []
     },
+    "/develop": {
+      "title": "Udvikling",
+      "anchors": [
+        "prompt-{x}"
+      ]
+    },
     "/extension": {
       "title": "Aktuel side",
       "anchors": []

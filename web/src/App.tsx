@@ -17,6 +17,7 @@ import McpConsent from "./pages/McpConsent";
 import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/UserArea";
 import UserMail, { UserMailById } from "./pages/Mail";
 import Approve from "./pages/Approve";
+import Develop from "./pages/Develop";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -48,6 +49,7 @@ function TopBar() {
         <nav className="nav">
           {full && <FeatureGate feature="klip"><NavLink to="/klip">Klip</NavLink></FeatureGate>}
           {full && <FeatureGate feature="filer"><NavLink to="/filer">Filer</NavLink></FeatureGate>}
+          {full && <NavLink to="/develop">Udvikling</NavLink>}
           {full && <NavLink to="/user">Mit område</NavLink>}
           {full && user.role === "admin" && <a href="/admin">Admin</a>}
           {user ? (
@@ -125,6 +127,7 @@ export default function App() {
         <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/klip/:id" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/go" element={<GoPage />} />
+        <Route path="/develop" element={<RequireUser><Develop /></RequireUser>} />
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>
