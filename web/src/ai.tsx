@@ -81,16 +81,20 @@ async function fileTool(name: string, args: Record<string, unknown>): Promise<st
 }
 
 /** A chat panel. `getContext` adds e.g. the web page or the document; `runTool` performs client tools. */
-export function Chat({ surface, getContext, runTool, contextHint, placeholder = "Spørg om noget …" }: {
+export function Chat({ surface, getContext, runTool, contextHint, placeholder = "Spørg om noget …", initialDraft, autoSend = false }: {
   surface: Surface;
   getContext?: () => Promise<ChatContext>;
   runTool?: ToolRunner;
   contextHint?: string;
   placeholder?: string;
+  /** A question to start from (the dashboard's prompt box, "Spørg om dem" on selected rows). */
+  initialDraft?: string;
+  /** Send initialDraft right away, once AI is known to be on. */
+  autoSend?: boolean;
 }) {
   const { status, reload } = useAiStatus();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft ?? "");
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +102,14 @@ export function Chat({ surface, getContext, runTool, contextHint, placeholder = 
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => end.current?.scrollIntoView({ block: "end" }), [messages, activity]);
+  const sendRef = useRef<(() => void) | null>(null);
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (autoSend && initialDraft?.trim() && status?.enabled && !autoSent.current) {
+      autoSent.current = true;
+      sendRef.current?.();
+    }
+  }, [autoSend, initialDraft, status?.enabled]);
 
   if (!status) return null;
   if (!status.enabled) return <Alert kind="info">AI er ikke slået til.</Alert>;
@@ -144,7 +156,7 @@ export function Chat({ surface, getContext, runTool, contextHint, placeholder = 
         let calls: ToolCall[] = [];
         setActivity("Tænker …");
         setMessages([...history, { role: "assistant", content: "" }]);
-        for await (const [event, data] of streamChat({ surface, messages: history, context: context?.text, context_label: context?.label }, controller.signal)) {
+        for await (const [event, data] of streamChat({ surface, messages: history, context: context?.text, context_label: context?.label, page: window.location.pathname }, controller.signal)) {
           if (event === "delta") {
             answer += String(data.text ?? "");
             setActivity(null);
@@ -173,6 +185,8 @@ export function Chat({ surface, getContext, runTool, contextHint, placeholder = 
       reload();
     }
   };
+
+  sendRef.current = () => { void send(); };
 
   const visible = messages.filter((m) => m.role !== "tool" && (m.content || m.role === "user"));
 

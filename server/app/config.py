@@ -29,7 +29,7 @@ class Settings:
 
     # WebAuthn / passkeys
     rp_id: str = field(default_factory=lambda: _env("RP_ID", "localhost"))
-    rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Gær"))
+    rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Tørgær"))
     origin: str = field(default_factory=lambda: _env("ORIGIN", "http://localhost:5173"))
 
     # Optional: the only e-mail address (or, with SMS login, phone number) that may become the first admin.
@@ -114,12 +114,23 @@ class Settings:
     ai_max_output_tokens: int = field(default_factory=lambda: _int("AI_MAX_OUTPUT_TOKENS", 1500))
     ai_max_context_chars: int = field(default_factory=lambda: _int("AI_MAX_CONTEXT_CHARS", 24000))
 
+    # Viden (specs/knowledge): embeddings for the vidensrum. Empty KNOWLEDGE_EMBED_MODEL (or no AI_API_KEY) = full-text
+    # search only. Answers are written by AI_MODEL; without AI the agent returns the best excerpts.
+    knowledge_embed_model: str = field(default_factory=lambda: _env("KNOWLEDGE_EMBED_MODEL", "bge-m3"))
+    knowledge_max_zip_files: int = field(default_factory=lambda: _int("KNOWLEDGE_MAX_ZIP_FILES", 1000))
+    knowledge_max_zip_mb: int = field(default_factory=lambda: _int("KNOWLEDGE_MAX_ZIP_MB", 200))
+
     # MCP servers (specs/mcp): /mcp for the app, /mcp/admin for admin. 0 turns a server off (404).
     mcp_app_enabled: bool = field(default_factory=lambda: _env("MCP_APP_ENABLED", "1") == "1")
     mcp_admin_enabled: bool = field(default_factory=lambda: _env("MCP_ADMIN_ENABLED", "1") == "1")
     mcp_draft_ttl_min: int = field(default_factory=lambda: _int("MCP_DRAFT_TTL_MIN", 10))
     mcp_access_token_minutes: int = field(default_factory=lambda: _int("MCP_ACCESS_TOKEN_MINUTES", 60))
     mcp_refresh_token_days: int = field(default_factory=lambda: _int("MCP_REFRESH_TOKEN_DAYS", 30))
+    # Access requests from MCP clients (app/access.py): e-mail links live this long; new users with an e-mail on one
+    # of these domains (comma separated, e.g. "firma.dk,firma.com") start as internal instead of external.
+    mcp_access_link_hours: int = field(default_factory=lambda: _int("MCP_ACCESS_LINK_HOURS", 72))
+    internal_email_domains: tuple[str, ...] = field(default_factory=lambda: tuple(
+        d.strip().lower().lstrip("@") for d in (_env("INTERNAL_EMAIL_DOMAINS", "") or "").split(",") if d.strip()))
     # The read-only <db>_mcp_ro user for db_query. Without it the tool answers "ikke tilgængelig".
     mcp_db_query_url: str | None = field(default_factory=lambda: _env("MCP_DB_QUERY_URL"))
 
@@ -142,6 +153,29 @@ class Settings:
     nats_url: str | None = field(default_factory=lambda: _env("NATS_URL"))
     nats_monitor_url: str | None = field(default_factory=lambda: _env("NATS_MONITOR_URL"))
     nats_monitor_timeout: float = field(default_factory=lambda: float(_env("NATS_MONITOR_TIMEOUT", "5")))
+
+    # Mail, calendar and contacts (specs/mail): Stalwart holds the mailboxes, Lettermint relays all outbound mail.
+    # MAILBOX_BACKEND: "off" (the module answers "not set up"), "stalwart", or "memory" (development and tests).
+    mailbox_backend: str = field(default_factory=lambda: _env("MAILBOX_BACKEND", "off"))
+    # Stalwart's HTTP listener on the private network: management API (/api/…), JMAP and WebDAV. Never public.
+    stalwart_url: str | None = field(default_factory=lambda: _env("STALWART_URL"))
+    # "<admin principal>:<secret>" (HTTP Basic; deploy/mail/bootstrap.sh creates the principal "gaer-api") or a bearer token
+    stalwart_api_key: str | None = field(default_factory=lambda: _env("STALWART_API_KEY"))
+    # Master user for acting as an account over JMAP/WebDAV (retention, calendars, contacts): "<account>%<user>".
+    stalwart_master_user: str | None = field(default_factory=lambda: _env("STALWART_MASTER_USER"))
+    stalwart_master_secret: str | None = field(default_factory=lambda: _env("STALWART_MASTER_SECRET"))
+    stalwart_timeout: float = field(default_factory=lambda: float(_env("STALWART_TIMEOUT", "15")))
+    # The public host clients connect to (IMAP 993, submission 465/587, JMAP/CalDAV/CardDAV 443) and the MX target.
+    mail_hostname: str | None = field(default_factory=lambda: _env("MAIL_HOSTNAME"))
+    mail_default_quota_mb: int = field(default_factory=lambda: _int("MAIL_DEFAULT_QUOTA_MB", 5120))
+    # SPF include shown for new domains (check the value on the domain's page in Lettermint) and the relay's host.
+    mail_spf_include: str = field(default_factory=lambda: _env("MAIL_SPF_INCLUDE", "spf.lettermint.co"))
+    lettermint_smtp_host: str = field(default_factory=lambda: _env("LETTERMINT_SMTP_HOST", "smtp.lettermint.co"))
+    lettermint_monthly_quota: int = field(default_factory=lambda: _int("LETTERMINT_MONTHLY_QUOTA", 0))  # 0: not shown
+    # Object Storage prefixes (same bucket as the app unless the deployment points them elsewhere): mail archived by
+    # the retention job when archive export is on, and the nightly calendar/contacts backup.
+    mail_archive_prefix: str = field(default_factory=lambda: _env("MAIL_ARCHIVE_PREFIX", "mail-archive/"))
+    mail_backup_prefix: str = field(default_factory=lambda: _env("MAIL_BACKUP_PREFIX", "mail-backup/"))
 
     @property
     def is_production(self) -> bool:

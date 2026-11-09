@@ -8,7 +8,7 @@ type Data = {
   per_surface: { surface: string; requests: number; tokens: number }[];
 };
 
-const SURFACE: Record<string, string> = { app: "Web-app", extension: "Browserudvidelse", word: "Word", outlook: "Outlook", document: "Excel/PowerPoint", mobile: "Mobil" };
+const SURFACE: Record<string, string> = { app: "Web-app", extension: "Browserudvidelse", word: "Word", outlook: "Outlook", document: "Excel/PowerPoint", mobile: "Mobil", knowledge: "Viden" };
 
 export default function AiAdmin() {
   const data = useLoad(() => api.get<Data>("/api/admin/ai"));

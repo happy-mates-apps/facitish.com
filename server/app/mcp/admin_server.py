@@ -131,7 +131,7 @@ USER_FILTERS = {
     "admins": "u.role = 'admin'", "test": "u.impersonation_only",
 }
 USER_COLUMNS = """u.id, u.display_name, u.email, u.phone, u.role, u.blocked_at, u.created_at, u.last_login_at, u.grace_logins_used,
-                  u.impersonation_only, u.mfa_required, u.locale, u.time_zone,
+                  u.impersonation_only, u.mfa_required, u.locale, u.time_zone, u.audience,
                   (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
                   (select count(*) from totp_factors t where t.user_id = u.id and t.confirmed_at is not null) as totp,
                   (select count(*) from sessions s where s.user_id = u.id and s.revoked_at is null and s.expires_at > now())
@@ -140,6 +140,7 @@ USER_COLUMNS = """u.id, u.display_name, u.email, u.phone, u.role, u.blocked_at, 
 
 def _user_out(u: dict) -> dict:
     return {"userId": u["id"], "name": u["display_name"], "email": masked(u["email"]), "phone": masked(u["phone"]), "role": u["role"],
+            "audience": u["audience"],
             "blocked": u["blocked_at"] is not None, "testAccount": u["impersonation_only"], "passkeys": u["passkeys"],
             "authenticatorApps": u["totp"], "mfaRequired": u["mfa_required"],
             "activeSessions": u["active_sessions"], "graceLoginsUsed": u["grace_logins_used"],

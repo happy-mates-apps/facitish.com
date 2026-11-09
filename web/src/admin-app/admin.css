@@ -33,3 +33,8 @@ body { font-size: 14px; line-height: normal; }
   .tg-shell { flex-direction: column; }
   .tg-side { position: static !important; width: 100% !important; height: auto !important; }
 }
+
+/* /admin/consumption tables: first and last cell line up with the card's padding. */
+.tg-ctable td { padding: 10px; }
+.tg-ctable td:first-child { padding-left: 20px; }
+.tg-ctable td:last-child { padding-right: 20px; }
