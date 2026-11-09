@@ -39,6 +39,14 @@
       "title": "Samtykke og cookies",
       "anchors": []
     },
+    "/admin/consumption": {
+      "title": "AI-forbrug",
+      "anchors": [
+        "consumption-budget",
+        "consumption-new-budget",
+        "consumption-tab-{x}"
+      ]
+    },
     "/admin/data": {
       "title": "Katalog",
       "anchors": []
@@ -215,11 +223,19 @@
     "/konto": {
       "title": "Konto",
       "anchors": [
+        "account-ai-usage",
         "account-mcp",
         "account-profile",
         "account-ring",
         "account-security",
         "account-sessions"
+      ]
+    },
+    "/konto/forbrug": {
+      "title": "Mit AI-forbrug",
+      "anchors": [
+        "ai-usage-budget",
+        "ai-usage-month"
       ]
     },
     "/login": {
@@ -253,6 +269,7 @@
     "/m/profil": {
       "title": "Profil",
       "anchors": [
+        "account-ai-usage",
         "account-mcp",
         "account-profile",
         "account-ring",

@@ -70,6 +70,11 @@ async def build_user_export(conn, user_id: int) -> dict:
                                        where impersonation_only and impersonation_owner_id = %s""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
                                   where user_id = %s order by ts""", user_id),
+        "ai_budgets": await rows("""select monthly_tokens, warn_pcts, hard, total_tokens, starts_on, ends_on, note,
+                                           created_at, updated_at from ai_budgets where user_id = %s order by starts_on""",
+                                 user_id),
+        "ai_budget_alerts": await rows("""select month, kind, pct, used, limit_tokens, created_at from ai_budget_alerts
+                                          where user_id = %s order by created_at""", user_id),
         "analytics_events": await rows("""select ts, kind, path, referrer, device, browser from analytics_events
                                           where user_id = %s or visitor_id = any(%s) order by ts limit 50000""",
                                        user_id, visitor_ids),
@@ -128,7 +133,7 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
-    """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, one-time
+    """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, AI budgets and their alerts, one-time
     codes, feature level, review sessions and notes and their test accounts cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:

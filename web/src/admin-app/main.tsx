@@ -26,6 +26,7 @@ import AdminFiles from "./pages/AdminFiles";
 import Web from "./pages/Web";
 import Integrations from "./pages/Integrations";
 import AiAdmin from "./pages/AiAdmin";
+import Consumption from "./pages/Consumption";
 import Settings from "./pages/Settings";
 import Mcp from "./pages/Mcp";
 import Webhooks from "./pages/Webhooks";
@@ -89,6 +90,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="web" element={legacy(<Web />)} />
                   <Route path="files" element={legacy(<AdminFiles />)} />
                   <Route path="ai" element={legacy(<AiAdmin />)} />
+                  <Route path="consumption" element={<Consumption />} />
                   <Route path="integrations" element={legacy(<Integrations />)} />
                   <Route path="mcp" element={<Mcp />} />
                   <Route path="webhooks" element={legacy(<Webhooks />)} />

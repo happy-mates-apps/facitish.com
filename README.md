@@ -34,7 +34,7 @@ herfra ind i sin fork.
 | `/` | logget ind | Appens forside. Anonyme sendes til `/w/`. |
 | `/w/…` | alle | Offentligt website: Markdown-sider fra `/admin/web` (dansk/engelsk). Forsiden er Markdown-siden eller „Facit · 246“ (valgt i `/admin/web`) og slutter altid med et login-kort; på en ny instans står der, at den første, der logger ind, bliver administrator. |
 | `/login` | anonyme | E-mail → engangskode → anden faktor, hvis „Kræv passkey“ er slået til, ellers tilbud om passkey. Viser, når man bliver den første admin. Også `/extension/login` og `/m/login`. |
-| `/klip`, `/filer`, `/konto`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), privatliv og GDPR. |
+| `/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), eget AI-forbrug og budget, privatliv og GDPR. |
 | `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
 | `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
 | `/m/…` | logget ind | Mobil-app (PWA) med bundmenu, AI, klip, filer og profil. |
@@ -45,7 +45,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (57)</summary>
+<details><summary>Alle ruter (59)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -58,6 +58,7 @@ herfra ind i sin fork.
 | `/klip/:id` | appen | logget ind | Klip (feature `klip`) |
 | `/filer` | appen | logget ind | Filer (feature `filer`) |
 | `/konto` | appen | logget ind | Konto |
+| `/konto/forbrug` | appen | logget ind | Mit AI-forbrug |
 | `/privatliv` | appen | alle | Privatliv |
 | `/forbind` | appen | logget ind | Forbind MCP-klient |
 | `/go` | appen | alle | Deep link |
@@ -75,6 +76,7 @@ herfra ind i sin fork.
 | `/admin/web` | admin-appen | admin | Website |
 | `/admin/files` | admin-appen | admin | Filer |
 | `/admin/ai` | admin-appen | admin | AI |
+| `/admin/consumption` | admin-appen | admin | AI-forbrug |
 | `/admin/integrations` | admin-appen | admin | Udvidelse og Office |
 | `/admin/mcp` | admin-appen | admin | MCP-servere |
 | `/admin/webhooks` | admin-appen | admin | Webhooks |

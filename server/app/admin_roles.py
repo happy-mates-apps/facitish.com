@@ -19,7 +19,7 @@ ROLES: dict[str, dict] = {
     FULL: {"label": "Fuld adgang", "description": "Alt i /admin, også hvem der er admin og med hvilke roller, og MCP for admin."},
     "support": {"label": "Support", "description": "Hjælper brugere: konti, spærring, nulstilling af login, efterligning og auth-loggen."},
     "indhold": {"label": "Indhold", "description": "Website, filer og App Stores."},
-    "produkt": {"label": "Produkt", "description": "Features og ringe, AI, analytics og heatmaps."},
+    "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics og heatmaps."},
     "data": {"label": "Data", "description": "Datakatalog, Udforsk og API-kilder."},
     "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log."},
     "drift": {"label": "Drift", "description": "MCP-servere, udvidelse og Office, webhooks, jobs og indstillinger."},
@@ -36,6 +36,7 @@ SECTIONS: dict[str, list[str]] = {
     "/logs/audit": ["/api/admin/logs/audit"],
     "/features": ["/api/admin/features"],
     "/ai": ["/api/admin/ai"],
+    "/consumption": ["/api/admin/consumption"],
     "/web": ["/api/admin/web"],
     "/files": ["/api/admin/files"],
     "/app-stores": ["/api/admin/app-store"],
@@ -56,7 +57,7 @@ EVERYONE = ["/"]
 ROLE_SECTIONS: dict[str, list[str]] = {
     "support": ["/users", "/impersonation", "/logs/auth"],
     "indhold": ["/web", "/files", "/app-stores"],
-    "produkt": ["/analytics", "/heatmaps", "/features", "/ai"],
+    "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption"],
     "data": ["/data", "/data/explore", "/data/connect"],
     "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth"],
     "drift": ["/mcp", "/integrations", "/webhooks", "/jobs", "/settings"],
@@ -66,7 +67,7 @@ ROLE_SECTIONS: dict[str, list[str]] = {
 FULL_ONLY = [re.compile(r"^/api/admin/users/\d+/(role|admin-roles)$")]
 # The plain user list is read by other sections (feature levels, the extension's test-user picker in the top bar).
 USER_LIST = "/api/admin/users"
-USER_LIST_SECTIONS = {"/users", "/features", "/gdpr", "/retention"}
+USER_LIST_SECTIONS = {"/users", "/features", "/gdpr", "/retention", "/consumption"}
 
 
 def clean(roles) -> list[str]:

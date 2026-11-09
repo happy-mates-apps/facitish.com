@@ -28,13 +28,14 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | Path | What |
 | --- | --- |
 | `server/app/main.py` | app, CSRF + security headers, CSP per path, SPA fallback, `/health` |
-| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `admin_ops` /api/admin webhooks (out and in), jobs, retention policies · `hooks` incoming webhooks · `review` review panel (notes, sessions, zip) · `app_store` App Stores · `data` /api/admin/data catalog, Udforsk, API sources · `office` manifests · `web` /w website + extension zip |
+| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `consumption` /api/admin/consumption AI consumption + budgets · `impersonation` test accounts · `features` rings + usage · `admin_ops` /api/admin webhooks (out and in), jobs, retention policies · `hooks` incoming webhooks · `review` review panel (notes, sessions, zip) · `app_store` App Stores · `data` /api/admin/data catalog, Udforsk, API sources · `office` manifests · `web` /w website + extension zip |
 | `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `require_admin_stepup` / `any_session` |
 | `server/app/mfa.py`, `totp.py` | second-factor rules (who needs what, changing factors), authenticator apps (TOTP) |
 | `server/app/db.py` | connection pools: `db.connection()`, `db.purge_connection()`, `fetch_one`, `fetch_all` |
 | `server/app/config.py` | all settings from environment variables |
 | `server/app/migrations/` | plain SQL, applied by `python -m app.migrate` |
 | `server/app/ai.py`, `routes/ai.py` | optional AI chat (OVHcloud AI Endpoints), client tools, usage + monthly limits |
+| `server/app/consumption.py`, `routes/consumption.py` | AI consumption: what limit applies (budget → own limit → default), budgets per user (monthly cap, warning levels, hard/soft, optional period total, start/end date), alerts (`ai_budget_alerts`, webhooks `ai.budget.*`), reports per period/model/user for `/admin/consumption`, the user's own page `/konto/forbrug` (`GET /api/ai/usage`) |
 | `server/app/logs.py`, `retention.py` | auth/audit log writers, purge of logs, cleanup of operational data (`retention_policies`) |
 | `server/app/jobs.py` | background jobs: queue in Postgres (`jobs`), workers + scheduler (`job_schedules`) in the app process, retries with backoff; `@jobs.handler("kind")`, `jobs.enqueue(conn, …)` |
 | `server/app/webhooks.py`, `secrets_box.py` | outgoing webhooks: `webhooks.emit(conn, event, data)` in the same transaction; signed (HMAC), optional auth header, retries via jobs, SSRF guard; secrets encrypted (AES-GCM) |
@@ -60,9 +61,9 @@ They share the same login (session cookie), the same database and the same API.
 | `/` | logged in | The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation). | main.py `spa()`, `web/src/pages/Home.tsx` |
 | `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page is the Markdown page with an empty slug, or — setting `web_front = "facit246"` in `/admin/web` — the fixed "Facit · 246" story (da/en/de/sv/no, browser language by default; `web_front.py`, design in `specs/forside-246/`). The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_front.py`, `web_static/` |
 | `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
-| `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
+| `/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), own AI consumption and budget (`/konto/forbrug`), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
 | `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
-| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
@@ -71,7 +72,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (57)</summary>
+<details><summary>All routes (59)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -84,6 +85,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/klip/:id` | app (`index.html`) | logged in | Klip (feature `klip`) |
 | `/filer` | app (`index.html`) | logged in | Filer (feature `filer`) |
 | `/konto` | app (`index.html`) | logged in | Konto |
+| `/konto/forbrug` | app (`index.html`) | logged in | Mit AI-forbrug |
 | `/privatliv` | app (`index.html`) | everyone | Privatliv |
 | `/forbind` | app (`index.html`) | logged in | Forbind MCP-klient |
 | `/go` | app (`index.html`) | everyone | Deep link |
@@ -101,6 +103,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/web` | admin app (`admin.html`) | admin | Website |
 | `/admin/files` | admin app (`admin.html`) | admin | Filer |
 | `/admin/ai` | admin app (`admin.html`) | admin | AI |
+| `/admin/consumption` | admin app (`admin.html`) | admin | AI-forbrug |
 | `/admin/integrations` | admin app (`admin.html`) | admin | Udvidelse og Office |
 | `/admin/mcp` | admin app (`admin.html`) | admin | MCP-servere |
 | `/admin/webhooks` | admin app (`admin.html`) | admin | Webhooks |
