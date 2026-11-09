@@ -159,7 +159,8 @@ class Settings:
     mailbox_backend: str = field(default_factory=lambda: _env("MAILBOX_BACKEND", "off"))
     # Stalwart's HTTP listener on the private network: management API (/api/…), JMAP and WebDAV. Never public.
     stalwart_url: str | None = field(default_factory=lambda: _env("STALWART_URL"))
-    stalwart_api_key: str | None = field(default_factory=lambda: _env("STALWART_API_KEY"))  # Bearer, admin permissions
+    # "<admin principal>:<secret>" (HTTP Basic; deploy/mail/bootstrap.sh creates the principal "gaer-api") or a bearer token
+    stalwart_api_key: str | None = field(default_factory=lambda: _env("STALWART_API_KEY"))
     # Master user for acting as an account over JMAP/WebDAV (retention, calendars, contacts): "<account>%<user>".
     stalwart_master_user: str | None = field(default_factory=lambda: _env("STALWART_MASTER_USER"))
     stalwart_master_secret: str | None = field(default_factory=lambda: _env("STALWART_MASTER_SECRET"))

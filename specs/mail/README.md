@@ -4,7 +4,7 @@ The spec is the doc *Mail module spec — Stalwart + Lettermint on UpCloud* (Cla
 built in Gær, where the build differs from the spec, and what still has to be checked against the Stalwart version
 you deploy.
 
-## What is built (phases 2 and 3)
+## What is built
 
 | Part | Where |
 | --- | --- |
@@ -18,9 +18,11 @@ you deploy.
 | `/user/mail`, `/user/<id>/mail` | `web/src/pages/Mail.tsx` |
 | `/admin/mail` (Overblik, Domæner, Postkasser, Fælles postkasser, Kalendere og kontakter, Afsendelse, Opbevaring, Drift, Audit), `/admin/mail/users/<id>` | `web/src/admin-app/pages/mail/` |
 | Tests | `server/tests/test_mail.py` |
+| Phase 1: UpCloud (Terraform), Stalwart config, deploy and bootstrap scripts, runbook | `deploy/mail/` |
 
-Phase 1 (Stalwart itself on UpCloud with Managed PostgreSQL and Object Storage, the Lettermint relay route, TLS) is
-infrastructure and not in this repository.
+Phase 1 (Stalwart on UpCloud with Managed PostgreSQL and Object Storage, the Lettermint relay, TLS) is in
+`deploy/mail/`: Terraform for UpCloud, Stalwart's `config.toml` and compose file, and the runbook in
+`deploy/mail/README.md`.
 
 ## Where Gær differs from the spec
 
