@@ -22,7 +22,14 @@ DEFAULTS: dict = {
     "retention_mcp_log_days": 90,
     "retention_last_run": None,
     "ai_default_monthly_tokens": 200_000,   # per user; 0 turns AI off for users without their own limit
+    "ai_default_warn_pct": 80,              # warn users without a budget at this share of their limit; 0: never
+    "ai_warning_mail": True,                # e-mail users when they pass a warning level, reach the cap or use up a budget
     "web_front": "markdown",                # /w/: "markdown" (slug '') or "facit246" (app/web_front.py); default: WEB_FRONT
+    "mail_archive_export": False,           # mail: copy .eml to the archive before expiry; users may request a download
+    "mail_relay_rotated_at": None,          # mail: when the Lettermint SMTP credentials were last rotated
+    "mail_relay_paused": False,             # mail: outbound queue paused from /admin/mail → Drift
+    "mail_last_sync": None,                 # mail: {at, mailboxes, drift} from the nightly sync
+    "mail_last_backup": None,               # mail: {at, calendars, address_books, failures} from the nightly backup
 }
 
 PUBLIC_KEYS = ("app_name", "logo_key", "consent_version", "consent_title", "consent_text",

@@ -26,10 +26,10 @@ export default function Home() {
           <h3>Mine filer</h3>
           <p className="muted small">Upload, hent og slet dine filer.</p>
         </Link>
-        <Link to="/konto" className="card">
-          <span className="eyebrow">Konto</span>
-          <h3>Profil og sikkerhed</h3>
-          <p className="muted small">Profil, passkeys, godkendelsesapp, aktive logins og dine data.</p>
+        <Link to="/user" className="card">
+          <span className="eyebrow">Mit område</span>
+          <h3>Overblik, indstillinger og deling</h3>
+          <p className="muted small">Din aktivitet, profil og sikkerhed, og hvem du har givet adgang som læser eller forfatter.</p>
         </Link>
         {user.role === "admin" && (
           <a href="/admin" className="card">

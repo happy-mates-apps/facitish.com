@@ -12,6 +12,12 @@
         "stats-login"
       ]
     },
+    "/admin/access": {
+      "title": "Adgangsanmodninger",
+      "anchors": [
+        "access-requests"
+      ]
+    },
     "/admin/ai": {
       "title": "AI",
       "anchors": []
@@ -39,6 +45,15 @@
       "title": "Samtykke og cookies",
       "anchors": []
     },
+    "/admin/consumption": {
+      "title": "AI-forbrug",
+      "anchors": [
+        "consumption-budget",
+        "consumption-new-budget",
+        "consumption-tab-{x}",
+        "consumption-warning-mail"
+      ]
+    },
     "/admin/data": {
       "title": "Katalog",
       "anchors": []
@@ -55,6 +70,13 @@
       "title": "Udforsk",
       "anchors": []
     },
+    "/admin/data/tools": {
+      "title": "MCP-værktøjer",
+      "anchors": [
+        "data-tool-new",
+        "data-tools"
+      ]
+    },
     "/admin/features": {
       "title": "Features og ringe",
       "anchors": [
@@ -67,7 +89,11 @@
     },
     "/admin/files": {
       "title": "Filer",
-      "anchors": []
+      "anchors": [
+        "file-preview",
+        "file-row-{x}",
+        "files-browser"
+      ]
     },
     "/admin/gdpr": {
       "title": "GDPR-forespørgsler",
@@ -99,6 +125,18 @@
       "title": "Jobs og oprydning",
       "anchors": []
     },
+    "/admin/knowledge": {
+      "title": "Viden",
+      "anchors": []
+    },
+    "/admin/knowledge/agents/:id": {
+      "title": "Agent",
+      "anchors": []
+    },
+    "/admin/knowledge/spaces/:id": {
+      "title": "Vidensrum",
+      "anchors": []
+    },
     "/admin/logs/audit": {
       "title": "Audit-log",
       "anchors": []
@@ -107,10 +145,43 @@
       "title": "Auth-log",
       "anchors": []
     },
+    "/admin/mail": {
+      "title": "Mail",
+      "anchors": [
+        "mail-alias-requests",
+        "mail-bulk",
+        "mail-domain-{x}",
+        "mail-drift",
+        "mail-retention-policy",
+        "mail-shared-collections",
+        "mail-shared-{x}",
+        "mail-tab-{x}",
+        "mail-warnings"
+      ]
+    },
+    "/admin/mail/users/:id": {
+      "title": "Brugerens mail",
+      "anchors": [
+        "mail-user-audit",
+        "mail-user-mailbox",
+        "mail-user-offboarding",
+        "mail-user-provisioning"
+      ]
+    },
     "/admin/mcp": {
       "title": "MCP-servere",
       "anchors": [
         "mcp-drafts"
+      ]
+    },
+    "/admin/nats": {
+      "title": "NATS",
+      "anchors": [
+        "nats-health",
+        "nats-jetstream-summary",
+        "nats-kpis",
+        "nats-live",
+        "nats-tab-{x}"
       ]
     },
     "/admin/retention": {
@@ -129,6 +200,7 @@
       "title": "Brugere og roller",
       "anchors": [
         "user-admin-roles",
+        "user-audience",
         "user-block",
         "user-drawer",
         "user-mfa",
@@ -148,6 +220,14 @@
     },
     "/extension": {
       "title": "Aktuel side",
+      "anchors": []
+    },
+    "/extension/agent": {
+      "title": "Agenter",
+      "anchors": []
+    },
+    "/extension/agent/:slug": {
+      "title": "Agent",
       "anchors": []
     },
     "/extension/chat": {
@@ -196,6 +276,13 @@
       "title": "Deep link",
       "anchors": []
     },
+    "/godkend": {
+      "title": "Godkend adgang",
+      "anchors": [
+        "approve-request",
+        "mcp-access"
+      ]
+    },
     "/klip": {
       "title": "Klip",
       "anchors": [
@@ -215,11 +302,20 @@
     "/konto": {
       "title": "Konto",
       "anchors": [
+        "account-ai-usage",
         "account-mcp",
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
+      ]
+    },
+    "/konto/forbrug": {
+      "title": "Mit AI-forbrug",
+      "anchors": [
+        "ai-usage-budget",
+        "ai-usage-month"
       ]
     },
     "/login": {
@@ -253,11 +349,13 @@
     "/m/profil": {
       "title": "Profil",
       "anchors": [
+        "account-ai-usage",
         "account-mcp",
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
       ]
     },
     "/office-addin": {
@@ -268,6 +366,120 @@
       "title": "Privatliv",
       "anchors": [
         "privacy-export"
+      ]
+    },
+    "/user": {
+      "title": "Mit område",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/:id": {
+      "title": "Delt område",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/:id/mail": {
+      "title": "Mail",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mail-provisioning",
+        "mail-working-hours",
+        "mail-{x}",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/deling": {
+      "title": "Deling",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/indstillinger": {
+      "title": "Indstillinger",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/mail": {
+      "title": "Mail",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mail-provisioning",
+        "mail-working-hours",
+        "mail-{x}",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
       ]
     }
   }

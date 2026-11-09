@@ -133,6 +133,7 @@ export default function UserDrawer({ user: u, users, grace, roles = [], onClose,
             </div>
           ))}
         </div>
+        {!test && <Audience user={u} onSaved={onChanged} />}
         {u.role === "admin" && !test && roles.length > 0 && (
           <AdminRoles user={u} roles={roles} canEdit={full} onSaved={onChanged} />
         )}
@@ -208,6 +209,54 @@ function AdminRoles({ user: u, roles, canEdit, onSaved }: { user: AdminUser; rol
         </button>
       ) : (
         <span style={{ fontSize: 12, color: "#64748b" }}>Kun admins med fuld adgang kan ændre roller.</span>
+      )}
+    </div>
+  );
+}
+
+
+/** Internal or external (server/app/access.py). Going external ends the user's internal MCP grants at once. */
+function Audience({ user: u, onSaved }: { user: AdminUser; onSaved: () => void }) {
+  const say = useToast();
+  const [grants, setGrants] = useState<number | null>(null);
+  useEffect(() => {
+    api.get<{ internal_grants: number }>(`/api/admin/users/${u.id}/access`).then((r) => setGrants(r.internal_grants)).catch(() => setGrants(null));
+  }, [u.id, u.audience]);
+  const choose = async (audience: "internal" | "external") => {
+    if (audience === u.audience) return;
+    if (audience === "external" && grants && !confirm(`Gør brugeren ekstern? ${grants} interne adgange og anmodninger ophører med det samme.`)) return;
+    try {
+      await api.post(`/api/admin/users/${u.id}/audience`, { audience });
+      say(audience === "internal" ? "Brugeren er nu intern" : "Brugeren er nu ekstern");
+      onSaved();
+    } catch (e) {
+      say(errorText(e));
+    }
+  };
+  const options = [
+    { key: "internal" as const, label: "Intern", hint: "Medarbejder. Kan bruge grønne værktøjer og bede om gule og røde." },
+    { key: "external" as const, label: "Ekstern", hint: "Partner eller kunde. Kun hvide værktøjer og egne data." },
+  ];
+  return (
+    <div role="radiogroup" aria-label="Brugertype" style={{ display: "flex", flexDirection: "column", gap: 8 }} data-deeplink="user-audience">
+      <span style={sectionLabel}>Brugertype</span>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+        {options.map((o) => {
+          const on = u.audience === o.key;
+          return (
+            <label key={o.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+              border: on ? "2px solid #2563eb" : "1px solid #e2e8f0", background: on ? "#eff6ff" : "#ffffff" }}>
+              <input type="radio" name={`audience-${u.id}`} checked={on} onChange={() => choose(o.key)} style={{ marginTop: 2 }} />
+              <span style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <span style={{ fontWeight: 600 }}>{o.label}</span>
+                <span style={{ fontSize: 12, color: "#64748b" }}>{o.hint}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {grants !== null && grants > 0 && u.audience === "internal" && (
+        <span style={{ fontSize: 12, color: "#64748b" }}>{grants} aktive eller afventende interne MCP-adgange.</span>
       )}
     </div>
   );

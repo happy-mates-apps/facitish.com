@@ -34,7 +34,9 @@ herfra ind i sin fork.
 | `/` | logget ind | Appens forside. Anonyme sendes til `/w/`. |
 | `/w/…` | alle | Offentligt website: Markdown-sider fra `/admin/web` (dansk/engelsk). Forsiden er Markdown-siden eller „Facit · 246“ (valgt i `/admin/web`) og slutter altid med et login-kort; på en ny instans står der, at den første, der logger ind, bliver administrator. |
 | `/login` | anonyme | E-mail → engangskode → anden faktor, hvis „Kræv passkey“ er slået til, ellers tilbud om passkey. Viser, når man bliver den første admin. Også `/extension/login` og `/m/login`. |
-| `/klip`, `/filer`, `/konto`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), privatliv og GDPR. |
+| `/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), eget AI-forbrug og budget, privatliv og GDPR. |
+| `/user`, `/user/<id>` | logget ind (`/user/<id>`: dem ejeren har givet adgang) | **Mit område**: overblik (tal, seneste aktivitet, områder delt med dig), indstillinger og deling. Giv en anden bruger adgang som **læser** eller **forfatter** (kan oprette og redigere, aldrig slette), evt. med udløb. De åbner det på `/user/<id>`. |
+| `/user/mail`, `/admin/mail` | logget ind (`/admin/mail`: admin, Drift) | **Mail, kalender og kontakter**: personlig postkasse i Stalwart, fælles postkasser, kalendere og adressebøger med deling, udgående mail via Lettermint, mail slettes efter højst 30 dage. `/user/mail` til brugeren, `/admin/mail` til drift. |
 | `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
 | `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
 | `/m/…` | logget ind | Mobil-app (PWA) med bundmenu, AI, klip, filer og profil. |
@@ -45,7 +47,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (57)</summary>
+<details><summary>Alle ruter (76)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -58,8 +60,16 @@ herfra ind i sin fork.
 | `/klip/:id` | appen | logget ind | Klip (feature `klip`) |
 | `/filer` | appen | logget ind | Filer (feature `filer`) |
 | `/konto` | appen | logget ind | Konto |
+| `/user` | appen | logget ind | Mit område |
+| `/user/indstillinger` | appen | logget ind | Indstillinger |
+| `/user/deling` | appen | logget ind | Deling |
+| `/user/mail` | appen | logget ind | Mail (feature `mail`) |
+| `/user/:id` | appen | logget ind | Delt område |
+| `/user/:id/mail` | appen | logget ind | Mail (feature `mail`) |
+| `/konto/forbrug` | appen | logget ind | Mit AI-forbrug |
 | `/privatliv` | appen | alle | Privatliv |
 | `/forbind` | appen | logget ind | Forbind MCP-klient |
+| `/godkend` | appen | logget ind | Godkend adgang |
 | `/go` | appen | alle | Deep link |
 | `/admin` | admin-appen | admin | Statistik |
 | `/admin/go` | admin-appen | admin | Deep link |
@@ -74,16 +84,25 @@ herfra ind i sin fork.
 | `/admin/logs/audit` | admin-appen | admin | Audit-log |
 | `/admin/web` | admin-appen | admin | Website |
 | `/admin/files` | admin-appen | admin | Filer |
+| `/admin/knowledge` | admin-appen | admin | Viden |
+| `/admin/knowledge/spaces/:id` | admin-appen | admin | Vidensrum |
+| `/admin/knowledge/agents/:id` | admin-appen | admin | Agent |
 | `/admin/ai` | admin-appen | admin | AI |
+| `/admin/consumption` | admin-appen | admin | AI-forbrug |
 | `/admin/integrations` | admin-appen | admin | Udvidelse og Office |
 | `/admin/mcp` | admin-appen | admin | MCP-servere |
 | `/admin/webhooks` | admin-appen | admin | Webhooks |
 | `/admin/jobs` | admin-appen | admin | Jobs og oprydning |
+| `/admin/nats` | admin-appen | admin | NATS |
+| `/admin/mail` | admin-appen | admin | Mail |
+| `/admin/mail/users/:id` | admin-appen | admin | Brugerens mail |
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
+| `/admin/data/tools` | admin-appen | admin | MCP-værktøjer |
 | `/admin/data/:id` | admin-appen | admin | Datasæt |
 | `/admin/gdpr` | admin-appen | admin | GDPR-forespørgsler |
+| `/admin/access` | admin-appen | admin | Adgangsanmodninger |
 | `/admin/retention` | admin-appen | admin | Sletning af logdata |
 | `/admin/consent` | admin-appen | admin | Samtykke og cookies |
 | `/admin/settings` | admin-appen | admin | Indstillinger |
@@ -96,6 +115,8 @@ herfra ind i sin fork.
 | `/extension/chat` | appen | logget ind | AI · eget layout · kan indlejres |
 | `/extension/klip` | appen | logget ind | Klip · eget layout · kan indlejres |
 | `/extension/konto` | appen | logget ind | Konto · eget layout · kan indlejres |
+| `/extension/agent` | appen | logget ind | Agenter (feature `knowledge`) · eget layout · kan indlejres |
+| `/extension/agent/:slug` | appen | logget ind | Agent (feature `knowledge`) · eget layout · kan indlejres |
 | `/office-addin` | appen | alle | Office-router · eget layout · kan indlejres |
 | `/extension/tools` | appen | logget ind | Office-værktøjer · eget layout · kan indlejres |
 | `/extension/tools/word` | appen | logget ind | Word · eget layout · kan indlejres |
@@ -132,7 +153,7 @@ Kræver Python 3.12+, Node 22 og Docker.
 cp .env.example .env
 python -m venv .venv && . .venv/bin/activate && pip install -r server/requirements-dev.txt
 npm ci --prefix web
-docker compose up -d                                   # Postgres + MinIO
+docker compose up -d                                   # Postgres + MinIO + NATS
 (cd server && python -m app.migrate)
 (cd server && uvicorn app.main:app --reload --port 8000 --env-file ../.env) &
 npm run dev --prefix web                               # http://localhost:5173
@@ -184,13 +205,21 @@ Push til `main` → `.github/workflows/deploy.yml`:
 
 1. Test (Python mod Postgres, build af frontend)
 2. Byg ét image, tagget med commit-sha, og send det direkte til UpCloud-serveren over SSH (`docker save | docker load`)
-3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
+3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh`, `deploy/nats.conf` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
 4. `deploy.sh release`: start Postgres, migrér databasen, start den nye version med `docker compose`.
    Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.
    `deploy.sh rollback` starter den forrige version.
 
-Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen og `cloudflared`,
+Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen, NATS og `cloudflared`,
 som sender trafik ind via en Cloudflare Tunnel — serveren har ingen åbne web-porte.
+
+**NATS** (`nats:2.15.2-alpine`, konfiguration i `deploy/nats.conf`) kører med JetStream, og streams, key/value- og
+object stores ligger på volumet `nats` (`/data`), så de overlever genstart og nye versioner. Klienter i stakken
+bruger `NATS_URL` (sat af `compose.yml`, med `NATS_TOKEN` fra `~/gaer/.env`; tomt token = ingen godkendelse, men
+NATS kan kun nås inde fra stakken). Overvågningen ses i `/admin/nats` (rollen Drift): server, forbindelser,
+JetStream (streams og consumers), abonnementer, cluster/gateways/leaf nodes, konti og rå data — læst fra NATS'
+overvågningsport (`NATS_MONITOR_URL`, port 8222) gennem appen. Sæt `NATS_TOKEN` (`openssl rand -hex 24`) inden
+næste udrulning på en eksisterende server.
 
 GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
 til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).

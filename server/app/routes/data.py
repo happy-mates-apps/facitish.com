@@ -35,11 +35,13 @@ OWN_SOURCE = {"id": None, "key": "gaer", "name": "Gær (egen database)", "kind":
 # Never offered in Udforsk: one-time codes, challenges, sessions, tokens, authenticator secrets, the auth log
 # (phone/e-mail hashes), settings, the migration list and the catalog itself.
 HIDDEN_TABLES = {"otp_codes", "webauthn_challenges", "sessions", "mcp_tokens", "mcp_clients", "totp_factors", "auth_log",
-                 "settings", "schema_migrations", "data_sources", "datasets", "dataset_fields"}
+                 "settings", "schema_migrations", "data_sources", "datasets", "dataset_fields",
+                 "mcp_access_links", "mcp_tools", "mcp_tool_endpoints"}
 TABLE_NAMES = {"users": "Brugere", "clips": "Klip", "files": "Filer", "audit_log": "Audit-log", "web_pages": "Website-sider",
                "features": "Features", "feature_rings": "Feature-niveauer", "feature_usage": "Feature-brug",
                "consents": "Samtykker", "bridge_consents": "Samtykker til udvidelsen", "gdpr_requests": "GDPR-forespørgsler",
-               "analytics_events": "Analytics-hændelser", "ai_usage": "AI-forbrug", "app_store": "App Stores",
+               "analytics_events": "Analytics-hændelser", "ai_usage": "AI-forbrug", "ai_budgets": "AI-budgetter",
+               "ai_budget_alerts": "AI-budgetadvarsler", "ai_model_prices": "AI-priser pr. model", "app_store": "App Stores",
                "passkeys": "Passkeys", "mcp_drafts": "MCP-kladder", "mcp_log": "MCP-log"}
 # Column types that are compared as their own type (> 10 on a number); everything else is compared as text.
 COMPARABLE = {"smallint": "smallint", "integer": "integer", "bigint": "bigint", "numeric": "numeric", "real": "real",

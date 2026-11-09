@@ -10,9 +10,13 @@ import { trackPageview } from "./tracker";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Account from "./pages/Account";
+import AiUsage from "./pages/AiUsage";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
 import McpConsent from "./pages/McpConsent";
+import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/UserArea";
+import UserMail, { UserMailById } from "./pages/Mail";
+import Approve from "./pages/Approve";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -23,6 +27,7 @@ import OfficeShell from "./office/OfficeShell";
 import { DocumentTool, OutlookTool, ToolLayout, WordTool } from "./office/Tools";
 import { MobileClips, MobileFiles, MobileHome, MobileLayout } from "./mobile/Mobile";
 import ReviewLauncher from "./review/ReviewLauncher";
+import { AgentChat, AgentList } from "./knowledge/Agents";
 
 function TopBar() {
   const { user, impersonator, scope, config, logout } = useAuth();
@@ -43,7 +48,7 @@ function TopBar() {
         <nav className="nav">
           {full && <FeatureGate feature="klip"><NavLink to="/klip">Klip</NavLink></FeatureGate>}
           {full && <FeatureGate feature="filer"><NavLink to="/filer">Filer</NavLink></FeatureGate>}
-          {full && <NavLink to="/konto">Konto</NavLink>}
+          {full && <NavLink to="/user">Mit område</NavLink>}
           {full && user.role === "admin" && <a href="/admin">Admin</a>}
           {user ? (
             <button
@@ -107,7 +112,15 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
+        <Route path="/user" element={<RequireUser><UserHome /></RequireUser>} />
+        <Route path="/user/indstillinger" element={<RequireUser><UserSettings /></RequireUser>} />
+        <Route path="/user/deling" element={<RequireUser><UserSharing /></RequireUser>} />
+        <Route path="/user/mail" element={<RequireUser><FeatureGate feature="mail"><UserMail /></FeatureGate></RequireUser>} />
+        <Route path="/user/:id" element={<RequireUser><DelegatedArea /></RequireUser>} />
+        <Route path="/user/:id/mail" element={<RequireUser><FeatureGate feature="mail"><UserMailById /></FeatureGate></RequireUser>} />
+        <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
+        <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
         <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/klip/:id" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
@@ -119,6 +132,8 @@ export default function App() {
           <Route path="outlook" element={<OutlookTool />} />
           <Route path="document" element={<DocumentTool />} />
         </Route>
+        <Route path="/extension/agent" element={<RequireUser login="/extension/login"><FeatureGate feature="knowledge"><AgentList /></FeatureGate></RequireUser>} />
+        <Route path="/extension/agent/:slug" element={<RequireUser login="/extension/login"><FeatureGate feature="knowledge"><AgentChat /></FeatureGate></RequireUser>} />
         <Route path="/extension" element={<RequireUser login="/extension/login"><ExtensionLayout /></RequireUser>}>
           <Route index element={<ExtensionPage />} />
           <Route path="chat" element={<ExtensionChat />} />

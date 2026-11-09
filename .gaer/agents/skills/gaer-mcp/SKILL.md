@@ -37,6 +37,22 @@ the registered tools and the catalog differ. Code: `server/app/mcp/`.
   `user_reset_mfa`. Factors are never added or removed over MCP — that needs the browser (WebAuthn) and a second
   factor; link to `/konto#sikkerhed`.
 
+## Files (skill `gaer-storage`, `server/app/filetree.py`)
+- `/mcp`: `files_browse`, `file_read`, `file_write`, `folder_create`, `file_move` on the caller's home (`~/`) and
+  `/shared/`; `file_delete` is a draft. `/mcp/admin`: `files_browse`, `file_read`, `file_link` on the whole tree;
+  `file_write`, `folder_create`, `file_move`, `file_delete`, `folder_delete` are drafts. All go through `filetree`
+  (same rules and audit rows as `/api/files` and `/admin/files`); links open `/admin/files?folder=…`.
+
+## Which tool is where, and who may call it (specs/mcp/ACCESS.md)
+- The **endpoint map** in the database decides which endpoint offers which tool (`mcp_tools`, `mcp_tool_endpoints`,
+  `toolmap.py`); /admin/data → MCP-værktøjer edits it. A **Code tool** is a handler here; a **Data tool** reads a
+  dataset from the catalog (`data_tools.py`). `invoke()` and `tools/list` resolve through the map.
+- Classification decides who may call it: white everyone, green internal users, yellow internal + a grant the user
+  approved, red internal + user and approver. Data tools follow their dataset; fields are masked by their own.
+- `access_list` / `access_request` on both endpoints; approvals in /konto, /godkend (mail link) and /admin/access
+  (or the `/mcp/admin` draft `access_request_decide`). Users are `internal` or `external` (`user_set_audience`).
+- A new Code tool appears white on its catalog server(s) the first time it is seen.
+
 ## Adding a tool
 - Add it to `specs/mcp/catalog.json` and copy the file to `server/app/mcp/catalog.json`.
 - Read or write tool: `@tool("app", "name") async def run(args, caller) -> ToolOutput(data, links, text)`.
@@ -52,3 +68,4 @@ the registered tools and the catalog differ. Code: `server/app/mcp/`.
 - Tools that add or remove passkeys, security keys or authenticator apps, or switch "Kræv passkey" on or off.
 - App tools that read or write another user's rows.
 - Tools that grant admin to yourself, write SQL, touch log tables or return a session token.
+- A tool that approves its own access request, or any way for a client to skip the user's (or approver's) decision.
