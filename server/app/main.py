@@ -1,6 +1,5 @@
 """Gær server: API under /api, the built Vite frontend for everything else, /health for deploys."""
 
-import asyncio
 import logging
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -10,12 +9,13 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import config, db, mail, retention
+from app import captcha, config, db, jobs, mail, retention, webhooks
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
-from app.routes import (admin, ai, app_store, auth, clips, features, files, impersonation, me, office, public,
-                        security, web)
+from app import route_manifest
+from app.routes import (admin, admin_ops, ai, app_store, auth, clips, data, features, files, hooks, impersonation, me,
+                        office, public, review, security, web)
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -25,13 +25,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 # without a CORS preflight, which we never allow, so it stops CSRF together with SameSite cookies.
 CSRF_HEADER = "x-gaer"
 CSRF_EXEMPT = {"/api/collect"}  # sendBeacon cannot set headers; the endpoint only appends anonymous events
+CSRF_EXEMPT_PREFIXES = ("/api/hooks/in/",)  # incoming webhooks: other systems, no cookie, verified per endpoint
 
 # Who may embed us: the app itself (heatmap previews, the Office shell) and, for the embeddable
 # routes, the browser extension and the Office hosts (Office on the web runs add-ins in iframes).
 OFFICE_HOSTS = ("https://*.officeapps.live.com https://*.office.com https://*.office365.com https://*.office.net "
                 "https://*.microsoft.com https://*.sharepoint.com https://outlook.live.com")
 EXTENSION_HOSTS = "chrome-extension: moz-extension: safari-web-extension:"
-EMBEDDABLE = ("/extension", "/office-addin", "/login", "/assets/", "/api/")
+EMBEDDABLE = route_manifest.EMBEDDABLE  # routes with "embeddable": true in web/src/routes.json
 
 
 def csp_for(path: str) -> str:
@@ -58,12 +59,14 @@ async def lifespan(app: FastAPI):
         log.warning("DEMO_MODE is on: login codes are written to this log instead of being sent")
     elif missing := mail.missing_config():
         log.warning("e-mail is not configured, login codes cannot be sent: missing %s", ", ".join(missing))
+    if config.settings.is_production and not captcha.enabled():
+        log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
     await db.open_pools()
-    task = asyncio.create_task(retention.maintenance_loop()) if retention.enabled() else None
+    workers = jobs.start() if retention.enabled() else None
     async with mcp_sessions(app):
         yield
-    if task:
-        task.cancel()
+    if workers:
+        await jobs.stop_all(*workers)
     await db.close_pools()
 
 
@@ -84,13 +87,15 @@ def create_app() -> FastAPI:
     async def guard(request: Request, call_next):
         path = request.url.path
         if (path.startswith("/api/") and request.method not in ("GET", "HEAD", "OPTIONS")
-                and path not in CSRF_EXEMPT and request.headers.get(CSRF_HEADER) != "1"):
+                and path not in CSRF_EXEMPT and not path.startswith(CSRF_EXEMPT_PREFIXES)
+                and request.headers.get(CSRF_HEADER) != "1"):
             return JSONResponse({"detail": "Mangler X-Gaer header"}, status_code=403)
         response = await call_next(request)
         response.headers.setdefault("Content-Security-Policy", csp_for(path))
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        # Microphone for our own pages only: the review panel records and dictates notes.
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
         if config.settings.secure_cookies:
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         if path.startswith("/api/"):
@@ -104,8 +109,8 @@ def create_app() -> FastAPI:
         return {"ok": True, "version": config.settings.version}
 
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router, admin.router,
-              app_store.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
-              mcp_hub.router, office.router,
+              app_store.router, data.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
+              mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router,
               web.router, files.memory_router):
         app.include_router(r)
 
@@ -129,8 +134,8 @@ def create_app() -> FastAPI:
         candidate = os.path.abspath(os.path.join(static_dir, full_path))
         if full_path and candidate.startswith(static_dir + os.sep) and os.path.isfile(candidate):
             return FileResponse(candidate)
-        # /admin is a separate Vite entry (web/admin.html); everything else is the app on /.
-        page = admin_index if full_path == "admin" or full_path.startswith("admin/") else index
+        # /admin is a separate Vite entry (web/admin.html); everything else is the app on / (web/src/routes.json).
+        page = admin_index if route_manifest.app_for("/" + full_path) == "admin" else index
         if os.path.isfile(page):
             return FileResponse(page, headers={"Cache-Control": "no-cache"})
         return JSONResponse({"detail": "Frontend er ikke bygget. Kør npm run build i web/."}, status_code=404)

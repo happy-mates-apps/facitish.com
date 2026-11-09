@@ -11,7 +11,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from app import db, retention
+from app import db, retention, webhooks
 from app.logs import RequestMeta, audit
 from app.storage import get_storage
 
@@ -21,7 +21,7 @@ async def build_user_export(conn, user_id: int) -> dict:
     async def rows(sql, *params):
         return await db.fetch_all(conn, sql, params)
 
-    user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin,
+    user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin, admin_roles,
                                               mfa_required, grace_logins_used, blocked_at, created_at, updated_at,
                                               last_login_at, avatar_file_id
                                        from users where id = %s""", (user_id,))
@@ -57,6 +57,15 @@ async def build_user_export(conn, user_id: int) -> dict:
         "feature_level": await rows("select ring, updated_at from feature_rings where user_id = %s", user_id),
         "feature_usage": await rows("select ts, feature_key from feature_usage where user_id = %s order by ts limit 50000",
                                     user_id),
+        "review_sessions": await rows("""select id, persona_key, persona, script_key, script_title, ring, tasks, pages,
+                                                notes, started_at, ended_at from review_sessions
+                                         where user_id = %s order by started_at""", user_id),
+        "review_feedback": await rows("""select r.id, r.session_id, r.task_id, r.path, r.body, r.impression, r.feature_key,
+                                                r.ring, r.target, r.created_at, r.updated_at,
+                                                coalesce(array_agg(a.file_id) filter (where a.file_id is not null), '{}')
+                                                  as file_ids
+                                         from review_feedback r left join review_attachments a on a.feedback_id = r.id
+                                         where r.user_id = %s group by r.id order by r.created_at""", user_id),
         "test_accounts": await rows("""select id, display_name, role, created_at from users
                                        where impersonation_only and impersonation_owner_id = %s""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
@@ -72,8 +81,8 @@ README = """Indsigt i dine data
 data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnøgler, godkendelsesapps
             (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
-            testkonti du har oprettet og statistik knyttet til dig.
-files/      kopier af de filer, du har uploadet, og dit profilbillede.
+            review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
+files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
 
 Samtaler med AI'en bliver ikke gemt og er derfor ikke med.
 """
@@ -120,7 +129,7 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, one-time
-    codes, feature level and their test accounts cascade; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
+    codes, feature level, review sessions and notes and their test accounts cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)
@@ -136,6 +145,7 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
         await audit(conn, "gdpr.erasure", actor_id=actor_id if actor_id != user_id else None, meta=meta,
                     table="users", row_id=user_id, reason=reason, gdpr_request=gdpr_request, files=len(files),
                     by_self=actor_id == user_id)
+        await webhooks.emit(conn, "user.deleted", {"user_id": user_id})
     for f in files:
         try:
             await get_storage().delete(f["storage_key"])

@@ -1,0 +1,648 @@
+{
+ "generated_by": "npm run app-map --prefix web (from web/src/routes.json)",
+ "groups": [
+  {
+   "id": "home",
+   "docs_path": "/",
+   "who": {
+    "en": "logged in",
+    "da": "logget ind"
+   },
+   "what": {
+    "en": "The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation).",
+    "da": "Appens forside. Anonyme sendes til `/w/`."
+   },
+   "code": [
+    "main.py `spa()`",
+    "web/src/pages/Home.tsx"
+   ]
+  },
+  {
+   "id": "website",
+   "docs_path": "/w/…",
+   "who": {
+    "en": "everyone",
+    "da": "alle"
+   },
+   "what": {
+    "en": "**Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page is the Markdown page with an empty slug, or — setting `web_front = \"facit246\"` in `/admin/web` — the fixed \"Facit · 246\" story (da/en/de/sv/no, browser language by default; `web_front.py`, design in `specs/forside-246/`). The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written.",
+    "da": "Offentligt website: Markdown-sider fra `/admin/web` (dansk/engelsk). Forsiden er Markdown-siden eller „Facit · 246“ (valgt i `/admin/web`) og slutter altid med et login-kort; på en ny instans står der, at den første, der logger ind, bliver administrator."
+   },
+   "code": [
+    "routes/web.py",
+    "web_front.py",
+    "web_static/"
+   ]
+  },
+  {
+   "id": "login",
+   "docs_path": "/login",
+   "who": {
+    "en": "anonymous",
+    "da": "anonyme"
+   },
+   "what": {
+    "en": "E-mail → one-time code → second factor if \"Kræv passkey\" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout).",
+    "da": "E-mail → engangskode → anden faktor, hvis „Kræv passkey“ er slået til, ellers tilbud om passkey. Viser, når man bliver den første admin. Også `/extension/login` og `/m/login`."
+   },
+   "code": [
+    "pages/Login.tsx"
+   ]
+  },
+  {
+   "id": "account",
+   "docs_path": "`/klip`, `/filer`, `/konto`, `/privatliv`",
+   "who": {
+    "en": "logged in (privatliv: everyone)",
+    "da": "logget ind (privatliv: alle)"
+   },
+   "what": {
+    "en": "Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, \"Kræv passkey\", sessions), privacy + consent + GDPR requests.",
+    "da": "Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), privatliv og GDPR."
+   },
+   "code": [
+    "pages/",
+    "clips.tsx"
+   ]
+  },
+  {
+   "id": "mcp-links",
+   "docs_path": "`/forbind`, `/go`",
+   "who": {
+    "en": "logged in",
+    "da": "logget ind"
+   },
+   "what": {
+    "en": "**MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor.",
+    "da": "**MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker."
+   },
+   "code": [
+    "pages/McpConsent.tsx",
+    "deeplink.tsx",
+    "admin-app/go.tsx"
+   ]
+  },
+  {
+   "id": "admin",
+   "docs_path": "/admin/…",
+   "who": {
+    "en": "admin role (+ MFA)",
+    "da": "admin (+ MFA)"
+   },
+   "what": {
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
+    "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
+   },
+   "code": [
+    "admin-app/",
+    "routes/admin.py",
+    "impersonation.py",
+    "features.py",
+    "app_store.py"
+   ]
+  },
+  {
+   "id": "mobile",
+   "docs_path": "/m/…",
+   "who": {
+    "en": "logged in",
+    "da": "logget ind"
+   },
+   "what": {
+    "en": "**Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`.",
+    "da": "Mobil-app (PWA) med bundmenu, AI, klip, filer og profil."
+   },
+   "code": [
+    "mobile/Mobile.tsx",
+    "public/m/"
+   ]
+  },
+  {
+   "id": "extension",
+   "docs_path": "/extension/…",
+   "who": {
+    "en": "logged in, inside the browser extension",
+    "da": "i browserudvidelsen"
+   },
+   "what": {
+    "en": "**Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`.",
+    "da": "Sidepanelet: aktuel side, klip og AI med siden som kontekst."
+   },
+   "code": [
+    "extension/",
+    "web/src/extension/",
+    "bridge/extension.ts"
+   ]
+  },
+  {
+   "id": "office",
+   "docs_path": "/office-addin?app=word|excel|powerpoint|outlook",
+   "who": {
+    "en": "public shell",
+    "da": "Office (offentlig skal)"
+   },
+   "what": {
+    "en": "**Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise).",
+    "da": "Router for Word, Excel, PowerPoint og Outlook → værktøjerne under `/extension/tools/…`."
+   },
+   "code": [
+    "office/OfficeShell.tsx",
+    "office/handlers.ts"
+   ]
+  },
+  {
+   "id": "office-tools",
+   "docs_path": "/extension/tools/word|outlook|document",
+   "who": {
+    "en": "logged in, inside the Office shell",
+    "da": "logget ind, i Office"
+   },
+   "what": {
+    "en": "Office tools: insert/save clips and AI chat with the document or mail as context; Office.js calls go to the shell over `gaer-office-host`.",
+    "da": "Office-værktøjer: indsæt/gem klip og AI med dokumentet eller mailen som kontekst."
+   },
+   "code": [
+    "office/Tools.tsx",
+    "bridge/officeHost.ts"
+   ]
+  },
+  {
+   "id": "api",
+   "docs_path": "/api/…",
+   "who": {
+    "en": "per endpoint",
+    "da": "pr. endpoint"
+   },
+   "what": {
+    "en": "JSON API. State-changing calls need the `X-Gaer: 1` header (CSRF). Groups: `auth`, `me`, `files`, `clips`, `bridge-consent`, `ai`, `public`, `consent`, `collect`, `office`, `extension/download`, `admin`.",
+    "da": "JSON-API. Ændringer kræver headeren `X-Gaer: 1` (CSRF)."
+   },
+   "code": [
+    "routes/"
+   ]
+  },
+  {
+   "id": "mcp",
+   "docs_path": "`/mcp`, `/mcp/admin`",
+   "who": {
+    "en": "MCP clients (OAuth bearer)",
+    "da": "MCP-klienter (OAuth)"
+   },
+   "what": {
+    "en": "**MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`.",
+    "da": "MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`."
+   },
+   "code": [
+    "server/app/mcp/",
+    "skill `gaer-mcp`"
+   ]
+  },
+  {
+   "id": "health",
+   "docs_path": "/health",
+   "who": {
+    "en": "deploy",
+    "da": "udrulning"
+   },
+   "what": {
+    "en": "Database check + version; used by `deploy/deploy.sh` before switching versions.",
+    "da": "Sundhedstjek (database + version), bruges af `deploy/deploy.sh`."
+   },
+   "code": [
+    "main.py"
+   ]
+  }
+ ],
+ "routes": [
+  {
+   "path": "/",
+   "group": "home",
+   "app": "app",
+   "access": "user",
+   "title": "Forside"
+  },
+  {
+   "path": "/w/{slug}",
+   "group": "website",
+   "app": "server",
+   "access": "public",
+   "title": "Website"
+  },
+  {
+   "path": "/login",
+   "group": "login",
+   "app": "app",
+   "access": "public",
+   "title": "Log ind",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/login",
+   "group": "login",
+   "app": "app",
+   "access": "public",
+   "title": "Log ind i udvidelsen",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/m/login",
+   "group": "login",
+   "app": "app",
+   "access": "public",
+   "title": "Log ind på mobil",
+   "chrome": "own"
+  },
+  {
+   "path": "/klip",
+   "group": "account",
+   "app": "app",
+   "access": "user",
+   "title": "Klip",
+   "feature": "klip"
+  },
+  {
+   "path": "/klip/:id",
+   "group": "account",
+   "app": "app",
+   "access": "user",
+   "title": "Klip",
+   "feature": "klip"
+  },
+  {
+   "path": "/filer",
+   "group": "account",
+   "app": "app",
+   "access": "user",
+   "title": "Filer",
+   "feature": "filer"
+  },
+  {
+   "path": "/konto",
+   "group": "account",
+   "app": "app",
+   "access": "user",
+   "title": "Konto"
+  },
+  {
+   "path": "/privatliv",
+   "group": "account",
+   "app": "app",
+   "access": "public",
+   "title": "Privatliv"
+  },
+  {
+   "path": "/forbind",
+   "group": "mcp-links",
+   "app": "app",
+   "access": "user",
+   "title": "Forbind MCP-klient"
+  },
+  {
+   "path": "/go",
+   "group": "mcp-links",
+   "app": "app",
+   "access": "public",
+   "title": "Deep link"
+  },
+  {
+   "path": "/admin",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Statistik"
+  },
+  {
+   "path": "/admin/go",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Deep link"
+  },
+  {
+   "path": "/admin/users",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Brugere og roller"
+  },
+  {
+   "path": "/admin/impersonation",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Efterligning"
+  },
+  {
+   "path": "/admin/features",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Features og ringe"
+  },
+  {
+   "path": "/admin/app-stores",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "App Stores"
+  },
+  {
+   "path": "/admin/app-stores/:tab",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "App Stores"
+  },
+  {
+   "path": "/admin/analytics",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Analytics"
+  },
+  {
+   "path": "/admin/heatmaps",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Heatmaps"
+  },
+  {
+   "path": "/admin/logs/auth",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Auth-log"
+  },
+  {
+   "path": "/admin/logs/audit",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Audit-log"
+  },
+  {
+   "path": "/admin/web",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Website"
+  },
+  {
+   "path": "/admin/files",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Filer"
+  },
+  {
+   "path": "/admin/ai",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "AI"
+  },
+  {
+   "path": "/admin/integrations",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Udvidelse og Office"
+  },
+  {
+   "path": "/admin/mcp",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "MCP-servere"
+  },
+  {
+   "path": "/admin/webhooks",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Webhooks"
+  },
+  {
+   "path": "/admin/jobs",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Jobs og oprydning"
+  },
+  {
+   "path": "/admin/data",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Katalog"
+  },
+  {
+   "path": "/admin/data/explore",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Udforsk"
+  },
+  {
+   "path": "/admin/data/connect",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Forbind API"
+  },
+  {
+   "path": "/admin/data/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Datasæt"
+  },
+  {
+   "path": "/admin/gdpr",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "GDPR-forespørgsler"
+  },
+  {
+   "path": "/admin/retention",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Sletning af logdata"
+  },
+  {
+   "path": "/admin/consent",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Samtykke og cookies"
+  },
+  {
+   "path": "/admin/settings",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Indstillinger"
+  },
+  {
+   "path": "/m",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Hjem",
+   "chrome": "own"
+  },
+  {
+   "path": "/m/klip",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Klip",
+   "chrome": "own"
+  },
+  {
+   "path": "/m/chat",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "AI",
+   "chrome": "own"
+  },
+  {
+   "path": "/m/filer",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Filer",
+   "chrome": "own"
+  },
+  {
+   "path": "/m/profil",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Profil",
+   "chrome": "own"
+  },
+  {
+   "path": "/extension",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "Aktuel side",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/chat",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "AI",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/klip",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "Klip",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/konto",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "Konto",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/office-addin",
+   "group": "office",
+   "app": "app",
+   "access": "public",
+   "title": "Office-router",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/tools",
+   "group": "office-tools",
+   "app": "app",
+   "access": "user",
+   "title": "Office-værktøjer",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/tools/word",
+   "group": "office-tools",
+   "app": "app",
+   "access": "user",
+   "title": "Word",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/tools/outlook",
+   "group": "office-tools",
+   "app": "app",
+   "access": "user",
+   "title": "Outlook",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/tools/document",
+   "group": "office-tools",
+   "app": "app",
+   "access": "user",
+   "title": "Dokument",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/api/{path}",
+   "group": "api",
+   "app": "server",
+   "access": "public",
+   "title": "API",
+   "embeddable": true
+  },
+  {
+   "path": "/mcp",
+   "group": "mcp",
+   "app": "server",
+   "access": "token",
+   "title": "MCP (appen)"
+  },
+  {
+   "path": "/mcp/admin",
+   "group": "mcp",
+   "app": "server",
+   "access": "token",
+   "title": "MCP (admin)"
+  },
+  {
+   "path": "/.well-known/{name}",
+   "group": "mcp",
+   "app": "server",
+   "access": "public",
+   "title": "OAuth-metadata"
+  },
+  {
+   "path": "/health",
+   "group": "health",
+   "app": "server",
+   "access": "public",
+   "title": "Sundhedstjek"
+  }
+ ]
+}

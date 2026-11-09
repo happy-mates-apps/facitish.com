@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
+import manifest from "./routes.json";
 import { FeatureGate } from "./features";
 import { GoPage, useDeepLinkFocus } from "./deeplink";
 import ConsentBanner from "./ConsentBanner";
@@ -21,6 +22,7 @@ import ClipsPage, { ClipsList, useClips } from "./clips";
 import OfficeShell from "./office/OfficeShell";
 import { DocumentTool, OutlookTool, ToolLayout, WordTool } from "./office/Tools";
 import { MobileClips, MobileFiles, MobileHome, MobileLayout } from "./mobile/Mobile";
+import ReviewLauncher from "./review/ReviewLauncher";
 
 function TopBar() {
   const { user, impersonator, scope, config, logout } = useAuth();
@@ -81,8 +83,9 @@ function PageTracker() {
   return null;
 }
 
-// Embedded surfaces (browser extension, Office) and the mobile app have their own chrome.
-const OWN_CHROME = ["/extension", "/office-addin", "/m"];
+// Embedded surfaces (browser extension, Office) and the mobile app have their own chrome: "chrome": "own" in
+// routes.json, the one description of every route (npm run app-map checks it against the <Route>s below).
+const OWN_CHROME = [...new Set(manifest.routes.filter((r) => "chrome" in r && r.chrome === "own").map((r) => r.path))];
 
 function ExtensionClips() {
   const clips = useClips();
@@ -136,6 +139,8 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <StepUpDialog />
+      {/* The review panel (⌃⌥⌘W or ?review=1): logged-in users only, loaded when it opens. Not in embedded surfaces. */}
+      {!ownChrome && <ReviewLauncher />}
       {!pathname.startsWith("/extension") && !pathname.startsWith("/office-addin") && <ConsentBanner />}
     </>
   );

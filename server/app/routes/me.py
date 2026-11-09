@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from app import config, db, gdpr, mfa
+from app import config, db, gdpr, mfa, webhooks
 from app.logs import audit, auth_event, changed
 from app.routes.auth import check_send_limits, consume_code, dev_code_allowed, issue_code, parse_email, parse_phone
 from app.routes.files import delete_file, save_upload
@@ -226,6 +226,7 @@ async def create_gdpr_request(body: GdprIn, p: Principal = Depends(current_user)
             returning id, due_at""", (p.user_id, body.kind, p.contact, body.message))
         await audit(conn, "gdpr.request", actor_id=p.user_id, meta=p.meta, table="gdpr_requests", row_id=row["id"],
                     after={"kind": body.kind, "status": "received"})
+        await webhooks.emit(conn, "gdpr.request.created", {"id": row["id"], "kind": body.kind, "source": "user"})
     return {"id": row["id"], "due_at": row["due_at"]}
 
 

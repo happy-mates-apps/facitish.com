@@ -1,6 +1,7 @@
 """Login: e-mail address + one-time code; passkeys are offered to everyone and required where MFA applies.
 With SMS_LOGIN=1 a phone number + code sent by SMS works the same way (opt-in).
 
+  0. GET  /captcha        a proof-of-work challenge (app.captcha); /otp/start needs its solution unless CAPTCHA=off
   1. POST /otp/start      sends a code (stored only as a hash, short-lived, single use)
   2. POST /otp/verify     the first user on a new instance becomes admin and super admin.
                           "Kræv passkey" switched on (users.mfa_required) -> pending 'mfa' session, see 5.
@@ -28,7 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSele
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import config, db, mfa, settings_store, totp
+from app import admin_roles, captcha, config, db, mfa, settings_store, totp, webhooks
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
@@ -45,6 +46,10 @@ CHANNELS = ("email", "phone")  # also the users column the contact is stored in
 class ContactIn(BaseModel):
     email: str | None = Field(default=None, max_length=254)
     phone: str | None = Field(default=None, max_length=32)
+
+
+class StartIn(ContactIn):
+    captcha: str | None = Field(default=None, max_length=2000)  # base64 solution from GET /captcha
 
 
 class VerifyIn(ContactIn):
@@ -191,12 +196,28 @@ async def consume_code(conn, contact: str, code: str, meta: RequestMeta, *, purp
     await conn.execute("update otp_codes set consumed_at = now() where id = %s", (otp["id"],))
 
 
+@router.get("/captcha")
+async def captcha_challenge():
+    """A new proof-of-work challenge. Public: it is what stands in front of account creation and login."""
+    if not captcha.enabled():
+        return {"enabled": False}
+    return {"enabled": True, **captcha.new_challenge()}
+
+
 @router.post("/otp/start")
-async def otp_start(body: ContactIn, request: Request):
+async def otp_start(body: StartIn, request: Request):
     s = config.settings
     meta = request_meta(request)
     channel, contact = _contact(body)
     async with db.connection() as conn:
+        if captcha.enabled():
+            try:
+                await captcha.verify(conn, body.captcha)
+            except captcha.CaptchaError as e:
+                await auth_event(conn, "otp.sent", ok=False, meta=meta, contact=contact, reason="captcha",
+                                 captcha=str(e))
+                await conn.commit()
+                raise HTTPException(400, "Robottjekket mangler eller er udløbet. Prøv igen.")
         await check_send_limits(conn, contact, meta)
         user = await db.fetch_one(conn, f"select id, blocked_at from users where {channel} = %s", (contact,))
         if user and user["blocked_at"]:
@@ -308,6 +329,7 @@ async def _get_or_create_user(conn, channel: str, contact: str, meta: RequestMet
                               (contact, role, super_admin))
     await audit(conn, "create", actor_id=user["id"], meta=meta, table="users", row_id=user["id"],
                 after={channel: contact, "role": role, "super_admin": super_admin})
+    await webhooks.emit(conn, "user.created", {"user_id": user["id"], "role": role})
     if role == "admin":
         await audit(conn, "admin.first_user", actor_id=user["id"], meta=meta, table="users", row_id=user["id"],
                     via=f"bootstrap_admin_{channel}" if bootstrap else "first_login", super_admin=super_admin)
@@ -614,7 +636,7 @@ async def me(principal: Principal | None = Depends(optional_principal)):
         return {"user": None}
     async with db.connection() as conn:
         user = await db.fetch_one(conn, """
-            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used, u.mfa_required,
+            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.admin_roles, u.grace_logins_used, u.mfa_required,
                    u.locale, u.avatar_file_id is not null as has_avatar
             from users u where u.id = %s""", (principal.user_id,))
         f = await mfa.factors(conn, principal.user_id)
@@ -628,6 +650,9 @@ async def me(principal: Principal | None = Depends(optional_principal)):
             "display_name": user["display_name"],
             "role": user["role"],
             "super_admin": user["super_admin"],
+            # app/admin_roles.py: the admin's roles and the /admin sections they open (the menu shows only these)
+            "admin_roles": user["admin_roles"] if is_admin else [],
+            "admin_sections": admin_roles.sections(user["admin_roles"]) if is_admin else [],
             "locale": user["locale"],
             "avatar_url": "/api/me/avatar" if user["has_avatar"] else None,
             "passkeys": f["passkeys"] + f["security_keys"],

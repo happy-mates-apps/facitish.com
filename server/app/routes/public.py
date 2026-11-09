@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from app import config, db, settings_store
+from app import config, db, settings_store, webhooks
 from app.logs import RequestMeta, audit
 from app.routes.auth import admin_open_to_anyone
 from app.security import classify_device, client_ip, user_agent
@@ -35,6 +35,7 @@ async def public_config():
     # True only when the next person to log in becomes admin (new instance, no bootstrap contact).
     out["first_user"] = first_user
     out["sms_login"] = config.settings.sms_login
+    out["captcha"] = config.settings.captcha != "off"
     out["demo_mode"] = config.settings.demo_mode
     out["logo_url"] = "/api/public/logo" if values["logo_key"] else None
     out.pop("logo_key")
@@ -170,4 +171,5 @@ async def public_gdpr_request(body: PublicGdprIn, request: Request):
             (body.kind, body.contact.strip(), body.message))
         await audit(conn, "gdpr.request", actor_id=None, meta=meta, table="gdpr_requests", row_id=row["id"],
                     after={"kind": body.kind, "status": "received", "source": "public"})
+        await webhooks.emit(conn, "gdpr.request.created", {"id": row["id"], "kind": body.kind, "source": "public"})
     return {"id": row["id"], "due_at": row["due_at"]}

@@ -205,8 +205,8 @@ async def consent(body: ConsentIn, p: Principal = Depends(current_user)):
             await auth_event(conn, "mcp.consent", ok=False, meta=p.meta, user_id=p.user_id, client=client["id"],
                              scope=body.scope, reason="denied")
             return {"redirect": _with_query(body.redirect_uri, {"error": "access_denied", **extra})}
-        if body.scope == "mcp:admin" and not p.is_admin:
-            raise HTTPException(403, "Kun brugere med admin-rollen kan forbinde /mcp/admin")
+        if body.scope == "mcp:admin" and (not p.is_admin or "fuld" not in p.admin_roles):
+            raise HTTPException(403, "Kun admins med fuld adgang kan forbinde /mcp/admin")
         if body.scope == "mcp:admin" and not mfa.within(p.mfa_at, timedelta(minutes=config.settings.stepup_minutes)):
             # An admin token lives for weeks: it is only handed out right after a second factor (gaer-auth).
             raise mfa_error("stepup_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp først")
@@ -273,8 +273,8 @@ async def token(request: Request):
             user = await db.fetch_one(conn, "select * from users where id = %s", (row["user_id"],))
             if user is None or user["blocked_at"] or user["impersonation_only"]:
                 return _token_error("invalid_grant", "Brugeren kan ikke bruge MCP")
-            if row["scope"] == "mcp:admin" and user["role"] != "admin":
-                return _token_error("invalid_scope", "Kræver admin-rollen")
+            if row["scope"] == "mcp:admin" and (user["role"] != "admin" or "fuld" not in (user["admin_roles"] or [])):
+                return _token_error("invalid_scope", "Kræver admin-rollen med fuld adgang")
             client = await db.fetch_one(conn, "select name from mcp_clients where id = %s", (client_id,))
             session = await db.fetch_one(conn, """
                 insert into sessions (user_id, token_hash, scope, expires_at, ip, user_agent, mcp_client_id, mcp_scope)
@@ -321,6 +321,7 @@ class McpGrant:
     phone: str | None
     display_name: str | None
     super_admin: bool = False
+    admin_roles: tuple = ()
 
 
 async def verify_access_token(token: str) -> McpGrant | None:
@@ -328,7 +329,7 @@ async def verify_access_token(token: str) -> McpGrant | None:
     the user or erasing them ends the token at once."""
     async with db.connection() as conn:
         row = await db.fetch_one(conn, """
-            select t.user_id, t.session_id, t.client_id, t.scope, u.role, u.super_admin, u.email, u.phone, u.display_name, s.last_seen_at
+            select t.user_id, t.session_id, t.client_id, t.scope, u.role, u.super_admin, u.admin_roles, u.email, u.phone, u.display_name, s.last_seen_at
             from mcp_tokens t join sessions s on s.id = t.session_id join users u on u.id = t.user_id
             where t.token_hash = %s and t.kind = 'access' and t.used_at is null and t.expires_at > now()
               and s.revoked_at is null and s.expires_at > now() and u.blocked_at is null and not u.impersonation_only""",
@@ -339,4 +340,4 @@ async def verify_access_token(token: str) -> McpGrant | None:
             await conn.execute("update sessions set last_seen_at = now() where id = %s", (row["session_id"],))
     return McpGrant(user_id=row["user_id"], session_id=row["session_id"], client_id=row["client_id"], scope=row["scope"],
                     role=row["role"], email=row["email"], phone=row["phone"], display_name=row["display_name"],
-                    super_admin=row["super_admin"])
+                    super_admin=row["super_admin"], admin_roles=tuple(row["admin_roles"] or ()))
