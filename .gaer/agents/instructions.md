@@ -43,6 +43,7 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/webhooks.py`, `secrets_box.py` | outgoing webhooks: `webhooks.emit(conn, event, data)` in the same transaction; signed (HMAC), optional auth header, retries via jobs, SSRF guard; secrets encrypted (AES-GCM) |
 | `server/app/webhooks_in.py`, `routes/hooks.py` | incoming webhooks: `POST /api/hooks/in/<key>` (CSRF-exempt), verified per endpoint (Gær signature, HMAC header, fixed header such as Authorization, or URL only) + IP filter, size and rate limits, dedupe on delivery id; stored, then `@webhooks_in.handler("name")` runs as a job |
 | `server/app/nats_monitor.py`, `routes/nats.py` | /admin/nats: reads NATS' HTTP monitoring port (`NATS_MONITOR_URL`), whitelisted endpoints and parameters, secrets masked; read only |
+| `server/app/og.py` | og:image and sharing tags for the anonymous pages (/w, /login, /privatliv): generated images in `web_static/og/` (`node web/scripts/brand-assets.cjs`), replaced per surface or per Markdown page in /admin/web |
 | `server/app/captcha.py` | proof-of-work captcha (no third party) in front of `POST /api/auth/otp/start` |
 | `server/app/gdpr.py`, `reapply_erasures.py` | GDPR export (zip) and erasure; re-applying erasures after a backup restore |
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
@@ -83,7 +84,7 @@ They share the same login (session cookie), the same database and the same API.
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
-| `/` | app (`index.html`) | logged in | Forside |
+| `/` | app (`index.html`) | logged in | Overblik |
 | `/w/{slug}` | server | everyone | Website |
 | `/login` | app (`index.html`) | everyone | Log ind · embeddable |
 | `/extension/login` | app (`index.html`) | everyone | Log ind i udvidelsen · own chrome · embeddable |
