@@ -1,5 +1,5 @@
 # Production stack on the UpCloud server, in ~/gaer next to .env (stack secrets) and app.env (app settings).
-# Driven by deploy.sh; IMAGE is passed in by it. Traffic arrives through the Cloudflare Tunnel — no open ports.
+# Postgres, the app, NATS (JetStream on its own volume) and cloudflared. Driven by deploy.sh; IMAGE is passed in by it. Traffic arrives through the Cloudflare Tunnel — no open ports.
 
 name: gaer
 
@@ -35,8 +35,27 @@ services:
       MIGRATION_DATABASE_URL: postgresql://${DB_NAME}_owner:${DB_OWNER_PASSWORD}@postgres:5432/${DB_NAME}
       # db_query in /mcp/admin (read only); empty when DB_MCP_RO_PASSWORD is not set
       MCP_DB_QUERY_URL: ${DB_MCP_RO_PASSWORD:+postgresql://${DB_NAME}_mcp_ro:${DB_MCP_RO_PASSWORD}@postgres:5432/${DB_NAME}}
+      # NATS in the stack: clients with the token, monitoring for /admin/nats (internal network only)
+      NATS_URL: nats://${NATS_TOKEN:+${NATS_TOKEN}@}nats:4222
+      NATS_MONITOR_URL: http://nats:8222
     depends_on:
       postgres: { condition: service_healthy }
+
+  # NATS with JetStream. Data (streams, key/value, object stores) lives on the "nats" volume, so it survives
+  # restarts and new versions. No published ports; the token comes from NATS_TOKEN in .env (no auth if empty).
+  nats:
+    image: nats:2.15.2-alpine
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c", "exec nats-server -c /etc/nats/gaer.conf $${NATS_TOKEN:+--auth \"$$NATS_TOKEN\"}"]
+    environment:
+      NATS_TOKEN: ${NATS_TOKEN:-}
+    volumes:
+      - nats:/data
+      - ./nats.conf:/etc/nats/gaer.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider 'http://localhost:8222/healthz?js-enabled-only=true'"]
+      interval: 5s
+      retries: 20
 
   cloudflared:
     image: cloudflare/cloudflared:2026.10.7
@@ -47,3 +66,4 @@ services:
 
 volumes:
   postgres:
+  nats:

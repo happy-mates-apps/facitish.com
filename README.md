@@ -45,7 +45,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (62)</summary>
+<details><summary>Alle ruter (63)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -82,6 +82,7 @@ herfra ind i sin fork.
 | `/admin/mcp` | admin-appen | admin | MCP-servere |
 | `/admin/webhooks` | admin-appen | admin | Webhooks |
 | `/admin/jobs` | admin-appen | admin | Jobs og oprydning |
+| `/admin/nats` | admin-appen | admin | NATS |
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
@@ -137,7 +138,7 @@ Kræver Python 3.12+, Node 22 og Docker.
 cp .env.example .env
 python -m venv .venv && . .venv/bin/activate && pip install -r server/requirements-dev.txt
 npm ci --prefix web
-docker compose up -d                                   # Postgres + MinIO
+docker compose up -d                                   # Postgres + MinIO + NATS
 (cd server && python -m app.migrate)
 (cd server && uvicorn app.main:app --reload --port 8000 --env-file ../.env) &
 npm run dev --prefix web                               # http://localhost:5173
@@ -189,13 +190,21 @@ Push til `main` → `.github/workflows/deploy.yml`:
 
 1. Test (Python mod Postgres, build af frontend)
 2. Byg ét image, tagget med commit-sha, og send det direkte til UpCloud-serveren over SSH (`docker save | docker load`)
-3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
+3. Kopiér `deploy/compose.yml`, `deploy/postgres-init.sh`, `deploy/nats.conf` og `deploy/deploy.sh` til `~/gaer` på UpCloud-serveren
 4. `deploy.sh release`: start Postgres, migrér databasen, start den nye version med `docker compose`.
    Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.
    `deploy.sh rollback` starter den forrige version.
 
-Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen og `cloudflared`,
+Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen, NATS og `cloudflared`,
 som sender trafik ind via en Cloudflare Tunnel — serveren har ingen åbne web-porte.
+
+**NATS** (`nats:2.15.2-alpine`, konfiguration i `deploy/nats.conf`) kører med JetStream, og streams, key/value- og
+object stores ligger på volumet `nats` (`/data`), så de overlever genstart og nye versioner. Klienter i stakken
+bruger `NATS_URL` (sat af `compose.yml`, med `NATS_TOKEN` fra `~/gaer/.env`; tomt token = ingen godkendelse, men
+NATS kan kun nås inde fra stakken). Overvågningen ses i `/admin/nats` (rollen Drift): server, forbindelser,
+JetStream (streams og consumers), abonnementer, cluster/gateways/leaf nodes, konti og rå data — læst fra NATS'
+overvågningsport (`NATS_MONITOR_URL`, port 8222) gennem appen. Sæt `NATS_TOKEN` (`openssl rand -hex 24`) inden
+næste udrulning på en eksisterende server.
 
 GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
 til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).

@@ -5,7 +5,7 @@ description: Start Postgres, MinIO, the Python server and Vite locally against a
 
 # /gaer-dev
 
-1. Infrastructure (Postgres on 5432, MinIO on 9000/9001):
+1. Infrastructure (Postgres on 5432, MinIO on 9000/9001, NATS with JetStream on 4222, monitoring on 8222):
    ```bash
    docker compose up -d
    ```

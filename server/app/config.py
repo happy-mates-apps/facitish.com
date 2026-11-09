@@ -143,6 +143,12 @@ class Settings:
     secret_box_keys: str | None = field(default_factory=lambda: _env("SECRET_BOX_KEYS"))
     webhook_allow_private: bool = field(default_factory=lambda: _env("WEBHOOK_ALLOW_PRIVATE", "0") == "1")
 
+    # NATS (the "nats" service in compose). NATS_URL is for clients in the app; NATS_MONITOR_URL is the server's
+    # HTTP monitoring port, read by /admin/nats. Without NATS_MONITOR_URL the page says NATS is not set up.
+    nats_url: str | None = field(default_factory=lambda: _env("NATS_URL"))
+    nats_monitor_url: str | None = field(default_factory=lambda: _env("NATS_MONITOR_URL"))
+    nats_monitor_timeout: float = field(default_factory=lambda: float(_env("NATS_MONITOR_TIMEOUT", "5")))
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
