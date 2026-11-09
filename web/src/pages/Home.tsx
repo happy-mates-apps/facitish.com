@@ -31,6 +31,11 @@ export default function Home() {
           <h3>Overblik, indstillinger og deling</h3>
           <p className="muted small">Din aktivitet, profil og sikkerhed, og hvem du har givet adgang som læser eller forfatter.</p>
         </Link>
+        <Link to="/develop" className="card">
+          <span className="eyebrow mono">/develop</span>
+          <h3>Udvikling</h3>
+          <p className="muted small">Promptkatalog til Claude: artifacts, nye features, tests, review og fejlfinding.</p>
+        </Link>
         {user.role === "admin" && (
           <a href="/admin" className="card">
             <span className="eyebrow mono">/admin</span>
