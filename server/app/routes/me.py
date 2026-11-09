@@ -1,19 +1,61 @@
-"""The logged-in user's own account: profile, passkeys, sessions and GDPR requests."""
+"""The logged-in user's own account: profile, avatar, passkeys, sessions and GDPR requests.
+Second factors, "Kræv passkey" and the security overview are in routes/security.py."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from app import config, db, gdpr
+from app import config, db, gdpr, mfa
 from app.logs import audit, auth_event, changed
 from app.routes.auth import check_send_limits, consume_code, dev_code_allowed, issue_code, parse_email, parse_phone
+from app.routes.files import delete_file, save_upload
 from app.security import InvalidEmail, InvalidPhone, normalize_email, normalize_phone
 from app.sessions import Principal, clear_session_cookie, current_user, revoke_sessions
+from app.storage import get_storage
 
 router = APIRouter(prefix="/api/me", tags=["me"])
 
+LOCALES = ("da", "en")
+AVATAR_TYPES = {b"\x89PNG\r\n\x1a\n": "image/png", b"\xff\xd8\xff": "image/jpeg", b"RIFF": "image/webp"}
+AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
 
 class ProfileIn(BaseModel):
-    display_name: str = Field(max_length=80)
+    """Only the fields that are sent are changed. Empty string or null clears a field."""
+    display_name: str | None = Field(default=None, max_length=80)
+    locale: str | None = Field(default=None, max_length=5)
+    time_zone: str | None = Field(default=None, max_length=64)
+
+
+def clean_profile(body: ProfileIn) -> dict:
+    """Validated profile values for the fields that were sent. Shared with /api/admin/users/{id}/profile."""
+    values = {}
+    for name in body.model_fields_set:
+        value = (getattr(body, name) or "").strip() or None
+        if name == "locale" and value is not None and value not in LOCALES:
+            raise HTTPException(400, "Sproget skal være da eller en")
+        if name == "time_zone" and value is not None:
+            try:
+                ZoneInfo(value)
+            except (ZoneInfoNotFoundError, ValueError):
+                raise HTTPException(400, "Ukendt tidszone")
+        values[name] = value
+    return values
+
+
+async def update_profile_fields(conn, user_id: int, values: dict, *, actor_id: int, meta) -> None:
+    if not values:
+        return
+    cols = ", ".join(values)
+    before = await db.fetch_one(conn, f"select {cols} from users where id = %s for update", (user_id,))
+    if before is None:
+        raise HTTPException(404, "Brugeren findes ikke")
+    sets = ", ".join(f"{c} = %({c})s" for c in values)
+    await conn.execute(f"update users set {sets}, updated_at = now() where id = %(id)s", {**values, "id": user_id})
+    b, a = changed(before, values)
+    if a:
+        await audit(conn, "update", actor_id=actor_id, meta=meta, table="users", row_id=user_id, before=b, after=a)
 
 
 class RenameIn(BaseModel):
@@ -25,17 +67,84 @@ class GdprIn(BaseModel):
     message: str = Field(default="", max_length=4000)
 
 
+@router.get("/profile")
+async def get_profile(p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        user = await db.fetch_one(conn, """
+            select id, email, phone, display_name, locale, time_zone, avatar_file_id is not null as has_avatar,
+                   role, created_at from users where id = %s""", (p.user_id,))
+    has_avatar = user.pop("has_avatar")
+    return {**user, "avatar_url": "/api/me/avatar" if has_avatar else None, "locales": list(LOCALES)}
+
+
 @router.patch("/profile")
 async def update_profile(body: ProfileIn, p: Principal = Depends(current_user)):
+    values = clean_profile(body)
     async with db.connection() as conn:
-        before = await db.fetch_one(conn, "select display_name from users where id = %s for update", (p.user_id,))
-        after = {"display_name": body.display_name.strip() or None}
-        await conn.execute("update users set display_name = %s, updated_at = now() where id = %s",
-                           (after["display_name"], p.user_id))
-        b, a = changed(before, after)
-        if a:
-            await audit(conn, "update", actor_id=p.user_id, meta=p.meta, table="users", row_id=p.user_id,
-                        before=b, after=a)
+        await update_profile_fields(conn, p.user_id, values, actor_id=p.user_id, meta=p.meta)
+    return {"ok": True}
+
+
+def _avatar_type(data: bytes) -> str | None:
+    for magic, content_type in AVATAR_TYPES.items():
+        if data.startswith(magic) and (content_type != "image/webp" or data[8:12] == b"WEBP"):
+            return content_type
+    return None
+
+
+@router.put("/avatar")
+async def set_avatar(file: UploadFile, p: Principal = Depends(current_user)):
+    """PNG, JPEG or WebP up to 2 MB, checked by content (not by the file name). Replaces the old avatar."""
+    if p.impersonator_id is not None:
+        raise HTTPException(403, "Ikke muligt for en testkonto")
+    head = await file.read(AVATAR_MAX_BYTES + 1)
+    if len(head) > AVATAR_MAX_BYTES:
+        raise HTTPException(413, "Billedet må højst fylde 2 MB")
+    content_type = _avatar_type(head)
+    if content_type is None:
+        raise HTTPException(400, "Brug et PNG-, JPEG- eller WebP-billede")
+    await file.seek(0)
+    async with db.connection() as conn:
+        old = await db.fetch_one(conn, "select avatar_file_id from users where id = %s for update", (p.user_id,))
+        row = await save_upload(conn, file, owner_id=p.user_id, actor=p, prefix=f"avatars/{p.user_id}",
+                                content_type=content_type, kind="avatar")
+        await conn.execute("update users set avatar_file_id = %s, updated_at = now() where id = %s", (row["id"], p.user_id))
+        await audit(conn, "update", actor_id=p.user_id, meta=p.meta, table="users", row_id=p.user_id,
+                    before={"avatar_file_id": str(old["avatar_file_id"]) if old["avatar_file_id"] else None},
+                    after={"avatar_file_id": str(row["id"])})
+        if old["avatar_file_id"]:
+            await delete_file(conn, old["avatar_file_id"], p, owner_id=p.user_id)
+    return {"ok": True, "avatar_url": "/api/me/avatar"}
+
+
+@router.get("/avatar")
+async def get_avatar(p: Principal = Depends(current_user)):
+    return await avatar_response(p.user_id)
+
+
+async def avatar_response(user_id: int) -> Response:
+    """The image itself (small, ≤ 2 MB), served by the server so it works with the CSP and without public links.
+    Also used by /api/admin/users/{id}/avatar."""
+    async with db.connection() as conn:
+        row = await db.fetch_one(conn, """select f.storage_key, f.content_type from users u join files f on f.id = u.avatar_file_id
+                                          where u.id = %s and f.kind = 'avatar'""", (user_id,))
+    if row is None:
+        raise HTTPException(404, "Intet profilbillede")
+    data, _ = await get_storage().get(row["storage_key"])
+    return Response(data, media_type=row["content_type"],
+                    headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+
+@router.delete("/avatar")
+async def delete_avatar(p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        old = await db.fetch_one(conn, "select avatar_file_id from users where id = %s for update", (p.user_id,))
+        if old["avatar_file_id"] is None:
+            return {"ok": True}
+        await conn.execute("update users set avatar_file_id = null, updated_at = now() where id = %s", (p.user_id,))
+        await audit(conn, "update", actor_id=p.user_id, meta=p.meta, table="users", row_id=p.user_id,
+                    before={"avatar_file_id": str(old["avatar_file_id"])}, after={"avatar_file_id": None})
+        await delete_file(conn, old["avatar_file_id"], p, owner_id=p.user_id)
     return {"ok": True}
 
 
@@ -43,7 +152,7 @@ async def update_profile(body: ProfileIn, p: Principal = Depends(current_user)):
 async def list_passkeys(p: Principal = Depends(current_user)):
     async with db.connection() as conn:
         return await db.fetch_all(conn, """
-            select id, name, created_at, last_used_at from passkeys where user_id = %s order by created_at""",
+            select id, name, kind, created_at, last_used_at from passkeys where user_id = %s order by created_at""",
             (p.user_id,))
 
 
@@ -63,7 +172,11 @@ async def rename_passkey(passkey_id: int, body: RenameIn, p: Principal = Depends
 @router.delete("/passkeys/{passkey_id}")
 async def delete_passkey(passkey_id: int, p: Principal = Depends(current_user)):
     async with db.connection() as conn:
-        row = await db.fetch_one(conn, "delete from passkeys where id = %s and user_id = %s returning name",
+        f = await mfa.ensure_can_change_factors(conn, p)
+        user = await mfa.lock_user(conn, p.user_id)
+        if user["mfa_required"] and f["total"] <= 1:
+            raise HTTPException(409, "Slå “Kræv passkey” fra, før du sletter din sidste nøgle")
+        row = await db.fetch_one(conn, "delete from passkeys where id = %s and user_id = %s returning name, kind",
                                  (passkey_id, p.user_id))
         if row is None:
             raise HTTPException(404, "Ikke fundet")
@@ -78,9 +191,11 @@ async def delete_passkey(passkey_id: int, p: Principal = Depends(current_user)):
 async def list_sessions(p: Principal = Depends(current_user)):
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, """
-            select id, created_at, last_seen_at, expires_at, host(ip) as ip, user_agent from sessions
-            where user_id = %s and revoked_at is null and expires_at > now() and scope = 'full'
-            order by last_seen_at desc""", (p.user_id,))
+            select s.id, s.created_at, s.last_seen_at, s.expires_at, host(s.ip) as ip, s.user_agent,
+                   c.name as mcp_client, s.mcp_scope
+            from sessions s left join mcp_clients c on c.id = s.mcp_client_id
+            where s.user_id = %s and s.revoked_at is null and s.expires_at > now() and s.scope = 'full'
+            order by s.last_seen_at desc""", (p.user_id,))
     for r in rows:
         r["current"] = r["id"] == p.session_id
     return rows
@@ -170,6 +285,7 @@ async def _change_start(channel: str, raw: str, p: Principal) -> dict:
     contact = _new_contact(channel, raw, p)
     purpose = f"{channel}_change"
     async with db.connection() as conn:
+        await mfa.require_recent_mfa(conn, p)  # a stolen code alone must not move the login elsewhere
         if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
             raise _taken(channel)
         await check_send_limits(conn, contact, p.meta, purpose=purpose)
@@ -184,6 +300,7 @@ async def _change_verify(channel: str, raw: str, code: str, p: Principal) -> str
     _not_test_account(p)
     contact = _new_contact(channel, raw, p)
     async with db.connection() as conn:
+        await mfa.require_recent_mfa(conn, p)
         await consume_code(conn, contact, code, p.meta, purpose=f"{channel}_change", user_id=p.user_id)
         if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
             raise _taken(channel)
@@ -237,6 +354,8 @@ async def delete_my_account(body: DeleteAccountIn, response: Response, p: Princi
     _not_test_account(p)
     if not _confirms(body.confirm or body.confirm_phone or "", p):
         raise HTTPException(400, "E-mailadressen passer ikke" if p.email else "Telefonnummeret passer ikke")
+    async with db.connection() as conn:
+        await mfa.require_recent_mfa(conn, p)
     result = await gdpr.erase_user(p.user_id, actor_id=p.user_id, meta=p.meta, reason="self_service")
     clear_session_cookie(response, p.meta.embedded)
     return {"ok": True, **result}

@@ -43,7 +43,7 @@ class Settings:
     # For trying an instance before mail is set up. Only whoever can read the server log can log in.
     demo_mode: bool = field(default_factory=lambda: _env("DEMO_MODE", "0") == "1")
 
-    # Login policy
+    # Login policy. Admins without a second factor get GRACE_LOGINS logins with a code before /admin needs MFA.
     default_country_code: str = field(default_factory=lambda: _env("DEFAULT_COUNTRY_CODE", "+45"))
     grace_logins: int = field(default_factory=lambda: _int("GRACE_LOGINS", 3))
     otp_ttl_seconds: int = field(default_factory=lambda: _int("OTP_TTL_SECONDS", 300))
@@ -52,7 +52,13 @@ class Settings:
     otp_max_per_phone_per_hour: int = field(default_factory=lambda: _int("OTP_MAX_PER_PHONE_PER_HOUR", 5))
     otp_max_per_ip_per_hour: int = field(default_factory=lambda: _int("OTP_MAX_PER_IP_PER_HOUR", 30))
     session_days: int = field(default_factory=lambda: _int("SESSION_DAYS", 30))
-    enroll_session_minutes: int = field(default_factory=lambda: _int("ENROLL_SESSION_MINUTES", 15))
+    # A pending login that still needs its second factor.
+    mfa_session_minutes: int = field(default_factory=lambda: _int("MFA_SESSION_MINUTES", 15))
+    # /admin: a second factor (or a grace login) counts for this long; security actions need one within STEPUP_MINUTES.
+    admin_mfa_hours: int = field(default_factory=lambda: _int("ADMIN_MFA_HOURS", 12))
+    stepup_minutes: int = field(default_factory=lambda: _int("STEPUP_MINUTES", 15))
+    # Authenticator-app secrets are encrypted with these keys ("<version>:<base64 32 bytes>,…", first = current).
+    totp_keys: str | None = field(default_factory=lambda: _env("TOTP_KEYS"))
 
     # SMS: "console" (prints the code, dev only) or "ovh"
     sms_provider: str = field(default_factory=lambda: _env("SMS_PROVIDER", "console"))
@@ -87,10 +93,12 @@ class Settings:
     max_upload_mb: int = field(default_factory=lambda: _int("MAX_UPLOAD_MB", 25))
     download_link_seconds: int = field(default_factory=lambda: _int("DOWNLOAD_LINK_SECONDS", 300))
 
-    # Set to 1 when running behind the Caddy proxy from deploy/, so client IPs come from X-Forwarded-For.
+    # Set to 1 when running behind the proxy in deploy/ (cloudflared), so client IPs come from X-Forwarded-For.
     trust_proxy: bool = field(default_factory=lambda: _env("TRUST_PROXY", "0") == "1")
 
     # Static frontend (built Vite output)
+    # /w/ until an admin chooses in /admin/web: "markdown" (the page with slug '') or "facit246" (the 246 story).
+    web_front: str = field(default_factory=lambda: _env("WEB_FRONT", "markdown"))
     static_dir: str = field(default_factory=lambda: _env("STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "web", "dist")))
 
     # Optional AI chat. OpenAI-compatible endpoint; default OVHcloud AI Endpoints (processed in Europe).
@@ -100,6 +108,15 @@ class Settings:
     ai_model: str = field(default_factory=lambda: _env("AI_MODEL", "Meta-Llama-3_3-70B-Instruct"))
     ai_max_output_tokens: int = field(default_factory=lambda: _int("AI_MAX_OUTPUT_TOKENS", 1500))
     ai_max_context_chars: int = field(default_factory=lambda: _int("AI_MAX_CONTEXT_CHARS", 24000))
+
+    # MCP servers (specs/mcp): /mcp for the app, /mcp/admin for admin. 0 turns a server off (404).
+    mcp_app_enabled: bool = field(default_factory=lambda: _env("MCP_APP_ENABLED", "1") == "1")
+    mcp_admin_enabled: bool = field(default_factory=lambda: _env("MCP_ADMIN_ENABLED", "1") == "1")
+    mcp_draft_ttl_min: int = field(default_factory=lambda: _int("MCP_DRAFT_TTL_MIN", 10))
+    mcp_access_token_minutes: int = field(default_factory=lambda: _int("MCP_ACCESS_TOKEN_MINUTES", 60))
+    mcp_refresh_token_days: int = field(default_factory=lambda: _int("MCP_REFRESH_TOKEN_DAYS", 30))
+    # The read-only <db>_mcp_ro user for db_query. Without it the tool answers "ikke tilgængelig".
+    mcp_db_query_url: str | None = field(default_factory=lambda: _env("MCP_DB_QUERY_URL"))
 
     # Browser extension source, zipped by /api/extension/download
     extension_dir: str = field(default_factory=lambda: _env("EXTENSION_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "extension")))

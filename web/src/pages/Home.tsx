@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
+import { PasskeyNudge } from "../security";
 
 export default function Home() {
   const { user, scope, config, loading } = useAuth();
@@ -18,12 +19,7 @@ export default function Home() {
         <div className="eyebrow">{name}</div>
         <h1>Hej{user.display_name ? ` ${user.display_name}` : ""}</h1>
       </div>
-      {user.passkeys === 0 && (
-        <div className="alert warn">
-          Du har ikke oprettet en passkey endnu. Du har {user.grace_left} {user.grace_left === 1 ? "login" : "logins"} med
-          engangskode tilbage. <Link to="/konto">Opret passkey</Link>
-        </div>
-      )}
+      <PasskeyNudge />
       <div className="grid">
         <Link to="/filer" className="card">
           <span className="eyebrow">Object Storage</span>
@@ -32,8 +28,8 @@ export default function Home() {
         </Link>
         <Link to="/konto" className="card">
           <span className="eyebrow">Konto</span>
-          <h3>Passkeys og sessioner</h3>
-          <p className="muted small">Navn, passkeys, aktive logins og dine data.</p>
+          <h3>Profil og sikkerhed</h3>
+          <p className="muted small">Profil, passkeys, godkendelsesapp, aktive logins og dine data.</p>
         </Link>
         {user.role === "admin" && (
           <a href="/admin" className="card">

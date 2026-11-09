@@ -17,10 +17,10 @@ type Stats = {
 
 const DEVICE: Record<string, string> = { desktop: "Computer", mobile: "Mobil", tablet: "Tablet", ukendt: "Ukendt" };
 
-function Breakdown<T>({ title, rows, label, value }: { title: string; rows: T[]; label: (r: T) => string; value: (r: T) => number }) {
+function Breakdown<T>({ title, rows, label, value, deeplink }: { title: string; rows: T[]; label: (r: T) => string; value: (r: T) => number; deeplink: string }) {
   const max = Math.max(1, ...rows.map(value));
   return (
-    <div className="card">
+    <div className="card" data-deeplink={deeplink}>
       <span className="eyebrow">{title}</span>
       {rows.length === 0 && <p className="muted small">Ingen data endnu.</p>}
       {rows.map((r, i) => (
@@ -73,12 +73,12 @@ export default function Analytics() {
             {s.per_day.length > 0 && <div className="spread tiny muted"><span>{fmtDay(s.per_day[0].day)}</span><span>{fmtDay(s.per_day[s.per_day.length - 1].day)}</span></div>}
           </div>
           <div className="grid" style={{ "--min": "320px" } as React.CSSProperties}>
-            <Breakdown title="Sider" rows={s.pages} label={(r) => r.path} value={(r) => r.pageviews} />
-            <Breakdown title="Kilder" rows={s.sources} label={(r) => r.source} value={(r) => r.pageviews} />
-            <Breakdown title="Enheder" rows={s.devices} label={(r) => DEVICE[r.device] ?? r.device} value={(r) => r.pageviews} />
-            <Breakdown title="Browsere" rows={s.browsers} label={(r) => r.browser} value={(r) => r.pageviews} />
-            <Breakdown title="Indgangssider" rows={s.entries} label={(r) => r.path} value={(r) => r.visits} />
-            <Breakdown title="Forløb" rows={s.flows} label={(r) => `${r.from} → ${r.to}`} value={(r) => r.n} />
+            <Breakdown deeplink="analytics-pages" title="Sider" rows={s.pages} label={(r) => r.path} value={(r) => r.pageviews} />
+            <Breakdown deeplink="analytics-sources" title="Kilder" rows={s.sources} label={(r) => r.source} value={(r) => r.pageviews} />
+            <Breakdown deeplink="analytics-devices" title="Enheder" rows={s.devices} label={(r) => DEVICE[r.device] ?? r.device} value={(r) => r.pageviews} />
+            <Breakdown deeplink="analytics-browsers" title="Browsere" rows={s.browsers} label={(r) => r.browser} value={(r) => r.pageviews} />
+            <Breakdown deeplink="analytics-entries" title="Indgangssider" rows={s.entries} label={(r) => r.path} value={(r) => r.visits} />
+            <Breakdown deeplink="analytics-flows" title="Forløb" rows={s.flows} label={(r) => `${r.from} → ${r.to}`} value={(r) => r.n} />
           </div>
         </>
       )}

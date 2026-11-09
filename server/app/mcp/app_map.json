@@ -1,0 +1,180 @@
+{
+  "generated_by": "npm run app-map --prefix web",
+  "routes": {
+    "/": {
+      "anchors": []
+    },
+    "/admin": {
+      "anchors": [
+        "stats-kpis",
+        "stats-login"
+      ]
+    },
+    "/admin/ai": {
+      "anchors": []
+    },
+    "/admin/analytics": {
+      "anchors": [
+        "analytics-browsers",
+        "analytics-devices",
+        "analytics-entries",
+        "analytics-flows",
+        "analytics-pages",
+        "analytics-sources"
+      ]
+    },
+    "/admin/app-stores": {
+      "anchors": []
+    },
+    "/admin/app-stores/:tab": {
+      "anchors": []
+    },
+    "/admin/consent": {
+      "anchors": []
+    },
+    "/admin/features": {
+      "anchors": [
+        "feature-import",
+        "feature-levels",
+        "feature-observe-{x}",
+        "feature-ring-{x}",
+        "feature-usage-{x}"
+      ]
+    },
+    "/admin/files": {
+      "anchors": []
+    },
+    "/admin/gdpr": {
+      "anchors": [
+        "gdpr-export"
+      ]
+    },
+    "/admin/go": {
+      "anchors": []
+    },
+    "/admin/heatmaps": {
+      "anchors": []
+    },
+    "/admin/impersonation": {
+      "anchors": [
+        "imp-accounts",
+        "imp-create",
+        "imp-switch-{x}"
+      ]
+    },
+    "/admin/integrations": {
+      "anchors": []
+    },
+    "/admin/logs/audit": {
+      "anchors": []
+    },
+    "/admin/logs/auth": {
+      "anchors": []
+    },
+    "/admin/mcp": {
+      "anchors": [
+        "mcp-drafts"
+      ]
+    },
+    "/admin/retention": {
+      "anchors": []
+    },
+    "/admin/settings": {
+      "anchors": [
+        "setting-app_name",
+        "setting-gdpr_email",
+        "setting-sms_sender"
+      ]
+    },
+    "/admin/users": {
+      "anchors": [
+        "user-block",
+        "user-drawer",
+        "user-mfa",
+        "user-passkeys",
+        "user-profile",
+        "user-role",
+        "user-sessions"
+      ]
+    },
+    "/admin/web": {
+      "anchors": []
+    },
+    "/chat": {
+      "anchors": [
+        "clip-body",
+        "clip-delete",
+        "clips-search"
+      ]
+    },
+    "/document": {
+      "anchors": []
+    },
+    "/extension": {
+      "anchors": []
+    },
+    "/extension/tools": {
+      "anchors": []
+    },
+    "/filer": {
+      "anchors": [
+        "file-row-{x}"
+      ]
+    },
+    "/forbind": {
+      "anchors": []
+    },
+    "/go": {
+      "anchors": []
+    },
+    "/klip": {
+      "anchors": [
+        "clip-body",
+        "clip-delete",
+        "clips-search"
+      ]
+    },
+    "/klip/:id": {
+      "anchors": [
+        "clip-body",
+        "clip-delete",
+        "clips-search"
+      ]
+    },
+    "/konto": {
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions"
+      ]
+    },
+    "/m": {
+      "anchors": []
+    },
+    "/office-addin": {
+      "anchors": []
+    },
+    "/outlook": {
+      "anchors": []
+    },
+    "/privatliv": {
+      "anchors": [
+        "privacy-export"
+      ]
+    },
+    "/profil": {
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions"
+      ]
+    },
+    "/word": {
+      "anchors": []
+    }
+  }
+}

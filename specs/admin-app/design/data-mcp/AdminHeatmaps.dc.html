@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Admin — Heatmaps</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="AdminNav" active="/heatmaps" hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/admin/heatmaps</span></span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff"><span style="width: 6px; height: 6px; border-radius: 9999px; background: #10b981"></span>Produktion</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b">/admin/heatmaps</div>
+        <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em">Heatmaps</h2>
+        <p style="margin: 0; color: #64748b; max-width: 760px; font-size: 16px; line-height: 1.5">Klik og scroll opsamles af Python-serveren og gemmes i containerens egen database. Kun besøgende, der har sagt ja til statistik, indgår.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end">
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Side
+          <select style="height: 38px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; background: #ffffff">
+            <option>/w/ — [ANTAL] klik</option>
+            <option>/login — [ANTAL] klik</option>
+            <option>/privatliv — [ANTAL] klik</option>
+          </select>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Enhed
+          <select style="height: 38px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; background: #ffffff">
+            <option>Alle</option><option>Computer</option><option>Mobil</option><option>Tablet</option>
+          </select>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600">Periode
+          <select style="height: 38px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; background: #ffffff">
+            <option>7 dage</option><option selected>30 dage</option><option>90 dage</option>
+          </select>
+        </label>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <div style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px">
+            <strong style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace">/w/</strong>
+            <span style="color: #64748b">[ANTAL] klik</span>
+          </div>
+
+          <div style="position: relative; width: 100%; height: 720px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #f1f5f9">
+            <div aria-label="Forhåndsvisning af /w/" style="position: relative; min-height: 1120px; background: #ffffff">
+              <div style="display: flex; align-items: center; gap: 20px; height: 56px; padding: 0 32px; border-bottom: 1px solid #e2e8f0">
+                <span style="display: flex; align-items: center; gap: 10px; font-weight: 700"><span style="width: 26px; height: 26px; border-radius: 9999px; background: linear-gradient(to right, #f59e0b, #facc15)"></span>Gær</span>
+                <span style="margin-left: auto; display: flex; gap: 4px; font-size: 14px; font-weight: 600; color: #64748b">
+                  <span style="padding: 6px 12px">Om os</span><span style="padding: 6px 12px">Kontakt</span><span style="padding: 6px 12px; border-radius: 8px; background: #f1f5f9; color: #020817">da · en</span>
+                </span>
+              </div>
+              <div style="padding: 56px 32px; border-bottom: 1px solid #e2e8f0; background: linear-gradient(to bottom, #f1f5f9, #ffffff); display: flex; flex-direction: column; gap: 16px">
+                <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b">[FORSIDENS EYEBROW]</span>
+                <span style="font-size: 44px; line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; max-width: 620px">[Forsidens overskrift fra web_pages]</span>
+                <span style="font-size: 17px; color: #64748b; max-width: 560px">[Indledning — skrevet i Markdown under /admin/web]</span>
+                <span style="align-self: flex-start; padding: 10px 18px; border-radius: 8px; background: #2563eb; color: #f8fafc; font-weight: 600">[Knap]</span>
+              </div>
+              <div style="padding: 40px 32px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+                <div style="border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 8px"><span style="font-weight: 700">[Afsnit 1]</span><span style="color: #64748b; font-size: 14px">[Tekst]</span></div>
+                <div style="border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 8px"><span style="font-weight: 700">[Afsnit 2]</span><span style="color: #64748b; font-size: 14px">[Tekst]</span></div>
+                <div style="border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 8px"><span style="font-weight: 700">[Afsnit 3]</span><span style="color: #64748b; font-size: 14px">[Tekst]</span></div>
+              </div>
+              <div style="padding: 8px 32px 56px; display: flex; justify-content: center">
+                <div style="width: 380px; max-width: 100%; border: 1px solid rgba(37,99,235,0.2); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1)">
+                  <span style="font-weight: 700; font-size: 17px">Log ind</span>
+                  <span style="font-size: 14px; color: #64748b">Med dit telefonnummer og en engangskode.</span>
+                  <span style="height: 40px; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; align-items: center; padding: 0 12px; color: #94a3b8; font-size: 14px">+45</span>
+                  <span style="height: 40px; border-radius: 8px; background: #2563eb; color: #f8fafc; display: flex; align-items: center; justify-content: center; font-weight: 600">Send kode</span>
+                </div>
+              </div>
+
+              <sc-for list="{{blobs}}" as="b" hint-placeholder-count="12">
+                <span aria-hidden="true" style="position: absolute; pointer-events: none; left: {{b.x}}; top: {{b.y}}; width: {{b.s}}; height: {{b.s}}; margin-left: {{b.m}}; margin-top: {{b.m}}; border-radius: 9999px; background: {{b.bg}}"></span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex: 1 1 220px; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b">Scroll-dybde</span>
+          <p style="margin: 0; color: #64748b; font-size: 12px">Andel af visninger, der nåede mindst så langt ned · [ANTAL] målinger</p>
+          <sc-for list="{{scroll}}" as="s" hint-placeholder-count="10">
+            <div style="display: flex; flex-direction: column; gap: 3px">
+              <div style="display: flex; justify-content: space-between; font-size: 12px"><span>{{s.depth}} %</span><span style="font-variant-numeric: tabular-nums">{{s.pct}} %</span></div>
+              <div style="height: 8px; border-radius: 9999px; background: #f1f5f9; overflow: hidden"><div style="height: 100%; border-radius: 9999px; width: {{s.w}}; background: linear-gradient(to right, #f59e0b, #facc15)"></div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Same colour ramp as drawHeat() in Heatmaps.tsx: blue (few clicks) → yellow → red (many).
+    const ramp = (t) => t < 0.5
+      ? [37 + (250 - 37) * t * 2, 99 + (204 - 99) * t * 2, 235 - 214 * t * 2]
+      : [250 - 11 * (t - 0.5) * 2, 204 - 136 * (t - 0.5) * 2, 21 + 47 * (t - 0.5) * 2];
+    const blob = (x, y, size, t) => {
+      const [r, g, b] = ramp(t).map(Math.round);
+      const a = Math.min(0.85, 0.25 + t);
+      return { x, y: y + 'px', s: size + 'px', m: (-size / 2) + 'px', bg: `radial-gradient(circle, rgba(${r},${g},${b},${a}) 0%, rgba(${r},${g},${b},${a * 0.5}) 45%, rgba(${r},${g},${b},0) 70%)` };
+    };
+    // Sample click spots (design mock): login card, hero button, menu, language switch, sections.
+    const blobs = [
+      blob('50%', 1010, 120, 1), blob('48%', 1000, 70, 0.9), blob('53%', 958, 60, 0.6),
+      blob('9%', 270, 90, 0.85), blob('8%', 272, 50, 0.7),
+      blob('84%', 28, 56, 0.55), blob('91%', 28, 50, 0.45), blob('77%', 28, 44, 0.3),
+      blob('18%', 390, 60, 0.25), blob('50%', 395, 54, 0.2), blob('82%', 392, 50, 0.15),
+      blob('30%', 160, 46, 0.12)
+    ];
+    // Sample shares for the ten scroll buckets the server returns (10 % … 100 %).
+    const shares = [1, 0.96, 0.9, 0.81, 0.72, 0.63, 0.55, 0.47, 0.4, 0.33];
+    const scroll = shares.map((sh, i) => ({ depth: (i + 1) * 10, pct: Math.round(sh * 100), w: (sh * 100) + '%' }));
+    return { blobs, scroll };
+  }
+}
+</script>
+</body>
+</html>

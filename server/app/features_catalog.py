@@ -18,7 +18,7 @@ class CatalogFeature:
 CATALOG: tuple[CatalogFeature, ...] = (
     CatalogFeature("klip", "Klip", "Gem tekst og links som klip og brug dem i Office og udvidelsen", "bruger"),
     CatalogFeature("filer", "Filer", "Upload til Object Storage, download via links der udløber", "bruger"),
-    CatalogFeature("passkey", "Passkey", "Passkey efter tre logins med engangskode", "bruger"),
+    CatalogFeature("passkey", "Passkey", "Passkeys, sikkerhedsnøgler og godkendelsesapps; Kræv passkey (MFA)", "bruger"),
     CatalogFeature("mobil", "Mobil-app", "PWA under /m med bundmenu, kamera-upload og klip", "bruger"),
     CatalogFeature("extension", "Browserudvidelse", "Sidepanel i Chrome og Edge, gem siden som klip", "integration"),
     CatalogFeature("office", "Office-tilføjelser", "Word, Excel, PowerPoint og Outlook i én router", "integration"),

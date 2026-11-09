@@ -15,7 +15,8 @@ Stack: FastAPI, psycopg 3 (async pool, raw SQL, dict rows), py_webauthn, boto3 f
 
 ## Endpoints
 - Guard with dependencies: `current_user` (default), `require_admin` (admin routes are already guarded at
-  router level in `routes/admin.py`), `any_session` only for passkey registration.
+  router level in `routes/admin.py`), `require_admin_stepup` for admin actions that change access or security,
+  `any_session` only for completing the second factor (`/api/auth/mfa/*`).
 - Validate input with Pydantic models (`Field(max_length=...)`, `pattern=...`). Limit list sizes (`limit` ≤ 500).
 - Database work: `async with db.connection() as conn:` — one transaction, committed on success.
   Use `db.fetch_one/fetch_all` and `%s` parameters. Never format user input into SQL.

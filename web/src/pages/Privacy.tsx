@@ -124,7 +124,7 @@ function MyData({ contact }: { contact: string }) {
 
   return (
     <div className="grid" style={{ "--min": "320px" } as React.CSSProperties}>
-      <div className="card">
+      <div className="card" data-deeplink="privacy-export">
         <span className="eyebrow">Hent dine data</span>
         <p className="small">Én zip-fil med alt, vi har gemt om dig, og kopier af dine filer. Samtaler med AI'en gemmes ikke.</p>
         <div><button className="btn btn-primary" onClick={() => download("/api/me/export")}>Hent mine data</button></div>

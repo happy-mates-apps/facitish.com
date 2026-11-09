@@ -12,7 +12,12 @@ export type AdminUser = {
   blocked_at: string | null;
   created_at: string;
   last_login_at: string | null;
+  /** Passkeys and security keys. */
   passkeys: number;
+  /** Confirmed authenticator apps. */
+  totp: number;
+  /** "Kræv passkey": the user's own MFA opt-in. */
+  mfa_required: boolean;
   active_sessions: number;
   impersonation_only?: boolean;
   feature_ring?: number | null;
@@ -24,12 +29,17 @@ export const isTest = (u: AdminUser) => !!u.impersonation_only;
 export const contactLabel = (u: Pick<AdminUser, "email" | "phone">) => u.email || phoneLabel(u.phone);
 export const userName = (u: AdminUser) => u.display_name || contactLabel(u);
 
+export const factorCount = (u: AdminUser) => u.passkeys + u.totp;
+
 export function userView(u: AdminUser, grace: number) {
   const test = isTest(u);
-  const login: [string, Tone] = u.passkeys > 0
-    ? [`${u.passkeys} ${u.passkeys > 1 ? "passkeys" : "passkey"}`, "green"]
-    : test ? ["Kun efterligning", "orange"]
-    : u.grace_logins_used >= grace ? ["Skal oprette passkey", "orange"]
+  const factors = factorCount(u);
+  // Admins need a second factor after the grace logins; other users are only nudged.
+  const login: [string, Tone] = test ? ["Kun efterligning", "orange"]
+    : u.mfa_required ? ["Kræver MFA", "green"]
+    : factors > 0 ? [`${factors} ${factors > 1 ? "nøgler" : "nøgle"}`, "green"]
+    : u.role !== "admin" ? ["Kun engangskode", "gray"]
+    : u.grace_logins_used >= grace ? ["Mangler MFA til /admin", "orange"]
     : [`${u.grace_logins_used}/${grace} engangskoder`, "blue"];
   return {
     name: userName(u),

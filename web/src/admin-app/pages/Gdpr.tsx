@@ -59,7 +59,8 @@ function RequestCard({ r, onChange }: { r: Request; onChange: () => Promise<void
         <Alert>{error}</Alert>
         <div className="row">
           {r.kind === "access" && r.user_id && (
-            <button className="btn btn-primary btn-sm" onClick={() => { download(`/api/admin/gdpr/${r.id}/export`); setTimeout(onChange, 1500); }}>
+            <button className="btn btn-primary btn-sm" onClick={() => { download(`/api/admin/gdpr/${r.id}/export`); setTimeout(onChange, 1500); }}
+                    data-deeplink={String(r.user_id) === new URLSearchParams(window.location.search).get("userId") ? "gdpr-export" : undefined}>
               Hent samlet eksport (.zip)
             </button>
           )}

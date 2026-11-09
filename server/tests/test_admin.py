@@ -36,7 +36,9 @@ async def test_role_change_and_last_admin_protection(make_client, owner_conn):
     assert (await admin.patch(f"/api/admin/users/{user_id}/role", json={"role": "admin"})).status_code == 200
     row = owner_conn.execute("select before, after from audit_log where action = 'role.changed'").fetchone()
     assert row == ({"role": "user"}, {"role": "admin"})
-    assert (await user.get("/api/admin/users")).status_code == 200
+    # The new admin logged in with a code before the promotion: /admin first needs a second factor.
+    r = await user.get("/api/admin/users")
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "mfa_setup_required"
 
 
 async def test_block_revokes_sessions(make_client):
@@ -81,7 +83,7 @@ async def test_retention_purge_uses_purge_user_and_is_logged(make_client, owner_
     assert detail["deleted"]["auth_log"] == 1 and detail["reason"] == "manual"
 
     stats = (await admin.get("/api/admin/retention")).json()
-    assert {s["log"] for s in stats["logs"]} == {"auth_log", "audit_log", "analytics"}
+    assert {s["log"] for s in stats["logs"]} == {"auth_log", "audit_log", "analytics", "mcp_log"}
 
 
 async def test_purge_one_user(make_client, owner_conn):

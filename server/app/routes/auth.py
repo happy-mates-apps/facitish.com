@@ -1,13 +1,16 @@
-"""Login: e-mail address + one-time code, three grace logins, then passkey.
+"""Login: e-mail address + one-time code; passkeys are offered to everyone and required where MFA applies.
 With SMS_LOGIN=1 a phone number + code sent by SMS works the same way (opt-in).
 
   1. POST /otp/start      sends a code (stored only as a hash, short-lived, single use)
   2. POST /otp/verify     the first user on a new instance becomes admin and super admin.
-                          Without a passkey and with grace logins left -> full session, grace.used.
-                          Otherwise -> enroll session that can only register a passkey
-                          (grace exhausted, or a new device / lost passkey; does not use a grace login).
-  3. POST /passkey/register/*  registers a passkey; an enroll session is upgraded to full.
-  4. POST /passkey/login/*     normal login from then on.
+                          "Kræv passkey" switched on (users.mfa_required) -> pending 'mfa' session, see 5.
+                          Otherwise -> full session. An admin without a second factor uses one of GRACE_LOGINS
+                          grace logins (the session may enter /admin); everybody else is offered a passkey.
+  3. POST /passkey/register/*  adds a passkey or security key (full session; see app.mfa for when a recent second
+                          factor is needed first).
+  4. POST /passkey/login/*     login with a passkey. Counts as MFA when the authenticator verified the user.
+  5. POST /mfa/*               the second factor (passkey/security key with user verification, or an authenticator
+                          app). Completes a pending login or steps up a full session; always issues a new session.
 
 The rules are described in the gaer-auth skill and must not be bypassed.
 """
@@ -21,16 +24,17 @@ from pydantic import BaseModel, Field
 from webauthn import (base64url_to_bytes, generate_authentication_options, generate_registration_options,
                       options_to_json, verify_authentication_response, verify_registration_response)
 from webauthn.helpers.exceptions import InvalidAuthenticationResponse, InvalidRegistrationResponse
-from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, PublicKeyCredentialDescriptor,
-                                      ResidentKeyRequirement, UserVerificationRequirement)
+from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSelectionCriteria,
+                                      PublicKeyCredentialDescriptor, ResidentKeyRequirement,
+                                      UserVerificationRequirement)
 
-from app import config, db, settings_store
+from app import config, db, mfa, settings_store, totp
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
                           normalize_email, normalize_phone, otp_hash, otp_matches, phone_hash)
-from app.sessions import (IMP_COOKIE, Principal, any_session, clear_session_cookie, create_session, optional_principal,
-                          request_meta, revoke_sessions)
+from app.sessions import (IMP_COOKIE, Principal, admin_mfa_ok, any_session, clear_session_cookie, create_session,
+                          current_user, optional_principal, request_meta, revoke_sessions)
 from app.sms import SmsError, otp_message, send_sms
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -222,22 +226,35 @@ async def otp_verify(body: VerifyIn, request: Request, response: Response):
             await conn.commit()
             raise HTTPException(403, "Din bruger er spærret. Kontakt en administrator.")
         await auth_event(conn, "otp.verified", ok=True, meta=meta, contact=contact, user_id=user["id"])
+        return await _after_first_factor(conn, response, user, meta, contact=contact, via="otp")
 
-        has_passkey = (await db.fetch_one(conn, "select exists(select 1 from passkeys where user_id = %s) as e",
-                                          (user["id"],)))["e"]
-        if not has_passkey and user["grace_logins_used"] < s.grace_logins:
-            used = user["grace_logins_used"] + 1
-            await conn.execute(
-                "update users set grace_logins_used = %s, last_login_at = now(), updated_at = now() where id = %s",
-                (used, user["id"]))
+
+async def _after_first_factor(conn, response: Response, user: dict, meta: RequestMeta, *, contact: str | None,
+                              via: str) -> dict:
+    """The user proved one factor (a code, or a passkey without user verification). Decides between a pending
+    'mfa' session and a full one, and uses an admin grace login when the admin has no second factor yet."""
+    s = config.settings
+    f = await mfa.factors(conn, user["id"])
+    if user["mfa_required"]:
+        # Fails closed: with "Kræv passkey" on and no factor left, only an admin can help (reset MFA).
+        await create_session(conn, response, user["id"], "mfa", meta)
+        await auth_event(conn, "mfa.pending", ok=True, meta=meta, contact=contact, user_id=user["id"], via=via)
+        return {"status": "mfa_required", "methods": mfa.methods(f)}
+    grace, grace_left = False, None
+    if user["role"] == "admin" and not f["total"]:
+        used = user["grace_logins_used"]
+        if used < s.grace_logins:
+            used += 1
+            grace = True
+            await conn.execute("update users set grace_logins_used = %s where id = %s", (used, user["id"]))
             await auth_event(conn, "grace.used", ok=True, meta=meta, contact=contact, user_id=user["id"],
                              used=used, of=s.grace_logins)
-            await create_session(conn, response, user["id"], "full", meta)
-            return {"status": "logged_in", "grace_left": s.grace_logins - used, "offer_passkey": True,
-                    "became_admin": user.get("became_admin", False)}
-
-        await create_session(conn, response, user["id"], "enroll", meta)
-        return {"status": "passkey_required", "reason": "new_device" if has_passkey else "grace_exhausted"}
+        grace_left = s.grace_logins - used
+    await conn.execute("update users set last_login_at = now(), updated_at = now() where id = %s", (user["id"],))
+    await create_session(conn, response, user["id"], "full", meta, grace=grace)
+    return {"status": "logged_in", "offer_passkey": not (f["passkeys"] + f["security_keys"]),
+            "admin": user["role"] == "admin", "admin_grace_left": grace_left,
+            "became_admin": user.get("became_admin", False)}
 
 
 def _bootstrap() -> dict[str, str | None]:
@@ -325,12 +342,18 @@ async def _take_challenge(conn, challenge_id: str, kind: str, user_id: int | Non
     return bytes(row["challenge"])
 
 
+class RegisterOptionsIn(BaseModel):
+    kind: str = Field(default="passkey", pattern="^(passkey|security_key)$")
+
+
 @router.post("/passkey/register/options")
-async def passkey_register_options(principal: Principal = Depends(any_session)):
-    if principal.impersonator_id is not None:
-        raise HTTPException(403, "En testkonto kan ikke få en passkey")
+async def passkey_register_options(body: RegisterOptionsIn | None = None, principal: Principal = Depends(current_user)):
+    """A passkey on this device, or a security key (YubiKey …). Both must verify the user (PIN or biometrics), so
+    every registered key also works as a second factor."""
+    kind = body.kind if body else "passkey"
     s = config.settings
     async with db.connection() as conn:
+        await mfa.ensure_can_change_factors(conn, principal)
         existing = await db.fetch_all(conn, "select credential_id from passkeys where user_id = %s",
                                       (principal.user_id,))
         options = generate_registration_options(
@@ -340,8 +363,10 @@ async def passkey_register_options(principal: Principal = Depends(any_session)):
             user_name=principal.contact or str(principal.user_id),
             user_display_name=principal.display_name or principal.contact or str(principal.user_id),
             authenticator_selection=AuthenticatorSelectionCriteria(
-                resident_key=ResidentKeyRequirement.REQUIRED,
-                user_verification=UserVerificationRequirement.PREFERRED),
+                authenticator_attachment=AuthenticatorAttachment.CROSS_PLATFORM if kind == "security_key" else None,
+                # Security keys have few slots for discoverable credentials; they work without one as second factor.
+                resident_key=ResidentKeyRequirement.PREFERRED if kind == "security_key" else ResidentKeyRequirement.REQUIRED,
+                user_verification=UserVerificationRequirement.REQUIRED),
             exclude_credentials=[PublicKeyCredentialDescriptor(id=bytes(r["credential_id"])) for r in existing],
         )
         challenge_id = await _store_challenge(conn, options.challenge, "register", principal.user_id)
@@ -349,37 +374,46 @@ async def passkey_register_options(principal: Principal = Depends(any_session)):
 
 
 @router.post("/passkey/register/verify")
-async def passkey_register_verify(body: RegisterIn, response: Response, principal: Principal = Depends(any_session)):
-    if principal.impersonator_id is not None:
-        raise HTTPException(403, "En testkonto kan ikke få en passkey")
+async def passkey_register_verify(body: RegisterIn, response: Response, principal: Principal = Depends(current_user)):
     s = config.settings
     meta = principal.meta
     async with db.connection() as conn:
+        f = await mfa.ensure_can_change_factors(conn, principal)
         challenge = await _take_challenge(conn, body.challenge_id, "register", principal.user_id)
         try:
             verified = verify_registration_response(credential=body.credential, expected_challenge=challenge,
-                                                    expected_rp_id=s.rp_id, expected_origin=s.origin)
+                                                    expected_rp_id=s.rp_id, expected_origin=s.origin,
+                                                    require_user_verification=True)
         except InvalidRegistrationResponse as e:
             await auth_event(conn, "passkey.registered", ok=False, meta=meta, user_id=principal.user_id,
                              contact=principal.contact, reason=str(e))
             await conn.commit()
-            raise HTTPException(400, "Passkey kunne ikke registreres")
+            raise HTTPException(400, "Passkey kunne ikke registreres. Kræver fingeraftryk, ansigt eller PIN-kode.")
         transports = body.credential.get("response", {}).get("transports") or []
-        name = (body.name or "").strip() or _default_passkey_name(meta.user_agent)
+        attachment = body.credential.get("authenticatorAttachment")
+        kind = "security_key" if attachment == "cross-platform" and "hybrid" not in transports else "passkey"
+        name = (body.name or "").strip() or ("Sikkerhedsnøgle" if kind == "security_key"
+                                              else _default_passkey_name(meta.user_agent))
         row = await db.fetch_one(conn, """
-            insert into passkeys (user_id, credential_id, public_key, sign_count, transports, name)
-            values (%s, %s, %s, %s, %s, %s) returning id""",
+            insert into passkeys (user_id, credential_id, public_key, sign_count, transports, name, kind)
+            values (%s, %s, %s, %s, %s, %s, %s) returning id""",
             (principal.user_id, verified.credential_id, verified.credential_public_key, verified.sign_count,
-             transports, name))
+             transports, name, kind))
         await auth_event(conn, "passkey.registered", ok=True, meta=meta, user_id=principal.user_id,
-                         contact=principal.contact, passkey_id=row["id"], via=principal.scope)
+                         contact=principal.contact, passkey_id=row["id"], kind=kind)
         await audit(conn, "create", actor_id=principal.user_id, meta=meta, table="passkeys", row_id=row["id"],
-                    after={"name": name, "user_id": principal.user_id})
-        if principal.scope == "enroll":
-            await conn.execute("update sessions set revoked_at = now() where id = %s", (principal.session_id,))
-            await conn.execute("update users set last_login_at = now() where id = %s", (principal.user_id,))
-            await create_session(conn, response, principal.user_id, "full", meta)
-    return {"ok": True, "passkey_id": row["id"]}
+                    after={"name": name, "kind": kind, "user_id": principal.user_id})
+        # The new key was just used with user verification: this is a second factor. New token, no grace.
+        session_id = await _rotate_session(conn, response, principal)
+        if not f["total"]:
+            await mfa.revoke_grace_sessions(conn, principal.user_id, session_id)
+    return {"ok": True, "passkey_id": row["id"], "kind": kind}
+
+
+async def _rotate_session(conn, response: Response, principal: Principal) -> int:
+    """Replaces the session with a new full one that has proven a second factor now."""
+    await conn.execute("update sessions set revoked_at = now() where id = %s", (principal.session_id,))
+    return await create_session(conn, response, principal.user_id, "full", principal.meta, mfa=True)
 
 
 def _default_passkey_name(ua: str) -> str:
@@ -430,11 +464,128 @@ async def passkey_login_verify(body: LoginIn, request: Request, response: Respon
             raise HTTPException(403, "Din bruger er spærret. Kontakt en administrator.")
         await conn.execute("update passkeys set sign_count = %s, last_used_at = now() where id = %s",
                            (verified.new_sign_count, passkey["id"]))
-        await conn.execute("update users set last_login_at = now() where id = %s", (passkey["user_id"],))
         await auth_event(conn, "passkey.login", ok=True, meta=meta, user_id=passkey["user_id"],
-                         contact=passkey["contact"], passkey_id=passkey["id"])
-        await create_session(conn, response, passkey["user_id"], "full", meta)
+                         contact=passkey["contact"], passkey_id=passkey["id"], user_verified=verified.user_verified)
+        if not verified.user_verified:
+            # Possession only (e.g. a security key without PIN): one factor, like a code.
+            user = await db.fetch_one(conn, "select * from users where id = %s", (passkey["user_id"],))
+            return await _after_first_factor(conn, response, user, meta, contact=passkey["contact"], via="passkey")
+        await conn.execute("update users set last_login_at = now() where id = %s", (passkey["user_id"],))
+        await create_session(conn, response, passkey["user_id"], "full", meta, mfa=True)
     return {"status": "logged_in"}
+
+
+# ── Second factor (step-up) ─────────────────────────────────────────────────
+
+class TotpIn(BaseModel):
+    code: str = Field(min_length=6, max_length=10)
+
+
+def _no_impersonation(principal: Principal) -> None:
+    if principal.impersonator_id is not None:
+        raise HTTPException(403, "Ikke muligt for en testkonto")
+
+
+async def _complete_mfa(conn, response: Response, principal: Principal, method: str, factor_id: int) -> dict:
+    """A second factor was proven: the session (pending or full) is replaced by a new full session with mfa_at."""
+    pending = principal.scope == "mfa"
+    await conn.execute("update sessions set revoked_at = now() where id = %s", (principal.session_id,))
+    if pending:
+        await conn.execute("update users set last_login_at = now(), updated_at = now() where id = %s",
+                           (principal.user_id,))
+    await create_session(conn, response, principal.user_id, "full", principal.meta, mfa=True)
+    await auth_event(conn, "mfa.verified", ok=True, meta=principal.meta, user_id=principal.user_id,
+                     contact=principal.contact, method=method, factor_id=factor_id, login=pending)
+    return {"ok": True, "status": "logged_in"}
+
+
+@router.post("/mfa/passkey/options")
+async def mfa_passkey_options(principal: Principal = Depends(any_session)):
+    """Only the user's own keys, so security keys without a discoverable credential work too. Requires user
+    verification: a key without PIN/biometrics is possession only and does not count as a second factor."""
+    _no_impersonation(principal)
+    async with db.connection() as conn:
+        keys = await db.fetch_all(conn, "select credential_id, transports from passkeys where user_id = %s",
+                                  (principal.user_id,))
+        if not keys:
+            raise HTTPException(400, "Du har ingen passkey eller sikkerhedsnøgle")
+        options = generate_authentication_options(
+            rp_id=config.settings.rp_id, user_verification=UserVerificationRequirement.REQUIRED,
+            allow_credentials=[PublicKeyCredentialDescriptor(id=bytes(k["credential_id"])) for k in keys])
+        challenge_id = await _store_challenge(conn, options.challenge, "stepup", principal.user_id)
+    return {"challenge_id": challenge_id, "options": json.loads(options_to_json(options))}
+
+
+@router.post("/mfa/passkey/verify")
+async def mfa_passkey_verify(body: LoginIn, response: Response, principal: Principal = Depends(any_session)):
+    _no_impersonation(principal)
+    s = config.settings
+    async with db.connection() as conn:
+        challenge = await _take_challenge(conn, body.challenge_id, "stepup", principal.user_id)
+        try:
+            raw_id = base64url_to_bytes(body.credential.get("rawId") or body.credential.get("id", ""))
+        except Exception:
+            raw_id = b""
+        passkey = await db.fetch_one(conn, "select * from passkeys where credential_id = %s and user_id = %s for update",
+                                     (raw_id, principal.user_id))
+        try:
+            if passkey is None:
+                raise InvalidAuthenticationResponse("unknown credential")
+            verified = verify_authentication_response(
+                credential=body.credential, expected_challenge=challenge, expected_rp_id=s.rp_id,
+                expected_origin=s.origin, credential_public_key=bytes(passkey["public_key"]),
+                credential_current_sign_count=passkey["sign_count"], require_user_verification=True)
+        except InvalidAuthenticationResponse as e:
+            await auth_event(conn, "mfa.failed", ok=False, meta=principal.meta, user_id=principal.user_id,
+                             contact=principal.contact, method="passkey", reason=str(e))
+            await conn.commit()
+            raise HTTPException(400, "Passkey kunne ikke bekræftes. Kræver fingeraftryk, ansigt eller PIN-kode.")
+        await conn.execute("update passkeys set sign_count = %s, last_used_at = now() where id = %s",
+                           (verified.new_sign_count, passkey["id"]))
+        return await _complete_mfa(conn, response, principal, passkey["kind"], passkey["id"])
+
+
+async def check_totp(conn, principal: Principal, code: str, *, factor_id: int | None = None) -> int:
+    """Checks a code against the user's confirmed authenticator apps (or one unconfirmed factor during setup).
+    Wrong codes count towards a lock like one-time codes. Returns the factor id; raises 400/429."""
+    s = config.settings
+    failed = await _count_user_events(conn, "mfa.failed", principal.user_id, s.otp_lock_minutes)
+    if failed >= s.otp_max_attempts:
+        raise HTTPException(429, "For mange forkerte forsøg. Prøv igen om lidt.")
+    where = "id = %s and confirmed_at is null" if factor_id is not None else "confirmed_at is not null"
+    params = (principal.user_id, factor_id) if factor_id is not None else (principal.user_id,)
+    rows = await db.fetch_all(conn, f"""select id, secret_enc, last_used_step from totp_factors
+                                        where user_id = %s and {where} order by id""", params)
+    for row in rows:
+        step = totp.match(totp.decrypt(row["secret_enc"]), code, after_step=row["last_used_step"])
+        if step is None:
+            continue
+        # Conditional update: two requests with the same code cannot both succeed (replay).
+        used = await db.fetch_one(conn, """
+            update totp_factors set last_used_step = %(step)s, last_used_at = now()
+            where id = %(id)s and (last_used_step is null or last_used_step < %(step)s) returning id""",
+            {"id": row["id"], "step": step})
+        if used:
+            return row["id"]
+    await auth_event(conn, "mfa.failed", ok=False, meta=principal.meta, user_id=principal.user_id,
+                     contact=principal.contact, method="totp", reason="wrong_code" if rows else "no_factor")
+    await conn.commit()
+    raise HTTPException(400, "Koden er forkert eller allerede brugt")
+
+
+async def _count_user_events(conn, event: str, user_id: int, minutes: int) -> int:
+    row = await db.fetch_one(conn, """select count(*) as n from auth_log
+                                      where event = %s and user_id = %s and ts > now() - make_interval(mins => %s)""",
+                             (event, user_id, minutes))
+    return row["n"]
+
+
+@router.post("/mfa/totp/verify")
+async def mfa_totp_verify(body: TotpIn, response: Response, principal: Principal = Depends(any_session)):
+    _no_impersonation(principal)
+    async with db.connection() as conn:
+        factor_id = await check_totp(conn, principal, body.code)
+        return await _complete_mfa(conn, response, principal, "totp", factor_id)
 
 
 # ── Session ─────────────────────────────────────────────────────────────────
@@ -463,9 +614,12 @@ async def me(principal: Principal | None = Depends(optional_principal)):
         return {"user": None}
     async with db.connection() as conn:
         user = await db.fetch_one(conn, """
-            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used,
-                   (select count(*) from passkeys p where p.user_id = u.id) as passkeys
+            select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.grace_logins_used, u.mfa_required,
+                   u.locale, u.avatar_file_id is not null as has_avatar
             from users u where u.id = %s""", (principal.user_id,))
+        f = await mfa.factors(conn, principal.user_id)
+    s = config.settings
+    is_admin = user["role"] == "admin"
     return {
         "user": {
             "id": user["id"],
@@ -474,8 +628,17 @@ async def me(principal: Principal | None = Depends(optional_principal)):
             "display_name": user["display_name"],
             "role": user["role"],
             "super_admin": user["super_admin"],
-            "passkeys": user["passkeys"],
-            "grace_left": max(0, config.settings.grace_logins - user["grace_logins_used"]) if not user["passkeys"] else 0,
+            "locale": user["locale"],
+            "avatar_url": "/api/me/avatar" if user["has_avatar"] else None,
+            "passkeys": f["passkeys"] + f["security_keys"],
+            "mfa": {
+                "required": user["mfa_required"],
+                "factors": f["total"],
+                "methods": mfa.methods(f),
+                # /admin: is this session allowed in, and how many grace logins are left without a second factor
+                "admin_ok": is_admin and principal.scope == "full" and admin_mfa_ok(principal),
+                "admin_grace_left": max(0, s.grace_logins - user["grace_logins_used"]) if is_admin and not f["total"] else None,
+            },
         },
         "scope": principal.scope,
         "impersonator": await _impersonator(principal),

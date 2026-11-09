@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>MCP-app — Udstil endpoint</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9}
+.tg-side{flex:0 0 auto;position:sticky;top:0;height:100vh;align-self:flex-start}
+.tg-rainbow-text{animation:hm-rainbow 3s ease infinite}
+@keyframes hm-rainbow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (max-width:900px){.tg-side{flex:1 1 100%;position:static;height:auto}.tg-aside{height:auto !important;width:100% !important}.tg-aside nav{overflow:visible !important}}
+a{color:#2563eb}a:hover{color:#1e58d3}
+</style>
+</helmet>
+<div style="min-height: 1040px; display: flex; flex-wrap: wrap; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #020817; background: #f1f5f9">
+  <div class="tg-side" style="display: flex">
+    <dc-import name="McpNav" active="new" hint-size="100%,1040px" style="width: 100%"></dc-import>
+  </div>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: rgba(255,255,255,0.92); border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b">
+      <span style="font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">lejedata.gaer.dk<span style="color: #020817; font-weight: 600">/mcp?ny=endpoint</span></span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px">
+        <span aria-label="Niels · admin" style="width: 30px; height: 30px; border-radius: 9999px; background: linear-gradient(90deg, #e63946 0%, #f77f00 25%, #fcbf49 50%, #06d6a0 75%, #118ab2 100%); color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">NI</span>
+      </div>
+    </header>
+
+    <main style="flex: 1; width: 100%; max-width: 1240px; box-sizing: border-box; padding: 24px 24px 64px; display: flex; flex-direction: column; gap: 16px">
+      <nav aria-label="Brødkrumme" style="font-size: 13px; color: #64748b; display: flex; gap: 6px; flex-wrap: wrap">
+        <a href="McpHome.dc.html">Endpoints</a><span>/</span><span style="color: #020817; font-weight: 500">Udstil endpoint</span>
+      </nav>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Udstil et endpoint</h1>
+        <p style="margin: 0; color: #64748b; max-width: 700px">Vælg hvad endpointet skal give adgang til, hvem der må bruge det, og hvor det skal ligge under /mcp. Udgivelsen er selv en kladde og skrives i audit-loggen.</p>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+          <section aria-label="Kilde" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">1 · Kilde</span>
+            <div role="radiogroup" aria-label="Kilde" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px">
+              <sc-for list="{{kinds}}" as="k" hint-placeholder-count="4">
+                <button type="button" role="radio" aria-checked="{{k.on}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 10px; border: 1px solid {{k.bd}}; background: {{k.bg}}; font-family: Inter, system-ui, sans-serif; text-align: left; cursor: pointer">
+                  <span style="font-size: 13px; font-weight: 600; color: #020817">{{k.label}}</span>
+                  <span style="font-size: 12px; color: #64748b">{{k.hint}}</span>
+                </button>
+              </sc-for>
+            </div>
+          </section>
+
+          <section aria-label="Datasæt og værktøjer" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; display: flex; flex-direction: column">
+            <div style="padding: 16px 16px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px">
+              <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">2 · Datasæt og værktøjer</span>
+              <span style="font-size: 12px; color: #64748b">Værktøjerne laves ud fra katalogets felter</span>
+            </div>
+            <sc-for list="{{sets}}" as="d" hint-placeholder-count="4">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px; border-top: 1px solid #f1f5f9; background: {{d.bg}}">
+                <label style="display: flex; align-items: center; gap: 10px; flex: 1 1 220px; min-width: 0">
+                  <input type="checkbox" checked="{{d.checked}}" style="width: 16px; height: 16px">
+                  <span style="display: flex; flex-direction: column; gap: 1px">
+                    <span style="font-weight: 600">{{d.name}}</span>
+                    <span style="font-size: 12px; color: #64748b">{{d.source}}</span>
+                  </span>
+                </label>
+                <span style="padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: {{d.cBg}}; color: {{d.cFg}}">{{d.cls}}</span>
+                <span style="display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 260px">
+                  <sc-for list="{{d.tools}}" as="t" hint-placeholder-count="2">
+                    <span style="padding: 2px 8px; border-radius: 6px; border: 1px solid #e2e8f0; background: #ffffff; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: {{d.toolFg}}">{{t}}</span>
+                  </sc-for>
+                </span>
+              </div>
+            </sc-for>
+          </section>
+
+          <section aria-label="Adgang" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">3 · Adgang</span>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
+              <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+                <legend style="font-weight: 500; padding: 0 0 6px">Hvem må</legend>
+                <label style="display: flex; align-items: center; gap: 8px"><input type="radio" name="who" checked> Alle brugere med en fuld session</label>
+                <label style="display: flex; align-items: center; gap: 8px"><input type="radio" name="who"> Kun admin-rollen</label>
+              </fieldset>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">
+                Feature-ring
+                <select style="height: 36px; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; background: #ffffff">
+                  <option>2 · Beta</option>
+                  <option>3 · Preview</option>
+                  <option>4 · Stabilt</option>
+                </select>
+              </label>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">
+                Grænse pr. bruger
+                <input type="text" value="60 kald/min" style="height: 36px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 14px Inter, system-ui, sans-serif; box-sizing: border-box">
+              </label>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: #64748b">Datasæt er kun til læsning. Et endpoint med skrivende værktøjer (fra en ekstern MCP-server) giver altid kladder, der skal bekræftes.</p>
+          </section>
+
+          <section aria-label="Adresse" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">4 · Adresse</span>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px">
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">
+                Sti
+                <span style="display: flex; align-items: stretch; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden">
+                  <span style="display: inline-flex; align-items: center; padding: 0 10px; background: #f8fafc; border-right: 1px solid #e2e8f0; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b">/mcp/</span>
+                  <input type="text" value="offentlige-data" style="flex: 1; min-width: 0; height: 34px; padding: 0 10px; border: 0; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace">
+                </span>
+              </label>
+              <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">
+                Navn i klienten
+                <input type="text" value="gaer-offentlige-data" style="height: 36px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; box-sizing: border-box">
+              </label>
+            </div>
+          </section>
+
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end">
+            <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; font: 500 14px Inter, system-ui, sans-serif">Gem som kladde</button>
+            <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: 0; background: #2563eb; font: 600 14px Inter, system-ui, sans-serif; color: #f8fafc">Udgiv endpoint</button>
+          </div>
+        </div>
+
+        <aside aria-label="Forhåndsvisning" style="flex: 1 1 320px; max-width: 100%; display: flex; flex-direction: column; gap: 12px">
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">tools/list · forhåndsvisning</span>
+            <code style="display: block; padding: 12px; border-radius: 10px; background: #0f172a; color: #e2e8f0; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap">[
+  { "name": "web_pages_search",
+    "description": "Søg i websitets sider" },
+  { "name": "adresser_query",
+    "description": "Find adresser efter postnr. og vej" },
+  { "name": "postnumre_get",
+    "description": "Ét postnummer med bynavn" }
+]</code>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Tjek</span>
+            <sc-for list="{{checks}}" as="c" hint-placeholder-count="4">
+              <div style="display: flex; gap: 8px; align-items: flex-start; font-size: 13px">
+                <span style="width: 18px; height: 18px; flex: none; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: {{c.bg}}; color: {{c.fg}}">{{c.icon}}</span>
+                <span style="color: #334155">{{c.text}}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b">Forbind, når det er udgivet</span>
+            <code style="display: block; padding: 10px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; color: #334155; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all">https://lejedata.gaer.dk/mcp/offentlige-data</code>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const kinds = [
+      ['Datasæt fra kataloget', 'Læseværktøjer pr. datasæt', true],
+      ['API-kilde', 'Fra en kildebeskrivelse', false],
+      ['Ekstern MCP-server', 'Videresend gennem Gær-login', false],
+      ['Saml værktøjer', 'Vælg fra andre endpoints', false]
+    ].map(([label, hint, on]) => ({ label, hint, on: on ? 'true' : 'false', bg: on ? '#eff6ff' : '#ffffff', bd: on ? '#2563eb' : '#e2e8f0' }));
+    const C = { Hvid: ['#f1f5f9', '#475569'], Gul: ['rgba(249,115,22,0.12)', '#9a3412'] };
+    const sets = [
+      ['Website-sider', 'Gær (egen database) · web_pages', 'Hvid', true, ['web_pages_search', 'web_pages_get']],
+      ['Adresser', 'Dataforsyningen · GET /adresser', 'Hvid', true, ['adresser_query']],
+      ['Postnumre', 'Dataforsyningen · GET /postnumre', 'Hvid', true, ['postnumre_get']],
+      ['Klip', 'Gær (egen database) · clips', 'Gul', false, ['clips_query']]
+    ].map(([name, source, cls, checked, tools]) => ({
+      name, source, cls, checked, tools, cBg: C[cls][0], cFg: C[cls][1],
+      bg: checked ? '#ffffff' : '#f8fafc', toolFg: checked ? '#334155' : '#94a3b8'
+    }));
+    const ok = ['rgba(22,163,74,0.12)', '#166534', '✓'];
+    const warn = ['rgba(249,115,22,0.12)', '#9a3412', '!'];
+    const checks = [
+      [ok, 'Kun hvide felter — intet skal maskeres'],
+      [warn, 'Klip er Gul og kan ikke udstilles for alle brugere; kræver kun admin-rollen'],
+      [ok, '/mcp/offentlige-data er ledig'],
+      [ok, 'Udgivelsen bliver en kladde og skrives i audit-loggen']
+    ].map(([c, text]) => ({ bg: c[0], fg: c[1], icon: c[2], text }));
+    return { kinds, sets, checks };
+  }
+}
+</script>
+</body>
+</html>

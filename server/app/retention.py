@@ -15,7 +15,7 @@ from app.security import phone_hash
 
 log = logging.getLogger("gaer.retention")
 
-LOGS = ("auth_log", "audit_log", "analytics")
+LOGS = ("auth_log", "audit_log", "analytics", "mcp_log")
 
 
 async def purge_old(*, actor_id: int | None, meta: RequestMeta, reason: str) -> dict:
@@ -25,6 +25,7 @@ async def purge_old(*, actor_id: int | None, meta: RequestMeta, reason: str) -> 
         "auth_log": int(values["retention_auth_log_days"]),
         "audit_log": int(values["retention_audit_log_days"]),
         "analytics": int(values["retention_analytics_days"]),
+        "mcp_log": int(values["retention_mcp_log_days"]),
     }
     counts = {}
     async with db.purge_connection() as conn:
@@ -42,6 +43,8 @@ async def purge_old(*, actor_id: int | None, meta: RequestMeta, reason: str) -> 
             "delete from consents where ts < now() - make_interval(days => %s)", (days["analytics"],))).rowcount
         counts["feature_usage"] = (await conn.execute(
             "delete from feature_usage where ts < now() - make_interval(days => %s)", (days["analytics"],))).rowcount
+        counts["mcp_log"] = (await conn.execute(
+            "delete from mcp_log where ts < now() - make_interval(days => %s)", (days["mcp_log"],))).rowcount
         await audit(conn, "log.purged", actor_id=actor_id, meta=meta, reason=reason, retention_days=days,
                     deleted=counts)
     async with db.connection() as conn:
@@ -78,6 +81,8 @@ async def purge_user(user_id: int, *, logs: list[str], actor_id: int | None, met
                 "delete from consents where user_id = %s", (user_id,))).rowcount
             counts["feature_usage"] = (await conn.execute(
                 "delete from feature_usage where user_id = %s", (user_id,))).rowcount
+        if "mcp_log" in logs:
+            counts["mcp_log"] = (await conn.execute("delete from mcp_log where user_id = %s", (user_id,))).rowcount
         await audit(conn, "log.purged", actor_id=actor_id, meta=meta, reason=reason, subject_user_id=user_id,
                     deleted=counts)
     return counts
@@ -86,7 +91,8 @@ async def purge_user(user_id: int, *, logs: list[str], actor_id: int | None, met
 async def log_stats() -> list[dict]:
     async with db.connection() as conn:
         rows = []
-        for name, table in (("auth_log", "auth_log"), ("audit_log", "audit_log"), ("analytics", "analytics_events")):
+        for name, table in (("auth_log", "auth_log"), ("audit_log", "audit_log"), ("analytics", "analytics_events"),
+                            ("mcp_log", "mcp_log")):
             r = await db.fetch_one(conn, f"select count(*) as rows, min(ts) as oldest from {table}")
             size = await db.fetch_one(conn, "select pg_total_relation_size(%s) as bytes", (table,))
             rows.append({"log": name, "rows": r["rows"], "oldest": r["oldest"], "bytes": size["bytes"]})
