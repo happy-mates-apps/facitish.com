@@ -40,7 +40,8 @@ async def overview(range_: Range = Query("month", alias="range"), start: date | 
         report = await consumption.report(conn, per)
         defaults = await settings_store.get_all(conn)
     return {"enabled": ai.enabled(), "model": config.settings.ai_model,
-            "defaults": {"monthly_tokens": defaults["ai_default_monthly_tokens"], "warn_pct": defaults["ai_default_warn_pct"]},
+            "defaults": {"monthly_tokens": defaults["ai_default_monthly_tokens"], "warn_pct": defaults["ai_default_warn_pct"],
+                         "warning_mail": defaults["ai_warning_mail"]},
             **report}
 
 
@@ -76,6 +77,7 @@ async def export(range_: Range = Query("month", alias="range"), start: date | No
 class DefaultsIn(BaseModel):
     monthly_tokens: int = Field(ge=0, le=100_000_000)
     warn_pct: int = Field(ge=0, le=95)
+    warning_mail: bool = True
 
     @field_validator("warn_pct")
     @classmethod
@@ -89,10 +91,12 @@ class DefaultsIn(BaseModel):
 async def defaults(body: DefaultsIn, admin: Principal = Depends(require_admin)):
     async with db.connection() as conn:
         s = await settings_store.get_all(conn)
-        before = {"monthly_tokens": s["ai_default_monthly_tokens"], "warn_pct": s["ai_default_warn_pct"]}
-        after = {"monthly_tokens": body.monthly_tokens, "warn_pct": body.warn_pct}
+        before = {"monthly_tokens": s["ai_default_monthly_tokens"], "warn_pct": s["ai_default_warn_pct"],
+                  "warning_mail": s["ai_warning_mail"]}
+        after = {"monthly_tokens": body.monthly_tokens, "warn_pct": body.warn_pct, "warning_mail": body.warning_mail}
         await settings_store.set_many(conn, {"ai_default_monthly_tokens": body.monthly_tokens,
-                                             "ai_default_warn_pct": body.warn_pct})
+                                             "ai_default_warn_pct": body.warn_pct,
+                                             "ai_warning_mail": body.warning_mail})
         b, a = changed(before, after)
         if a:
             await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="settings", row_id="ai_consumption",

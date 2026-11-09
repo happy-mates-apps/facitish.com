@@ -8,13 +8,14 @@ What applies to a user today, in this order:
 3. the instance default (settings: ai_default_monthly_tokens, ai_default_warn_pct).
 
 A hard cap stops AI for the rest of the month (or for the rest of the period, for a used-up total); a soft cap
-only warns. Each level a user passes is stored once per month in ai_budget_alerts and sent as a webhook.
+only warns. Each level a user passes is stored once per month in ai_budget_alerts, sent as a webhook and, when
+the setting ai_warning_mail is on and the user has an e-mail address, mailed to the user (job ai.budget.mail).
 Only token counts are used; prompts and answers are never stored (see app/ai.py).
 """
 
 from datetime import date, datetime, timedelta
 
-from app import db, settings_store, webhooks
+from app import config, db, jobs, mail, settings_store, webhooks
 
 WARN_CHOICES = (10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95)
 RANGES = ("day", "week", "month", "year", "custom")
@@ -120,7 +121,7 @@ BLOCKED_TEXT = {
 # ── After each AI call ─────────────────────────────────────────────────────
 
 async def after_usage(conn, user_id: int) -> list[dict]:
-    """Stores the levels the user has now passed (once per month) and sends a webhook for each new one."""
+    """Stores the levels the user has now passed (once per month); for each new one a webhook and a mail job."""
     p = await policy(conn, user_id)
     if p["limit"] <= 0:
         return []
@@ -141,7 +142,43 @@ async def after_usage(conn, user_id: int) -> list[dict]:
             new.append({"id": row["id"], "kind": kind, "pct": pct})
             await webhooks.emit(conn, f"ai.budget.{kind}", {"user_id": user_id, "budget_id": budget_id, "alert_id": row["id"],
                                                              "pct": pct, "hard": p["hard"]})
+    if new and await settings_store.get(conn, "ai_warning_mail"):
+        # One mail for the highest new level: passing 80 % and the cap in one call is one mail about the cap.
+        top = max(new, key=lambda a: (a["kind"] != "warning", a["kind"] == "total", a["pct"]))
+        await jobs.enqueue(conn, "ai.budget.mail", {"alert_id": top["id"], "hard": p["hard"]},
+                           dedupe_key=f"ai.budget.mail:{top['id']}")
     return new
+
+
+MONTHS = ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober", "november",
+          "december"]
+
+
+@jobs.handler("ai.budget.mail")
+async def send_alert_mail(payload: dict, job: dict) -> dict:
+    """Mails the user about a budget alert. Skipped when the user has no e-mail, the alert is gone (erased or
+    purged) or it was already mailed. A mail error raises, so the job is retried."""
+    async with db.connection() as conn:
+        row = await db.fetch_one(conn, """
+            select a.id, a.kind, a.pct, a.used, a.limit_tokens, a.mailed_at, a.month, u.email
+            from ai_budget_alerts a join users u on u.id = a.user_id where a.id = %s""", (payload["alert_id"],))
+        if row is None:
+            return {"skipped": "alert not found"}
+        if row["mailed_at"] is not None:
+            return {"skipped": "already mailed"}
+        if not row["email"]:
+            return {"skipped": "no e-mail"}
+        app_name = await settings_store.get(conn, "app_name")
+    m = row["month"]
+    nxt = date(m.year + (m.month == 12), m.month % 12 + 1, 1)
+    subject, text, body = mail.ai_budget_mail(row["kind"], row["pct"], row["used"], row["limit_tokens"],
+                                              bool(payload.get("hard", True)), app_name,
+                                              config.settings.origin.rstrip("/") + "/konto/forbrug",
+                                              f"{nxt.day}. {MONTHS[nxt.month - 1]} {nxt.year}")
+    await mail.send_mail(row["email"], subject, text, body, app_name)
+    async with db.connection() as conn:
+        await conn.execute("update ai_budget_alerts set mailed_at = now() where id = %s", (row["id"],))
+    return {"sent": row["kind"], "pct": row["pct"]}
 
 
 # ── Periods ────────────────────────────────────────────────────────────────

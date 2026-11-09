@@ -197,3 +197,57 @@ async def test_gdpr_export_has_budgets(make_client, ai_on):
     async with db.connection() as conn:
         data = await gdpr.build_user_export(conn, user_id)
     assert data["ai_budgets"][0]["monthly_tokens"] == 1000 and data["ai_budget_alerts"] == []
+
+
+async def test_warning_mail_to_the_user(make_client, ai_on, owner_conn, monkeypatch):
+    from app import consumption, jobs, mail
+    sent = []
+
+    async def fake_send(to, subject, text, html_body, sender_name):
+        sent.append((to, subject, text))
+    monkeypatch.setattr(mail, "send_mail", fake_send)
+
+    admin, user, user_id = await setup(make_client)
+    owner_conn.execute("update users set email = 'mette@kunde.dk' where id = %s", (user_id,))
+    await admin.post("/api/admin/consumption/budgets", json=budget(user_id))
+
+    ai_on(400, 200)  # 60 %: passes 50 %
+    await chat(user)
+    assert await jobs.run_pending() == 1
+    assert len(sent) == 1
+    to, subject, text = sent[0]
+    assert to == "mette@kunde.dk" and "50 %" in subject and "/konto/forbrug" in text and "hej" not in text
+    assert owner_conn.execute("select count(*) from ai_budget_alerts where mailed_at is not null").fetchone()[0] == 1
+
+    ai_on(300, 200)  # 110 %: passes 80 % and the cap in one call → one mail, about the cap
+    await chat(user)
+    await jobs.run_pending()
+    assert len(sent) == 2 and "loft" in sent[1][1]
+
+    # A mailed alert is not mailed again.
+    alert_id = owner_conn.execute("select id from ai_budget_alerts where kind = 'cap'").fetchone()[0]
+    assert (await consumption.send_alert_mail({"alert_id": alert_id}, {}))["skipped"] == "already mailed"
+
+    # Switched off in /admin/consumption: alerts and webhooks still happen, mails do not.
+    r = await admin.put("/api/admin/consumption/defaults", json={"monthly_tokens": 200000, "warn_pct": 80, "warning_mail": False})
+    assert r.status_code == 200
+    owner_conn.execute("delete from ai_budget_alerts")
+    from app import db
+    async with db.connection() as conn:
+        assert len(await consumption.after_usage(conn, user_id)) == 3
+    assert await jobs.run_pending() == 0 and len(sent) == 2
+
+
+async def test_no_mail_without_email(make_client, ai_on, monkeypatch):
+    from app import jobs, mail
+    sent = []
+
+    async def fake_send(*args):
+        sent.append(args)
+    monkeypatch.setattr(mail, "send_mail", fake_send)
+    admin, user, user_id = await setup(make_client)
+    await admin.post("/api/admin/consumption/budgets", json=budget(user_id))
+    ai_on(400, 200)
+    await chat(user)
+    await jobs.run_pending()
+    assert sent == []

@@ -78,7 +78,7 @@ async def build_user_export(conn, user_id: int) -> dict:
         "ai_budgets": await rows("""select monthly_tokens, warn_pcts, hard, total_tokens, starts_on, ends_on, note,
                                            created_at, updated_at from ai_budgets where user_id = %s order by starts_on""",
                                  user_id),
-        "ai_budget_alerts": await rows("""select month, kind, pct, used, limit_tokens, created_at from ai_budget_alerts
+        "ai_budget_alerts": await rows("""select month, kind, pct, used, limit_tokens, created_at, mailed_at from ai_budget_alerts
                                           where user_id = %s order by created_at""", user_id),
         "analytics_events": await rows("""select ts, kind, path, referrer, device, browser from analytics_events
                                           where user_id = %s or visitor_id = any(%s) order by ts limit 50000""",

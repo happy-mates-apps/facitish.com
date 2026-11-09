@@ -24,7 +24,7 @@ create table ai_budgets (
 create index ai_budgets_user_idx on ai_budgets (user_id, starts_on desc);
 
 -- One row each time a user passes a warning, reaches the cap or uses up the period total, once per month and level.
--- Used for the webhooks (sent once), the warning count in /admin/consumption and the user's own page.
+-- Used for the webhooks and the warning mail to the user (each sent once), the warning count in /admin/consumption and the user's own page.
 create table ai_budget_alerts (
     id          bigserial primary key,
     user_id     bigint not null references users (id) on delete cascade,
@@ -35,6 +35,7 @@ create table ai_budget_alerts (
     used        bigint not null,
     limit_tokens bigint not null,
     created_at  timestamptz not null default now(),
+    mailed_at   timestamptz,                             -- when the warning mail to the user was sent (job ai.budget.mail)
     unique (user_id, month, kind, pct)
 );
 create index ai_budget_alerts_created_idx on ai_budget_alerts (created_at);

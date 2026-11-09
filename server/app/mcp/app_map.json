@@ -44,7 +44,8 @@
       "anchors": [
         "consumption-budget",
         "consumption-new-budget",
-        "consumption-tab-{x}"
+        "consumption-tab-{x}",
+        "consumption-warning-mail"
       ]
     },
     "/admin/data": {

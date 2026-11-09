@@ -22,7 +22,7 @@ type UserRow = {
   cost: number; top_model: string | null; last_used: string | null; policy: Policy;
 };
 type Report = {
-  enabled: boolean; model: string; defaults: { monthly_tokens: number; warn_pct: number };
+  enabled: boolean; model: string; defaults: { monthly_tokens: number; warn_pct: number; warning_mail: boolean };
   period: { range: Range; start: string; end: string; bucket: "hour" | "day" | "month" };
   totals: { requests: number; prompt_tokens: number; completion_tokens: number; users: number; estimated: number; cost: number };
   previous: { requests: number; tokens: number; cost: number };
@@ -361,8 +361,8 @@ function Budgets() {
   const [filter, setFilter] = useState<"all" | Budget["status"]>("all");
   const [form, setForm] = useState<Form | null>(null);
   const [busy, setBusy] = useState(false);
-  const [def, setDef] = useState<{ monthly_tokens: string; warn_pct: string } | null>(null);
-  const defaults = def ?? (overview.data ? { monthly_tokens: String(overview.data.defaults.monthly_tokens), warn_pct: String(overview.data.defaults.warn_pct) } : null);
+  const [def, setDef] = useState<{ monthly_tokens: string; warn_pct: string; warning_mail: boolean } | null>(null);
+  const defaults = def ?? (overview.data ? { monthly_tokens: String(overview.data.defaults.monthly_tokens), warn_pct: String(overview.data.defaults.warn_pct), warning_mail: overview.data.defaults.warning_mail } : null);
   const choices = list.data?.warn_choices ?? [50, 75, 80, 90];
   const items = (list.data?.items ?? []).filter((b) => filter === "all" || b.status === filter);
 
@@ -403,7 +403,7 @@ function Budgets() {
   const saveDefaults = async () => {
     if (!defaults) return;
     try {
-      await api.put("/api/admin/consumption/defaults", { monthly_tokens: Number(digits(defaults.monthly_tokens) || 0), warn_pct: Number(defaults.warn_pct) });
+      await api.put("/api/admin/consumption/defaults", { monthly_tokens: Number(digits(defaults.monthly_tokens) || 0), warn_pct: Number(defaults.warn_pct), warning_mail: defaults.warning_mail });
       say("Standarden er gemt.");
       setDef(null);
       await overview.reload();
@@ -417,16 +417,21 @@ function Budgets() {
       <section aria-labelledby="b-def" style={{ ...card, padding: "18px 20px", display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end" }}>
         <div style={{ flex: "1 1 260px", display: "flex", flexDirection: "column", gap: 4 }}>
           <h2 id="b-def" style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Standard for alle brugere</h2>
-          <span style={{ fontSize: 13, color: "#475569" }}>Gælder brugere uden budget eller eget loft, og når et budget er udløbet. 0 slår AI fra.</span>
+          <span style={{ fontSize: 13, color: "#475569" }}>Gælder brugere uden budget eller eget loft, og når et budget er udløbet. 0 slår AI fra. Mail ved advarsler gælder alle brugere med en e-mailadresse.</span>
         </div>
         <label style={labelStyle}>Månedligt loft (tokens)
-          <input inputMode="numeric" value={defaults ? fmt(Number(digits(defaults.monthly_tokens) || 0)) : ""} onChange={(e) => setDef({ ...(defaults ?? { warn_pct: "80" }), monthly_tokens: digits(e.target.value) })} style={{ ...input, width: 160 }} />
+          <input inputMode="numeric" value={defaults ? fmt(Number(digits(defaults.monthly_tokens) || 0)) : ""} onChange={(e) => setDef({ ...(defaults ?? { warn_pct: "80", warning_mail: true }), monthly_tokens: digits(e.target.value) })} style={{ ...input, width: 160 }} />
         </label>
         <label style={labelStyle}>Advar ved
-          <select value={defaults?.warn_pct ?? "80"} onChange={(e) => setDef({ ...(defaults ?? { monthly_tokens: "0" }), warn_pct: e.target.value })} style={{ ...select, width: 120 }}>
+          <select value={defaults?.warn_pct ?? "80"} onChange={(e) => setDef({ ...(defaults ?? { monthly_tokens: "0", warning_mail: true }), warn_pct: e.target.value })} style={{ ...select, width: 120 }}>
             <option value="0">Aldrig</option>
             {choices.map((c) => <option key={c} value={c}>{c} %</option>)}
           </select>
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, height: 36 }} data-deeplink="consumption-warning-mail">
+          <input type="checkbox" checked={defaults?.warning_mail ?? true}
+            onChange={(e) => setDef({ ...(defaults ?? { monthly_tokens: "0", warn_pct: "80" }), warning_mail: e.target.checked })} />
+          Send mail ved advarsler
         </label>
         <Btn onClick={saveDefaults} disabled={!def}>Gem</Btn>
       </section>
@@ -514,7 +519,7 @@ function Budgets() {
                   );
                 })}
               </div>
-              <span style={{ fontSize: 12, color: "#64748b" }}>Brugeren ser advarslen på Mit AI-forbrug; hver grænse sendes én gang pr. måned som webhook (ai.budget.warning).</span>
+              <span style={{ fontSize: 12, color: "#64748b" }}>Brugeren ser advarslen på Mit AI-forbrug og får en mail, hvis »Send mail ved advarsler« er slået til. Hver grænse sendes én gang pr. måned, også som webhook (ai.budget.warning).</span>
             </fieldset>
             <fieldset style={{ margin: 0, padding: 0, border: 0, display: "flex", flexDirection: "column", gap: 8 }}>
               <legend style={{ fontSize: 13, fontWeight: 500, padding: "0 0 6px" }}>Når loftet er nået</legend>
