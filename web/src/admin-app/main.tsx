@@ -34,6 +34,12 @@ import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
 import DataConnect from "./pages/data/Connect";
+import { AdoptionLayout } from "./pages/adoption/shared";
+import AdoptionOverview from "./pages/adoption/Overview";
+import AdoptionJourney, { AdoptionJourneys } from "./pages/adoption/Journey";
+import AdoptionRoutes from "./pages/adoption/Routes";
+import AdoptionConsole from "./pages/adoption/Console";
+import AdoptionAccess from "./pages/adoption/Access";
 import { AdminGo } from "./go";
 import "./base.css";
 import "./admin.css";
@@ -84,6 +90,15 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="app-stores/:tab" element={<AppStores />} />
                   <Route path="analytics" element={legacy(<Analytics />)} />
                   <Route path="heatmaps" element={legacy(<Heatmaps />)} />
+                  <Route path="adoption" element={<AdoptionLayout />}>
+                    <Route index element={<AdoptionOverview />} />
+                    <Route path="journeys" element={<AdoptionJourneys />} />
+                    <Route path="journeys/:id" element={<AdoptionJourney />} />
+                    <Route path="journeys/:id/setup" element={<AdoptionJourney setup />} />
+                    <Route path="routes" element={<AdoptionRoutes />} />
+                    <Route path="console" element={<AdoptionConsole />} />
+                    <Route path="access" element={<AdoptionAccess />} />
+                  </Route>
                   <Route path="logs/auth" element={legacy(<AuthLog />)} />
                   <Route path="logs/audit" element={legacy(<AuditLog />)} />
                   <Route path="web" element={legacy(<Web />)} />

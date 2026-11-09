@@ -1,6 +1,6 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, BookOpen, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Globe, LogIn, MousePointerClick, PlugZap, Puzzle, ScrollText,
+  Archive, BookOpen, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Globe, LogIn, MousePointerClick, PlugZap, Puzzle, ScrollText,
   Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
@@ -9,7 +9,7 @@ export type NavItem = { path: string; label: string; icon: LucideIcon; badge?: N
 export type NavGroup = { label: string; items: NavItem[] };
 
 // Grouped by job, so each administrative role (server/app/admin_roles.py) mostly sees whole groups:
-// Support → Brugere og support, Indhold, Produkt, Data, Privatliv → Privatliv og compliance, Drift → Drift og integrationer.
+// Produkt → Adoption, Support → Brugere og support, Indhold, Produkt, Data, Privatliv → Privatliv og compliance, Drift → Drift og integrationer.
 export const NAV: NavGroup[] = [
   {
     label: "Overblik",
@@ -17,6 +17,16 @@ export const NAV: NavGroup[] = [
       { path: "/", label: "Statistik", icon: ChartColumn },
       { path: "/analytics", label: "Analytics", icon: TrendingUp },
       { path: "/heatmaps", label: "Heatmaps", icon: MousePointerClick },
+    ],
+  },
+  {
+    label: "Adoption",
+    items: [
+      { path: "/adoption", label: "Adoption", icon: LayoutDashboard },
+      { path: "/adoption/journeys", label: "Forløb", icon: RouteIcon },
+      { path: "/adoption/routes", label: "Ruter og URL'er", icon: Waypoints },
+      { path: "/adoption/console", label: "Live-strøm", icon: SquareTerminal },
+      { path: "/adoption/access", label: "Adgang til forløb", icon: UsersRound },
     ],
   },
   {

@@ -7,6 +7,7 @@ import { GoPage, useDeepLinkFocus } from "./deeplink";
 import ConsentBanner from "./ConsentBanner";
 import { StepUpDialog } from "./security";
 import { trackPageview } from "./tracker";
+import { noteVisit } from "./adoption";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Account from "./pages/Account";
@@ -77,9 +78,14 @@ function RequireUser({ children, login = "/login" }: { children: ReactNode; logi
 
 function PageTracker() {
   const location = useLocation();
+  const { user, scope } = useAuth();
+  const signedIn = !!user && scope === "full";
   useEffect(() => {
     trackPageview(location.pathname);
   }, [location.pathname]);
+  useEffect(() => {
+    if (signedIn) noteVisit(location.pathname);
+  }, [location.pathname, signedIn]);
   return null;
 }
 

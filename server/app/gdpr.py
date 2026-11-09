@@ -70,6 +70,13 @@ async def build_user_export(conn, user_id: int) -> dict:
                                        where impersonation_only and impersonation_owner_id = %s""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
                                   where user_id = %s order by ts""", user_id),
+        "adoption_visits": await rows("""select at, path, surface from adoption_visits where user_id = %s
+                                         order by at limit 50000""", user_id),
+        "adoption_nudges": await rows("""select n.sent_at, j.name as journey from adoption_nudges n
+                                         join adoption_journeys j on j.id = n.journey_id where n.user_id = %s
+                                         order by n.sent_at""", user_id),
+        "adoption_roles": await rows("""select j.name as journey, m.role, m.created_at from adoption_members m
+                                        join adoption_journeys j on j.id = m.journey_id where m.user_id = %s""", user_id),
         "analytics_events": await rows("""select ts, kind, path, referrer, device, browser from analytics_events
                                           where user_id = %s or visitor_id = any(%s) order by ts limit 50000""",
                                        user_id, visitor_ids),
@@ -81,7 +88,8 @@ README = """Indsigt i dine data
 data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnøgler, godkendelsesapps
             (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
-            review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
+            review-sessioner og -noter, testkonti du har oprettet, sider du har åbnet (adoptionsforløb),
+            skub og roller i adoptionsforløb og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
 
 Samtaler med AI'en bliver ikke gemt og er derfor ikke med.
@@ -129,7 +137,7 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, one-time
-    codes, feature level, review sessions and notes and their test accounts cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
+    codes, feature level, review sessions and notes and their test accounts, adoption visits, nudges and journey roles cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)

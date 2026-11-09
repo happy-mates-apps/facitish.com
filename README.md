@@ -45,7 +45,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (57)</summary>
+<details><summary>Alle ruter (64)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -70,6 +70,13 @@ herfra ind i sin fork.
 | `/admin/app-stores/:tab` | admin-appen | admin | App Stores |
 | `/admin/analytics` | admin-appen | admin | Analytics |
 | `/admin/heatmaps` | admin-appen | admin | Heatmaps |
+| `/admin/adoption` | admin-appen | admin | Adoption |
+| `/admin/adoption/journeys` | admin-appen | admin | Forløb |
+| `/admin/adoption/journeys/:id` | admin-appen | admin | Forløb |
+| `/admin/adoption/journeys/:id/setup` | admin-appen | admin | Opsætning af forløb |
+| `/admin/adoption/routes` | admin-appen | admin | Ruter og URL'er |
+| `/admin/adoption/console` | admin-appen | admin | Live-strøm |
+| `/admin/adoption/access` | admin-appen | admin | Adgang til forløb |
 | `/admin/logs/auth` | admin-appen | admin | Auth-log |
 | `/admin/logs/audit` | admin-appen | admin | Audit-log |
 | `/admin/web` | admin-appen | admin | Website |
