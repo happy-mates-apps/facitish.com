@@ -68,8 +68,9 @@ async def purge_user(user_id: int, *, logs: list[str], actor_id: int | None, met
             counts["audit_log"] = (await conn.execute("""
                 delete from audit_log
                 where action not in ('log.purged', 'gdpr.erasure')   -- the record that we erased must survive
-                  and (actor_user_id = %s or (table_name = 'users' and row_id = %s))""",
-                (user_id, str(user_id)))).rowcount
+                  and (actor_user_id = %s or (table_name = 'users' and row_id = %s)
+                       or (detail ? 'on_behalf_of' and (detail ->> 'on_behalf_of')::bigint = %s))""",
+                (user_id, str(user_id), user_id))).rowcount
         if "analytics" in logs:
             counts["analytics"] = (await conn.execute("""
                 delete from analytics_events
@@ -113,6 +114,7 @@ CLEANUP_SQL = {
                           and received_at < now() - make_interval(days => %s)""",
     "ai_budget_alerts": "delete from ai_budget_alerts where created_at < now() - make_interval(days => %s)",
     "captcha_spent": "delete from captcha_spent where expires_at < now() - make_interval(days => %s)",
+    "user_delegations": "delete from user_delegations where expires_at < now() - make_interval(days => %s)",
     "mcp_access_requests": """delete from mcp_access_requests where updated_at < now() - make_interval(days => %s)
                               and (status in ('denied', 'withdrawn', 'revoked')
                                    or (status = 'approved' and expires_at < now())

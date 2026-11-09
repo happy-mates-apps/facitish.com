@@ -14,6 +14,7 @@ import AiUsage from "./pages/AiUsage";
 import Files from "./pages/Files";
 import Privacy from "./pages/Privacy";
 import McpConsent from "./pages/McpConsent";
+import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/UserArea";
 import Approve from "./pages/Approve";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
@@ -46,7 +47,7 @@ function TopBar() {
         <nav className="nav">
           {full && <FeatureGate feature="klip"><NavLink to="/klip">Klip</NavLink></FeatureGate>}
           {full && <FeatureGate feature="filer"><NavLink to="/filer">Filer</NavLink></FeatureGate>}
-          {full && <NavLink to="/konto">Konto</NavLink>}
+          {full && <NavLink to="/user">Mit område</NavLink>}
           {full && user.role === "admin" && <a href="/admin">Admin</a>}
           {user ? (
             <button
@@ -110,6 +111,10 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privatliv" element={<Privacy />} />
         <Route path="/konto" element={<RequireUser><Account /></RequireUser>} />
+        <Route path="/user" element={<RequireUser><UserHome /></RequireUser>} />
+        <Route path="/user/indstillinger" element={<RequireUser><UserSettings /></RequireUser>} />
+        <Route path="/user/deling" element={<RequireUser><UserSharing /></RequireUser>} />
+        <Route path="/user/:id" element={<RequireUser><DelegatedArea /></RequireUser>} />
         <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
