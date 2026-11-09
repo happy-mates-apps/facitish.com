@@ -109,6 +109,8 @@ CLEANUP_SQL = {
     "otp_codes": "delete from otp_codes where created_at < now() - make_interval(days => %s)",
     "webauthn_challenges": "delete from webauthn_challenges where expires_at < now() - make_interval(days => %s)",
     "sessions": "delete from sessions where expires_at < now() - make_interval(days => %s)",
+    "webhook_inbound": """delete from webhook_inbound where status in ('processed', 'ignored', 'failed')
+                          and received_at < now() - make_interval(days => %s)""",
     "captcha_spent": "delete from captcha_spent where expires_at < now() - make_interval(days => %s)",
     "review_orphans": """delete from review_sessions s where ended_at < now() - make_interval(days => %s)
                          and jsonb_array_length(pages) = 0

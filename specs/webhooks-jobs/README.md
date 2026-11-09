@@ -1,4 +1,4 @@
-# Robottjek, baggrundsjobs, oprydning og webhooks
+# Robottjek, baggrundsjobs, oprydning og webhooks (udgående og indgående)
 
 ## Robottjek (captcha) ved oprettelse og login med kode
 - `GET /api/auth/captcha` giver en proof-of-work-opgave (samme skema som ALTCHA): salt, `sha256(salt + n)`,
@@ -55,7 +55,41 @@ i /admin/retention og slettes af purge-brugeren.
 - Hændelser: `webhook.ping`, `user.created`, `user.deleted`, `gdpr.request.created`, `review.feedback.created`,
   `review.session.ended`, `job.dead`. De bærer id'er og stier, ikke persondata.
 
-Modtagerens tjek (Python):
+## Indgående webhooks (`server/app/webhooks_in.py`, /admin/webhooks → Indgående)
+Andre systemer sender `POST /api/hooks/in/<nøgle>`. Nøglen i URL'en er tilfældig og kan skiftes. Hvert endpoint
+vælger, hvordan afsenderen beviser, hvem den er:
+
+| Bekræftelse | Afsenderen sender | Til |
+| --- | --- | --- |
+| `gaer` | `X-Gaer-Signature: t=…,v1=…` (tidsstempel inden for `tolerance_seconds`) | en anden Gær-instans |
+| `hmac` | `<header>: sha256=<hex>`, `<hex>` eller base64 af HMAC-SHA256(nøgle, body) | GitHub, Shopify m.fl. |
+| `token` | `<header>: <fast værdi>`, fx `Authorization: Bearer …` | systemer med et auth-header |
+| `none` | intet; kun den hemmelige URL | simple formularer, helst med IP-filter |
+
+- Nøglen eller tokenet kan være afsenderens egen (indtastes) eller laves af os (vises én gang). Den gemmes krypteret.
+- Valgfrit: tilladte IP-intervaller, maks. størrelse (standard 256 KB), maks. pr. minut (standard 120).
+- Hændelsens navn fra et header (fx `X-GitHub-Event`) eller et JSON-felt (`type`, `data.event`); leverings-id fra
+  et header (fx `X-GitHub-Delivery`, `Idempotency-Key`) — samme id gemmes kun én gang og svares 200 `duplicate`.
+- Svar: 202 `{"id"}` ved modtagelse; 401 forkert/manglende bevis, 403 IP, 413 for stor, 429 for mange, 404 ukendt
+  eller slået fra. Afviste kald gemmes ikke, de tælles på endpointet med grund og tid.
+- Gemte hændelser (`webhook_inbound`) har headers uden hemmeligheder (Authorization, cookies, signaturer fjernes)
+  og body. Jobbet `webhook.inbound` kører endpointets handler med retries; »Kør igen« i admin kører den igen.
+- Handlers skrives i koden, så hvad en webhook må gøre, bliver reviewet:
+
+```python
+from app import webhooks_in
+
+@webhooks_in.handler("betaling", "Markerer ordren som betalt")
+async def paid(event: dict, endpoint: dict) -> dict:
+    data = event["body_json"]          # også event["headers"], event["event"], event["external_id"]
+    ...                                # skriv i databasen med audit i samme transaktion
+    return {"order": data["id"]}
+```
+
+- Opbevaring: `webhook_inbound` i `retention_policies` (30 dage). Indholdet kan rumme persondata fra afsenderen —
+  hold perioden kort.
+
+Modtagerens tjek af vores udgående webhooks (Python):
 
 ```python
 import hmac, hashlib, time

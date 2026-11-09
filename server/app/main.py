@@ -13,8 +13,8 @@ from app import captcha, config, db, jobs, mail, retention, webhooks
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
-from app.routes import (admin, admin_ops, ai, app_store, auth, clips, features, files, impersonation, me, office,
-                        public, review, security, web)
+from app.routes import (admin, admin_ops, ai, app_store, auth, clips, features, files, hooks, impersonation, me,
+                        office, public, review, security, web)
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -24,6 +24,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 # without a CORS preflight, which we never allow, so it stops CSRF together with SameSite cookies.
 CSRF_HEADER = "x-gaer"
 CSRF_EXEMPT = {"/api/collect"}  # sendBeacon cannot set headers; the endpoint only appends anonymous events
+CSRF_EXEMPT_PREFIXES = ("/api/hooks/in/",)  # incoming webhooks: other systems, no cookie, verified per endpoint
 
 # Who may embed us: the app itself (heatmap previews, the Office shell) and, for the embeddable
 # routes, the browser extension and the Office hosts (Office on the web runs add-ins in iframes).
@@ -85,7 +86,8 @@ def create_app() -> FastAPI:
     async def guard(request: Request, call_next):
         path = request.url.path
         if (path.startswith("/api/") and request.method not in ("GET", "HEAD", "OPTIONS")
-                and path not in CSRF_EXEMPT and request.headers.get(CSRF_HEADER) != "1"):
+                and path not in CSRF_EXEMPT and not path.startswith(CSRF_EXEMPT_PREFIXES)
+                and request.headers.get(CSRF_HEADER) != "1"):
             return JSONResponse({"detail": "Mangler X-Gaer header"}, status_code=403)
         response = await call_next(request)
         response.headers.setdefault("Content-Security-Policy", csp_for(path))
@@ -107,7 +109,7 @@ def create_app() -> FastAPI:
 
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router, admin.router,
               app_store.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
-              mcp_hub.router, office.router, review.router, admin_ops.router,
+              mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router,
               web.router, files.memory_router):
         app.include_router(r)
 

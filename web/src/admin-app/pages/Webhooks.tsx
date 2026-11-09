@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import { api, errorText } from "../../api";
 import { Alert, fmtDate, Json, Loading, PageHeader, useLoad } from "../ui";
+import WebhooksInbound from "./WebhooksInbound";
 
 type Hook = {
   id: number; name: string; url: string; events: string[]; active: boolean; auth_header_name: string | null;
@@ -21,6 +22,27 @@ const empty = { name: "", url: "https://", events: [] as string[], auth_header_n
                 timeout_seconds: 10, max_attempts: 8 };
 
 export default function Webhooks() {
+  const [tab, setTab] = useState<"out" | "in">(() => (window.location.hash === "#indgaaende" ? "in" : "out"));
+  const pick = (t: "out" | "in") => {
+    setTab(t);
+    history.replaceState(null, "", t === "in" ? "#indgaaende" : "#");
+  };
+  return (
+    <>
+      <PageHeader eyebrow="/admin/webhooks" title="Webhooks">
+        Udgående sender appens hændelser til andre systemer. Indgående giver andre systemer en adresse, de kan sende til.
+        Begge kan bruges med eller uden auth-header, og begge kan signeres.
+      </PageHeader>
+      <div className="row" role="tablist" aria-label="Retning">
+        <button role="tab" aria-selected={tab === "out"} className={`btn btn-sm ${tab === "out" ? "btn-dark" : "btn-outline"}`} onClick={() => pick("out")}>Udgående</button>
+        <button role="tab" aria-selected={tab === "in"} className={`btn btn-sm ${tab === "in" ? "btn-dark" : "btn-outline"}`} onClick={() => pick("in")}>Indgående</button>
+      </div>
+      {tab === "out" ? <Outgoing /> : <WebhooksInbound />}
+    </>
+  );
+}
+
+function Outgoing() {
   const data = useLoad(() => api.get<Data>("/api/admin/webhooks"));
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState<number | null>(null);
@@ -66,12 +88,12 @@ export default function Webhooks() {
 
   return (
     <>
-      <PageHeader eyebrow="/admin/webhooks" title="Webhooks">
+      <p className="muted small" style={{ maxWidth: 820 }}>
         Send appens hændelser til andre systemer. Hver levering er en POST med JSON, signeret med HMAC-SHA256 i
         headeren X-Gaer-Signature (t=tid,v1=signatur af »tid.body«). Et Authorization-header (eller et andet) kan sendes med,
         hvis modtageren kræver det. Fejl prøves igen med stigende pause; efter 10 opgivne leveringer i træk slås
         webhooken fra. Kun https til offentlige adresser.
-      </PageHeader>
+      </p>
       <Alert kind="success">{notice}</Alert>
       <Alert>{error || data.error}</Alert>
       {secret && (

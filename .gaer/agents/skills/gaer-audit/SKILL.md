@@ -16,7 +16,8 @@ Code: `server/app/logs.py`, `server/app/retention.py`, migration `0001_init.sql`
   Actions: `create`, `update`, `delete`, `file.upload`, `file.delete`, `role.changed`, `admin.first_user`,
   `admin.read`, `gdpr.request`, `gdpr.export`, `gdpr.erasure`, `log.exported`, `log.purged`, `session.revoked`,
   `retention.cleanup` (operational data, with counts), `job.enqueued`, `job.retry`, `webhook.test`, `webhook.redeliver`,
-  `webhook.secret_rotated`, `webhook.disabled`. Webhook secrets and auth header values are never logged.
+  `webhook.secret_rotated`, `webhook.key_rotated`, `webhook.disabled`, `webhook.received` (incoming, no body),
+  `webhook.replay`. Webhook secrets and auth header values are never logged.
   Auth events also include `phone.changed` (self-service with a code to the new number, or admin rectification).
 
 ## Rules
