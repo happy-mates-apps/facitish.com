@@ -144,7 +144,7 @@ export function Chat({ surface, getContext, runTool, contextHint, placeholder = 
         let calls: ToolCall[] = [];
         setActivity("Tænker …");
         setMessages([...history, { role: "assistant", content: "" }]);
-        for await (const [event, data] of streamChat({ surface, messages: history, context: context?.text, context_label: context?.label }, controller.signal)) {
+        for await (const [event, data] of streamChat({ surface, messages: history, context: context?.text, context_label: context?.label, page: window.location.pathname }, controller.signal)) {
           if (event === "delta") {
             answer += String(data.text ?? "");
             setActivity(null);
