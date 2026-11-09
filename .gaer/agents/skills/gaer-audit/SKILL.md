@@ -13,7 +13,8 @@ Code: `server/app/logs.py`, `server/app/retention.py`, migration `0001_init.sql`
   Events: `otp.sent`, `otp.verified`, `otp.failed`, `grace.used`, `passkey.registered`, `passkey.login`,
   `passkey.deleted`, `passkey.reset`, `session.revoked`.
 - **audit_log** — `audit(conn, action, actor_id=..., meta=..., table=..., row_id=..., before=..., after=..., **detail)`.
-  Actions: `create`, `update`, `delete`, `file.upload`, `file.delete`, `role.changed`, `admin.first_user`,
+  Actions: `create`, `update`, `delete`, `file.upload`, `file.write`, `file.move`, `file.delete`,
+  `file.folder_create`, `file.folder_delete`, `role.changed`, `admin.first_user`,
   `admin.read`, `gdpr.request`, `gdpr.export`, `gdpr.erasure`, `log.exported`, `log.purged`, `session.revoked`,
   `retention.cleanup` (operational data, with counts), `job.enqueued`, `job.retry`, `webhook.test`, `webhook.redeliver`,
   `webhook.secret_rotated`, `webhook.key_rotated`, `webhook.disabled`, `webhook.received` (incoming, no body),

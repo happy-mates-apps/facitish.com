@@ -3,7 +3,7 @@
 Design: canvas "MCP-adgangsanmodninger" (flow, /konto, /godkend + mail, /admin/access, brugerskuffen).
 Code: `server/app/mcp/toolmap.py`, `server/app/mcp/data_tools.py`, `server/app/access.py`,
 `server/app/mcp/access_tools.py`, `server/app/routes/access.py`, `server/app/routes/mcp_tools.py`,
-migration `0015_mcp_access.sql`. Tests: `server/tests/test_mcp_access.py`.
+migration `0016_mcp_access.sql`. Tests: `server/tests/test_mcp_access.py`.
 
 ## The endpoint map (governed from /admin/data → MCP-værktøjer)
 
