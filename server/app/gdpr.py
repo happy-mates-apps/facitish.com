@@ -129,6 +129,13 @@ async def build_user_export(conn, user_id: int) -> dict:
                                              where r.user_id = %s order by r.created_at""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
                                   where user_id = %s order by ts""", user_id),
+        "adoption_visits": await rows("""select at, path, surface from adoption_visits where user_id = %s
+                                         order by at limit 50000""", user_id),
+        "adoption_nudges": await rows("""select n.sent_at, j.name as journey from adoption_nudges n
+                                         join adoption_journeys j on j.id = n.journey_id where n.user_id = %s
+                                         order by n.sent_at""", user_id),
+        "adoption_roles": await rows("""select j.name as journey, m.role, m.created_at from adoption_members m
+                                        join adoption_journeys j on j.id = m.journey_id where m.user_id = %s""", user_id),
         "ai_budgets": await rows("""select monthly_tokens, warn_pcts, hard, total_tokens, starts_on, ends_on, note,
                                            created_at, updated_at from ai_budgets where user_id = %s order by starts_on""",
                                  user_id),
@@ -149,7 +156,8 @@ data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnø
             og hvem de er delt med, app-adgangskoder uden selve koden, leveringshændelser),
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
             MCP-adgangsanmodninger (hvad dine MCP-klienter har bedt om, og hvem der godkendte),
-            review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
+            review-sessioner og -noter, testkonti du har oprettet, sider du har åbnet (adoptionsforløb),
+            skub og roller i adoptionsforløb og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
 
 Samtaler med AI'en bliver ikke gemt og er derfor ikke med. Dine mails, kalenderaftaler og kontakter ligger i
@@ -200,10 +208,11 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage,
     AI budgets and their alerts, one-time codes, feature level, review sessions and notes, their test accounts, access to
-    and from their area (/user), Viden conversations and agent memberships cascade; their mailbox rows cascade and the
-    mailbox itself is removed in Stalwart by the job mail.principal.delete; review screenshots and audio are files;
-    feature usage is purged with the logs; their files in Object Storage (their whole home and folders cascade; files they
-    put in /shared stay, with the uploader link set to null); the contact details on their GDPR requests, and
+    and from their area (/user), adoption visits, nudges and journey roles, Viden conversations and agent memberships
+    cascade; their mailbox rows cascade and the mailbox itself is removed in Stalwart by the job mail.principal.delete;
+    review screenshots and audio are files; feature usage is purged with the logs; their files in Object Storage (their
+    whole home and folders cascade; files they put in /shared stay, with the uploader link set to null); the contact
+    details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)

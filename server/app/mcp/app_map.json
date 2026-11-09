@@ -18,6 +18,34 @@
         "access-requests"
       ]
     },
+    "/admin/adoption": {
+      "title": "Adoption",
+      "anchors": []
+    },
+    "/admin/adoption/access": {
+      "title": "Adgang til forløb",
+      "anchors": []
+    },
+    "/admin/adoption/console": {
+      "title": "Live-strøm",
+      "anchors": []
+    },
+    "/admin/adoption/journeys": {
+      "title": "Forløb",
+      "anchors": []
+    },
+    "/admin/adoption/journeys/:id": {
+      "title": "Forløb",
+      "anchors": []
+    },
+    "/admin/adoption/journeys/:id/setup": {
+      "title": "Opsætning af forløb",
+      "anchors": []
+    },
+    "/admin/adoption/routes": {
+      "title": "Ruter og URL'er",
+      "anchors": []
+    },
     "/admin/ai": {
       "title": "AI",
       "anchors": []

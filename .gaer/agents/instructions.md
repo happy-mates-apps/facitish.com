@@ -71,7 +71,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/user/mail`, `/admin/mail` | logged in (`/admin/mail`: admin, section Drift) | **Mail, calendar and contacts** (spec in `specs/mail/`): one personal mailbox per user in **Stalwart** plus shared mailboxes (reader/sender/manager), calendars (CalDAV/JMAP) and address books (CardDAV) with sharing, all outbound mail relayed by **Lettermint**, mail kept at most **30 days**. `/user/mail` manages your mailbox, aliases, identities, app passwords, calendars, address books and client setup (`/user/<id>/mail` is the same page for your own id, 404 for anyone else); `/admin/mail` is the operator console (domains + DNS check, mailboxes, shared, calendars & contacts, sending, retention, health, audit) and `/admin/mail/users/<id>` one user's mail. Off unless `MAILBOX_BACKEND` is set. | `pages/Mail.tsx`, `admin-app/pages/mail/`, `mailbox/`, `routes/mail.py`, `routes/admin_mail.py` |
 | `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
 | `/develop` | logged in | **Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). | `pages/Develop.tsx`, `develop/prompts.ts` |
-| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
@@ -80,7 +80,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (77)</summary>
+<details><summary>All routes (84)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -114,6 +114,13 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/app-stores/:tab` | admin app (`admin.html`) | admin | App Stores |
 | `/admin/analytics` | admin app (`admin.html`) | admin | Analytics |
 | `/admin/heatmaps` | admin app (`admin.html`) | admin | Heatmaps |
+| `/admin/adoption` | admin app (`admin.html`) | admin | Adoption |
+| `/admin/adoption/journeys` | admin app (`admin.html`) | admin | Forløb |
+| `/admin/adoption/journeys/:id` | admin app (`admin.html`) | admin | Forløb |
+| `/admin/adoption/journeys/:id/setup` | admin app (`admin.html`) | admin | Opsætning af forløb |
+| `/admin/adoption/routes` | admin app (`admin.html`) | admin | Ruter og URL'er |
+| `/admin/adoption/console` | admin app (`admin.html`) | admin | Live-strøm |
+| `/admin/adoption/access` | admin app (`admin.html`) | admin | Adgang til forløb |
 | `/admin/logs/auth` | admin app (`admin.html`) | admin | Auth-log |
 | `/admin/logs/audit` | admin app (`admin.html`) | admin | Audit-log |
 | `/admin/web` | admin app (`admin.html`) | admin | Website |

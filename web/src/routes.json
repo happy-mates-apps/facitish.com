@@ -148,7 +148,7 @@
     "da": "admin (+ MFA)"
    },
    "what": {
-    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited.",
     "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
    },
    "code": [
@@ -490,6 +490,55 @@
    "app": "admin",
    "access": "admin",
    "title": "Heatmaps"
+  },
+  {
+   "path": "/admin/adoption",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Adoption"
+  },
+  {
+   "path": "/admin/adoption/journeys",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Forløb"
+  },
+  {
+   "path": "/admin/adoption/journeys/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Forløb"
+  },
+  {
+   "path": "/admin/adoption/journeys/:id/setup",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Opsætning af forløb"
+  },
+  {
+   "path": "/admin/adoption/routes",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Ruter og URL'er"
+  },
+  {
+   "path": "/admin/adoption/console",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Live-strøm"
+  },
+  {
+   "path": "/admin/adoption/access",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Adgang til forløb"
   },
   {
    "path": "/admin/logs/auth",
