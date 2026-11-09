@@ -45,7 +45,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (63)</summary>
+<details><summary>Alle ruter (64)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -83,6 +83,7 @@ herfra ind i sin fork.
 | `/admin/webhooks` | admin-appen | admin | Webhooks |
 | `/admin/jobs` | admin-appen | admin | Jobs og oprydning |
 | `/admin/nats` | admin-appen | admin | NATS |
+| `/admin/resources` | admin-appen | admin | Ressourcer |
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
@@ -138,7 +139,7 @@ Kræver Python 3.12+, Node 22 og Docker.
 cp .env.example .env
 python -m venv .venv && . .venv/bin/activate && pip install -r server/requirements-dev.txt
 npm ci --prefix web
-docker compose up -d                                   # Postgres + MinIO + NATS
+docker compose up -d                                   # Postgres + MinIO + NATS + ClickHouse
 (cd server && python -m app.migrate)
 (cd server && uvicorn app.main:app --reload --port 8000 --env-file ../.env) &
 npm run dev --prefix web                               # http://localhost:5173
@@ -195,7 +196,7 @@ Push til `main` → `.github/workflows/deploy.yml`:
    Svarer `/health` ikke inden for 60 sekunder, startes den forrige version igen.
    `deploy.sh rollback` starter den forrige version.
 
-Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen, NATS og `cloudflared`,
+Stakken (`deploy/compose.yml`) er Postgres (egen database med de tre brugere), appen, NATS, ClickHouse og `cloudflared`,
 som sender trafik ind via en Cloudflare Tunnel — serveren har ingen åbne web-porte.
 
 **NATS** (`nats:2.15.2-alpine`, konfiguration i `deploy/nats.conf`) kører med JetStream, og streams, key/value- og
@@ -205,6 +206,18 @@ NATS kan kun nås inde fra stakken). Overvågningen ses i `/admin/nats` (rollen 
 JetStream (streams og consumers), abonnementer, cluster/gateways/leaf nodes, konti og rå data — læst fra NATS'
 overvågningsport (`NATS_MONITOR_URL`, port 8222) gennem appen. Sæt `NATS_TOKEN` (`openssl rand -hex 24`) inden
 næste udrulning på en eksisterende server.
+
+**ClickHouse** (`clickhouse/clickhouse-server:25.8`, konfiguration i `deploy/clickhouse.xml`) gemmer kortlivede
+hændelser og analytics på volumet `clickhouse`. Alle tabeller i databasen `gaer` har TTL på 7 dage
+(`server/app/clickhouse_migrations/`, kørt af `python -m app.migrate`), og det samme gælder ClickHouse' egne logs.
+Der må ikke ligge persondata i ClickHouse — kun id'er og tal — så den er uden for GDPR-eksport og sletning. Appen
+logger ind som `gaer` med `CLICKHOUSE_PASSWORD` fra `~/gaer/.env` (påkrævet; `openssl rand -hex 24`), så den skal
+sættes inden næste udrulning på en eksisterende server. Hukommelsen er sat til højst 1,5 GiB i `clickhouse.xml`.
+
+**Ressourcer** (`/admin/resources`, rollen Drift) viser alt instansen bruger — container (CPU, hukommelse, disk),
+Postgres, ClickHouse (lager, hukommelse, retention, indtag), Object Storage, NATS, AI-tokens, e-mail, SMS og jobkøen —
+med forbrug, grænse og anslået pris pr. måned. Grænser appen ikke kan måle og priserne sættes på siden under
+"Priser og grænser" (gemmes i indstillingen `resources`, auditeret).
 
 GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
 til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).

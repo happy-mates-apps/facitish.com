@@ -22,6 +22,7 @@ DEFAULTS: dict = {
     "retention_mcp_log_days": 90,
     "retention_last_run": None,
     "ai_default_monthly_tokens": 200_000,   # per user; 0 turns AI off for users without their own limit
+    "resources": {"items": {}},             # /admin/resources: per resource {max, monthly, unit_price} (app.resources)
     "web_front": "markdown",                # /w/: "markdown" (slug '') or "facit246" (app/web_front.py); default: WEB_FRONT
 }
 

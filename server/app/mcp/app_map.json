@@ -139,6 +139,16 @@
         "nats-tab-{x}"
       ]
     },
+    "/admin/resources": {
+      "title": "Ressourcer",
+      "anchors": [
+        "resource-{x}",
+        "resources-config",
+        "resources-config-drawer",
+        "resources-filter-{x}",
+        "resources-refresh"
+      ]
+    },
     "/admin/retention": {
       "title": "Sletning af logdata",
       "anchors": []
