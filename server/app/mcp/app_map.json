@@ -67,7 +67,11 @@
     },
     "/admin/files": {
       "title": "Filer",
-      "anchors": []
+      "anchors": [
+        "file-preview",
+        "file-row-{x}",
+        "files-browser"
+      ]
     },
     "/admin/gdpr": {
       "title": "GDPR-forespørgsler",

@@ -395,7 +395,7 @@
    "domain": "files",
    "name": "files_list",
    "mode": "read",
-   "description": "Your files in Object Storage with size and upload time.",
+   "description": "All files in your home (every folder), newest first, with path, size and upload time. files_browse lists one folder, also /shared.",
    "params": [
     {
      "name": "limit",
@@ -416,7 +416,7 @@
    "domain": "files",
    "name": "file_link",
    "mode": "read",
-   "description": "A download link for one of your files. Expires after DOWNLOAD_LINK_SECONDS (300).",
+   "description": "A download link for one of your files or a file in /shared. Expires after DOWNLOAD_LINK_SECONDS (300).",
    "params": [
     {
      "name": "fileId",
@@ -431,6 +431,157 @@
     ],
     "focus": "file-row-{fileId}",
     "label": "Fil"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "files",
+   "name": "files_browse",
+   "mode": "read",
+   "description": "Lists one folder of the file tree: your home (~/ = /users/<you>/) or the common /shared/ folder for project files. Returns sub-folders and files with path, size, type and who uploaded them.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "folder path: ~/ (default), /shared/, /shared/projekt/ or / for both",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/filer",
+    "args": [],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "files",
+   "name": "file_read",
+   "mode": "read",
+   "description": "Reads a text file (Markdown, CSV, JSON, code …, up to 512 kB) from your home or /shared. Other files return their metadata and a short-lived download link.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "file path, e.g. ~/noter.md or /shared/projekt/brief.md",
+     "optional": true
+    },
+    {
+     "name": "fileId",
+     "type": "string",
+     "desc": "file id (uuid) instead of path",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/filer",
+    "args": [],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "files",
+   "name": "file_write",
+   "mode": "write",
+   "description": "Creates or replaces a text file in your home or in /shared (folders are created as needed). Use /shared/<project>/ for project files others should see.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "file path, e.g. /shared/projekt/referat.md"
+    },
+    {
+     "name": "content",
+     "type": "string",
+     "desc": "the whole text"
+    },
+    {
+     "name": "overwrite",
+     "type": "bool",
+     "desc": "replace an existing file with that name (default true); false saves as 'name (2)'",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/filer",
+    "args": [],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "files",
+   "name": "folder_create",
+   "mode": "write",
+   "description": "Creates a folder (and the folders above it) in your home or in /shared.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "folder path, e.g. /shared/projekt/ or ~/noter/"
+    }
+   ],
+   "link": {
+    "section": "/filer",
+    "args": [],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "files",
+   "name": "file_move",
+   "mode": "write",
+   "description": "Renames a file and/or moves it to another folder, also between your home and /shared. In /shared only files you uploaded.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "the file's path"
+    },
+    {
+     "name": "toFolder",
+     "type": "string",
+     "desc": "destination folder, e.g. /shared/arkiv/",
+     "optional": true
+    },
+    {
+     "name": "newName",
+     "type": "string",
+     "desc": "new file name",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/filer",
+    "args": [],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "files",
+   "name": "file_delete",
+   "mode": "draft",
+   "description": "Deletes a file from your home, or a file you uploaded to /shared. Returns a draft.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "the file's path"
+    }
+   ],
+   "link": {
+    "section": "/filer",
+    "args": [],
+    "focus": null,
+    "label": "Filer"
    }
   },
   {
@@ -1230,6 +1381,233 @@
     ],
     "focus": "gdpr-export",
     "label": "Indsigt"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "files_browse",
+   "mode": "read",
+   "description": "Lists one folder of the whole file tree: / (users and shared), /users/ (every home with file count and size), /users/<id>/… or /shared/….",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "folder path (default /)",
+     "optional": true
+    },
+    {
+     "name": "q",
+     "type": "string",
+     "desc": "filter homes by name, e-mail or phone (for /users/)",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "file_read",
+   "mode": "read",
+   "description": "Any file's metadata; the text for text files (up to 512 kB).",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "file path, e.g. ~/noter.md or /shared/projekt/brief.md",
+     "optional": true
+    },
+    {
+     "name": "fileId",
+     "type": "string",
+     "desc": "file id (uuid) instead of path",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "file_link",
+   "mode": "read",
+   "description": "A short-lived download link for any file (also avatars and system files by fileId).",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "file path, e.g. ~/noter.md or /shared/projekt/brief.md",
+     "optional": true
+    },
+    {
+     "name": "fileId",
+     "type": "string",
+     "desc": "file id (uuid) instead of path",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "file_write",
+   "mode": "draft",
+   "description": "Creates or replaces a text file in a user's home or in /shared. Returns a draft.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "file path, e.g. /shared/projekt/brief.md or /users/4/noter.md"
+    },
+    {
+     "name": "content",
+     "type": "string",
+     "desc": "the whole text"
+    },
+    {
+     "name": "overwrite",
+     "type": "bool",
+     "desc": "replace an existing file (default true)",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "folder_create",
+   "mode": "draft",
+   "description": "Creates a folder in a user's home or in /shared. Returns a draft.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "folder path, e.g. /shared/projekt/"
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "file_move",
+   "mode": "draft",
+   "description": "Renames and/or moves a file, also between homes and /shared. Returns a draft.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "the file's path"
+    },
+    {
+     "name": "toFolder",
+     "type": "string",
+     "desc": "destination folder",
+     "optional": true
+    },
+    {
+     "name": "newName",
+     "type": "string",
+     "desc": "new file name",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "file_delete",
+   "mode": "draft",
+   "description": "Deletes one file. Returns a draft.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "file path, e.g. ~/noter.md or /shared/projekt/brief.md",
+     "optional": true
+    },
+    {
+     "name": "fileId",
+     "type": "string",
+     "desc": "file id (uuid) instead of path",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "files",
+   "name": "folder_delete",
+   "mode": "draft",
+   "description": "Deletes a folder with everything in it. Returns a draft with the number of files and bytes.",
+   "params": [
+    {
+     "name": "path",
+     "type": "string",
+     "desc": "folder path, e.g. /shared/gammelt/"
+    }
+   ],
+   "link": {
+    "section": "/admin/files",
+    "args": [
+     "folder"
+    ],
+    "focus": null,
+    "label": "Filer"
    }
   },
   {
