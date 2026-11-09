@@ -1,4 +1,4 @@
-# Local development: Postgres and MinIO (stands in for OVHcloud Object Storage).
+# Local development: Postgres, MinIO (stands in for OVHcloud Object Storage) and NATS.
 # The Python server and Vite run natively — see /gaer-dev.
 #
 #   docker compose up -d
@@ -34,6 +34,22 @@ services:
       sh -c "until mc alias set local http://minio:9000 gaer gaer-dev-secret; do sleep 1; done;
              mc mb --ignore-existing local/gaer"
 
+  # NATS with JetStream, stored on the "nats" volume. Clients on :4222, monitoring on :8222 (/admin/nats).
+  # No token locally; set NATS_TOKEN in the shell to try with one.
+  nats:
+    image: nats:2.15.2-alpine
+    entrypoint: ["/bin/sh", "-c", "exec nats-server -c /etc/nats/gaer.conf $${NATS_TOKEN:+--auth \"$$NATS_TOKEN\"}"]
+    environment:
+      NATS_TOKEN: ${NATS_TOKEN:-}
+    ports: ["4222:4222", "8222:8222"]
+    volumes:
+      - nats:/data
+      - ./deploy/nats.conf:/etc/nats/gaer.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider 'http://localhost:8222/healthz?js-enabled-only=true'"]
+      interval: 3s
+      retries: 20
+
   app:
     profiles: [app]
     build: .
@@ -42,6 +58,8 @@ services:
       DATABASE_URL: postgresql://gaer:gaer@postgres:5432/gaer
       S3_ENDPOINT: http://minio:9000
       ORIGIN: http://localhost:8000
+      NATS_URL: nats://nats:4222
+      NATS_MONITOR_URL: http://nats:8222
     ports: ["8000:8000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -49,3 +67,4 @@ services:
 volumes:
   postgres:
   minio:
+  nats:

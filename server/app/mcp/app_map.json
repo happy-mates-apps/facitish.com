@@ -130,6 +130,16 @@
         "mcp-drafts"
       ]
     },
+    "/admin/nats": {
+      "title": "NATS",
+      "anchors": [
+        "nats-health",
+        "nats-jetstream-summary",
+        "nats-kpis",
+        "nats-live",
+        "nats-tab-{x}"
+      ]
+    },
     "/admin/retention": {
       "title": "Sletning af logdata",
       "anchors": []
