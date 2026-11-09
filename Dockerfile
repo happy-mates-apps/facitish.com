@@ -5,6 +5,9 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+# `npm run build` ends with scripts/app-map.mjs --check, which reads these two files relative to /web
+COPY specs/mcp/catalog.json /specs/mcp/catalog.json
+COPY server/app/mcp/app_map.json /server/app/mcp/app_map.json
 RUN npm run build
 
 FROM python:3.13-slim
