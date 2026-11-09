@@ -2,18 +2,22 @@
   "generated_by": "npm run app-map --prefix web",
   "routes": {
     "/": {
+      "title": "Forside",
       "anchors": []
     },
     "/admin": {
+      "title": "Statistik",
       "anchors": [
         "stats-kpis",
         "stats-login"
       ]
     },
     "/admin/ai": {
+      "title": "AI",
       "anchors": []
     },
     "/admin/analytics": {
+      "title": "Analytics",
       "anchors": [
         "analytics-browsers",
         "analytics-devices",
@@ -24,15 +28,19 @@
       ]
     },
     "/admin/app-stores": {
+      "title": "App Stores",
       "anchors": []
     },
     "/admin/app-stores/:tab": {
+      "title": "App Stores",
       "anchors": []
     },
     "/admin/consent": {
+      "title": "Samtykke og cookies",
       "anchors": []
     },
     "/admin/features": {
+      "title": "Features og ringe",
       "anchors": [
         "feature-import",
         "feature-levels",
@@ -42,20 +50,25 @@
       ]
     },
     "/admin/files": {
+      "title": "Filer",
       "anchors": []
     },
     "/admin/gdpr": {
+      "title": "GDPR-forespørgsler",
       "anchors": [
         "gdpr-export"
       ]
     },
     "/admin/go": {
+      "title": "Deep link",
       "anchors": []
     },
     "/admin/heatmaps": {
+      "title": "Heatmaps",
       "anchors": []
     },
     "/admin/impersonation": {
+      "title": "Efterligning",
       "anchors": [
         "imp-accounts",
         "imp-create",
@@ -63,23 +76,29 @@
       ]
     },
     "/admin/integrations": {
+      "title": "Udvidelse og Office",
       "anchors": []
     },
     "/admin/logs/audit": {
+      "title": "Audit-log",
       "anchors": []
     },
     "/admin/logs/auth": {
+      "title": "Auth-log",
       "anchors": []
     },
     "/admin/mcp": {
+      "title": "MCP-servere",
       "anchors": [
         "mcp-drafts"
       ]
     },
     "/admin/retention": {
+      "title": "Sletning af logdata",
       "anchors": []
     },
     "/admin/settings": {
+      "title": "Indstillinger",
       "anchors": [
         "setting-app_name",
         "setting-gdpr_email",
@@ -87,6 +106,7 @@
       ]
     },
     "/admin/users": {
+      "title": "Brugere og roller",
       "anchors": [
         "user-block",
         "user-drawer",
@@ -98,36 +118,61 @@
       ]
     },
     "/admin/web": {
-      "anchors": []
-    },
-    "/chat": {
-      "anchors": [
-        "clip-body",
-        "clip-delete",
-        "clips-search"
-      ]
-    },
-    "/document": {
+      "title": "Website",
       "anchors": []
     },
     "/extension": {
+      "title": "Aktuel side",
+      "anchors": []
+    },
+    "/extension/chat": {
+      "title": "AI",
+      "anchors": []
+    },
+    "/extension/klip": {
+      "title": "Klip",
+      "anchors": []
+    },
+    "/extension/konto": {
+      "title": "Konto",
+      "anchors": []
+    },
+    "/extension/login": {
+      "title": "Log ind i udvidelsen",
       "anchors": []
     },
     "/extension/tools": {
+      "title": "Office-værktøjer",
+      "anchors": []
+    },
+    "/extension/tools/document": {
+      "title": "Dokument",
+      "anchors": []
+    },
+    "/extension/tools/outlook": {
+      "title": "Outlook",
+      "anchors": []
+    },
+    "/extension/tools/word": {
+      "title": "Word",
       "anchors": []
     },
     "/filer": {
+      "title": "Filer",
       "anchors": [
         "file-row-{x}"
       ]
     },
     "/forbind": {
+      "title": "Forbind MCP-klient",
       "anchors": []
     },
     "/go": {
+      "title": "Deep link",
       "anchors": []
     },
     "/klip": {
+      "title": "Klip",
       "anchors": [
         "clip-body",
         "clip-delete",
@@ -135,6 +180,7 @@
       ]
     },
     "/klip/:id": {
+      "title": "Klip",
       "anchors": [
         "clip-body",
         "clip-delete",
@@ -142,6 +188,7 @@
       ]
     },
     "/konto": {
+      "title": "Konto",
       "anchors": [
         "account-mcp",
         "account-profile",
@@ -150,31 +197,53 @@
         "account-sessions"
       ]
     },
-    "/m": {
+    "/login": {
+      "title": "Log ind",
       "anchors": []
+    },
+    "/m": {
+      "title": "Hjem",
+      "anchors": []
+    },
+    "/m/chat": {
+      "title": "AI",
+      "anchors": [
+        "clip-body",
+        "clip-delete",
+        "clips-search"
+      ]
+    },
+    "/m/filer": {
+      "title": "Filer",
+      "anchors": []
+    },
+    "/m/klip": {
+      "title": "Klip",
+      "anchors": []
+    },
+    "/m/login": {
+      "title": "Log ind på mobil",
+      "anchors": []
+    },
+    "/m/profil": {
+      "title": "Profil",
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions"
+      ]
     },
     "/office-addin": {
-      "anchors": []
-    },
-    "/outlook": {
+      "title": "Office-router",
       "anchors": []
     },
     "/privatliv": {
+      "title": "Privatliv",
       "anchors": [
         "privacy-export"
       ]
-    },
-    "/profil": {
-      "anchors": [
-        "account-mcp",
-        "account-profile",
-        "account-ring",
-        "account-security",
-        "account-sessions"
-      ]
-    },
-    "/word": {
-      "anchors": []
     }
   }
 }

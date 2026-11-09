@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import config, db, mail, retention
+from app import config, db, mail, retention, route_manifest
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
@@ -31,7 +31,7 @@ CSRF_EXEMPT = {"/api/collect"}  # sendBeacon cannot set headers; the endpoint on
 OFFICE_HOSTS = ("https://*.officeapps.live.com https://*.office.com https://*.office365.com https://*.office.net "
                 "https://*.microsoft.com https://*.sharepoint.com https://outlook.live.com")
 EXTENSION_HOSTS = "chrome-extension: moz-extension: safari-web-extension:"
-EMBEDDABLE = ("/extension", "/office-addin", "/login", "/assets/", "/api/")
+EMBEDDABLE = route_manifest.EMBEDDABLE  # routes with "embeddable": true in web/src/routes.json
 
 
 def csp_for(path: str) -> str:
@@ -129,8 +129,8 @@ def create_app() -> FastAPI:
         candidate = os.path.abspath(os.path.join(static_dir, full_path))
         if full_path and candidate.startswith(static_dir + os.sep) and os.path.isfile(candidate):
             return FileResponse(candidate)
-        # /admin is a separate Vite entry (web/admin.html); everything else is the app on /.
-        page = admin_index if full_path == "admin" or full_path.startswith("admin/") else index
+        # /admin is a separate Vite entry (web/admin.html); everything else is the app on / (web/src/routes.json).
+        page = admin_index if route_manifest.app_for("/" + full_path) == "admin" else index
         if os.path.isfile(page):
             return FileResponse(page, headers={"Cache-Control": "no-cache"})
         return JSONResponse({"detail": "Frontend er ikke bygget. Kør npm run build i web/."}, status_code=404)
