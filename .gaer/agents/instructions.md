@@ -49,28 +49,101 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 Everything is served by the one Python server on one domain. Which surface answers depends on the path.
 They share the same login (session cookie), the same database and the same API.
 
+<!-- routes:start -->
+<!-- Generated from web/src/routes.json by npm run app-map --prefix web — edit the manifest, not this table. -->
 | Route | Who | What | Code |
 | --- | --- | --- | --- |
-| `/` | logged in | The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation). | `main.py` `spa()`, `web/src/pages/Home.tsx` |
-| `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page is the Markdown page with an empty slug, or — setting `web_front = "facit246"` in `/admin/web` — the fixed "Facit · 246" story (da/en/de/sv/no, browser language by default; `web_front.py`, design in `specs/forside-246/`). The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_static/w.css`, `w.js` |
+| `/` | logged in | The web app's home. **Anonymous visitors are redirected to `/w/`** (by the server, and by the SPA on client-side navigation). | main.py `spa()`, `web/src/pages/Home.tsx` |
+| `/w/…` | everyone | **Public website**, server-rendered HTML from Markdown pages (`web_pages`), da/en via `?lang=` + `w_lang` cookie. The front page is the Markdown page with an empty slug, or — setting `web_front = "facit246"` in `/admin/web` — the fixed "Facit · 246" story (da/en/de/sv/no, browser language by default; `web_front.py`, design in `specs/forside-246/`). The front page always ends with a **login card**; on a new instance (no users, no `BOOTSTRAP_ADMIN_EMAIL`) it says the first person to log in becomes admin. A placeholder is shown until a front page is written. | `routes/web.py`, `web_front.py`, `web_static/` |
 | `/login` | anonymous | E-mail → one-time code → second factor if "Kræv passkey" is on, else a passkey offer (see `gaer-auth`). Shows the first-user/admin notice when `first_user` is true. Also `/extension/login` and `/m/login` (same page, embedded layout). | `pages/Login.tsx` |
 | `/klip`, `/filer`, `/konto`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
-| `/admin/…` | admin role | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), data catalog + Udforsk + API sources (`/admin/data`, spec `specs/admin-app/DATA.md`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py`, `routes/data.py`, `data_sources.py` |
+| `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
-| `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/` (both repo root and `web/src/extension/`), `bridge/extension.ts` |
+| `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
 | `/extension/tools/word\|outlook\|document` | logged in, inside the Office shell | Office tools: insert/save clips and AI chat with the document or mail as context; Office.js calls go to the shell over `gaer-office-host`. | `office/Tools.tsx`, `bridge/officeHost.ts` |
 | `/api/…` | per endpoint | JSON API. State-changing calls need the `X-Gaer: 1` header (CSRF). Groups: `auth`, `me`, `files`, `clips`, `bridge-consent`, `ai`, `public`, `consent`, `collect`, `office`, `extension/download`, `admin`. | `routes/` |
-| `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. | `server/app/mcp/`, skill `gaer-mcp` |
+| `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
+<details><summary>All routes (55)</summary>
+
+| Path | Served by | Access | Page |
+| --- | --- | --- | --- |
+| `/` | app (`index.html`) | logged in | Forside |
+| `/w/{slug}` | server | everyone | Website |
+| `/login` | app (`index.html`) | everyone | Log ind · embeddable |
+| `/extension/login` | app (`index.html`) | everyone | Log ind i udvidelsen · own chrome · embeddable |
+| `/m/login` | app (`index.html`) | everyone | Log ind på mobil · own chrome |
+| `/klip` | app (`index.html`) | logged in | Klip (feature `klip`) |
+| `/klip/:id` | app (`index.html`) | logged in | Klip (feature `klip`) |
+| `/filer` | app (`index.html`) | logged in | Filer (feature `filer`) |
+| `/konto` | app (`index.html`) | logged in | Konto |
+| `/privatliv` | app (`index.html`) | everyone | Privatliv |
+| `/forbind` | app (`index.html`) | logged in | Forbind MCP-klient |
+| `/go` | app (`index.html`) | everyone | Deep link |
+| `/admin` | admin app (`admin.html`) | admin | Statistik |
+| `/admin/go` | admin app (`admin.html`) | admin | Deep link |
+| `/admin/users` | admin app (`admin.html`) | admin | Brugere og roller |
+| `/admin/impersonation` | admin app (`admin.html`) | admin | Efterligning |
+| `/admin/features` | admin app (`admin.html`) | admin | Features og ringe |
+| `/admin/app-stores` | admin app (`admin.html`) | admin | App Stores |
+| `/admin/app-stores/:tab` | admin app (`admin.html`) | admin | App Stores |
+| `/admin/analytics` | admin app (`admin.html`) | admin | Analytics |
+| `/admin/heatmaps` | admin app (`admin.html`) | admin | Heatmaps |
+| `/admin/logs/auth` | admin app (`admin.html`) | admin | Auth-log |
+| `/admin/logs/audit` | admin app (`admin.html`) | admin | Audit-log |
+| `/admin/web` | admin app (`admin.html`) | admin | Website |
+| `/admin/files` | admin app (`admin.html`) | admin | Filer |
+| `/admin/ai` | admin app (`admin.html`) | admin | AI |
+| `/admin/integrations` | admin app (`admin.html`) | admin | Udvidelse og Office |
+| `/admin/mcp` | admin app (`admin.html`) | admin | MCP-servere |
+| `/admin/data` | admin app (`admin.html`) | admin | Katalog |
+| `/admin/data/explore` | admin app (`admin.html`) | admin | Udforsk |
+| `/admin/data/connect` | admin app (`admin.html`) | admin | Forbind API |
+| `/admin/data/:id` | admin app (`admin.html`) | admin | Datasæt |
+| `/admin/gdpr` | admin app (`admin.html`) | admin | GDPR-forespørgsler |
+| `/admin/retention` | admin app (`admin.html`) | admin | Sletning af logdata |
+| `/admin/consent` | admin app (`admin.html`) | admin | Samtykke og cookies |
+| `/admin/settings` | admin app (`admin.html`) | admin | Indstillinger |
+| `/m` | app (`index.html`) | logged in | Hjem · own chrome |
+| `/m/klip` | app (`index.html`) | logged in | Klip · own chrome |
+| `/m/chat` | app (`index.html`) | logged in | AI · own chrome |
+| `/m/filer` | app (`index.html`) | logged in | Filer · own chrome |
+| `/m/profil` | app (`index.html`) | logged in | Profil · own chrome |
+| `/extension` | app (`index.html`) | logged in | Aktuel side · own chrome · embeddable |
+| `/extension/chat` | app (`index.html`) | logged in | AI · own chrome · embeddable |
+| `/extension/klip` | app (`index.html`) | logged in | Klip · own chrome · embeddable |
+| `/extension/konto` | app (`index.html`) | logged in | Konto · own chrome · embeddable |
+| `/office-addin` | app (`index.html`) | everyone | Office-router · own chrome · embeddable |
+| `/extension/tools` | app (`index.html`) | logged in | Office-værktøjer · own chrome · embeddable |
+| `/extension/tools/word` | app (`index.html`) | logged in | Word · own chrome · embeddable |
+| `/extension/tools/outlook` | app (`index.html`) | logged in | Outlook · own chrome · embeddable |
+| `/extension/tools/document` | app (`index.html`) | logged in | Dokument · own chrome · embeddable |
+| `/api/{path}` | server | everyone | API · embeddable |
+| `/mcp` | server | OAuth bearer | MCP (appen) |
+| `/mcp/admin` | server | OAuth bearer | MCP (admin) |
+| `/.well-known/{name}` | server | everyone | OAuth-metadata |
+| `/health` | server | everyone | Sundhedstjek |
+
+</details>
+<!-- routes:end -->
+
 Rules for routes:
-- A new page goes in `web/src/App.tsx` (or `web/src/admin-app/main.tsx` + `nav.ts` for /admin); pick the surface deliberately. Pages with their own chrome (`/m`, `/extension`,
-  `/office-addin`) are listed in `OWN_CHROME`.
-- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx`, `bridge/` and `deeplink.tsx` with the rest of `web/src/`.
-  Neither side imports the other; `npm run build` fails if one does (`appBoundary()` in `web/vite.config.ts`).
-- Only `EMBEDDABLE` paths in `main.py` may be framed by the extension and Office hosts — add a path there only
-  if it really must run inside them.
+- **`web/src/routes.json` describes every route** — path, which app answers (`app`, `admin`, `server`), access
+  (`public`, `user`, `admin`, `token`), `chrome: "own"`, `embeddable`, `feature`, a Danish title and a group (one row in
+  the tables above, with English and Danish text). Describe a route there, nowhere else.
+- Adding a page: add it to `routes.json`, add the `<Route>` in `web/src/App.tsx` (or `web/src/admin-app/main.tsx` +
+  `nav.ts`, where the label must equal the title), then run `npm run app-map --prefix web`. That writes
+  `server/app/routes.json`, `server/app/mcp/app_map.json` and the route tables in this file and `README.md`.
+  `npm run build` fails when a `<Route>` and the manifest disagree or anything generated is out of date.
+- The server reads the manifest (`app/route_manifest.py`): `EMBEDDABLE` (CSP frame-ancestors for the extension and
+  Office hosts) and which HTML file answers. The app on / reads `chrome: "own"` for pages without the top bar.
+  Mark a route `embeddable` only if it really must run inside them.
+- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx` and `routes.json` with the
+  rest of `web/src/`. Neither side imports the other; `npm run build` fails if one does (`appBoundary()` in
+  `web/vite.config.ts`).
 - Anything the public may see without login lives under `/w/`, `/login`, `/privatliv` or `/api/public/…`.
 - AI is optional: UI for it must hide itself when `/api/ai/status` says `enabled: false`.
 

@@ -27,18 +27,86 @@ herfra ind i sin fork.
 
 Én server og ét domæne. Stien afgør, hvilken flade der svarer. Alle deler login, database og API.
 
+<!-- routes:start -->
+<!-- Genereret fra web/src/routes.json af npm run app-map --prefix web — ret manifestet, ikke tabellen. -->
 | Rute | Hvem | Hvad |
 | --- | --- | --- |
 | `/` | logget ind | Appens forside. Anonyme sendes til `/w/`. |
-| `/w/…` | alle | Offentligt website (Markdown fra `/admin/web`, dansk/engelsk). Forsiden har altid et login-kort; på en ny instans står der, at den første, der logger ind, bliver administrator. |
-| `/login` | anonyme | Telefonnummer → engangskode → passkey. Viser, når man bliver den første admin. |
-| `/klip`, `/filer`, `/konto`, `/privatliv` | logget ind | Klip, filer, konto og passkeys, privatliv og GDPR. |
-| `/admin/…` | admin | Administration. Alt logges. |
+| `/w/…` | alle | Offentligt website: Markdown-sider fra `/admin/web` (dansk/engelsk). Forsiden er Markdown-siden eller „Facit · 246“ (valgt i `/admin/web`) og slutter altid med et login-kort; på en ny instans står der, at den første, der logger ind, bliver administrator. |
+| `/login` | anonyme | E-mail → engangskode → anden faktor, hvis „Kræv passkey“ er slået til, ellers tilbud om passkey. Viser, når man bliver den første admin. Også `/extension/login` og `/m/login`. |
+| `/klip`, `/filer`, `/konto`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), privatliv og GDPR. |
+| `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
+| `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
 | `/m/…` | logget ind | Mobil-app (PWA) med bundmenu, AI, klip, filer og profil. |
 | `/extension/…` | i browserudvidelsen | Sidepanelet: aktuel side, klip og AI med siden som kontekst. |
-| `/office-addin` | Office | Router for Word, Excel, PowerPoint og Outlook → værktøjerne under `/extension/tools/…`. |
-| `/api/…` | | JSON-API. |
-| `/health` | udrulning | Sundhedstjek. |
+| `/office-addin?app=word\|excel\|powerpoint\|outlook` | Office (offentlig skal) | Router for Word, Excel, PowerPoint og Outlook → værktøjerne under `/extension/tools/…`. |
+| `/extension/tools/word\|outlook\|document` | logget ind, i Office | Office-værktøjer: indsæt/gem klip og AI med dokumentet eller mailen som kontekst. |
+| `/api/…` | pr. endpoint | JSON-API. Ændringer kræver headeren `X-Gaer: 1` (CSRF). |
+| `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
+| `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
+
+<details><summary>Alle ruter (55)</summary>
+
+| Sti | Svarer | Adgang | Side |
+| --- | --- | --- | --- |
+| `/` | appen | logget ind | Forside |
+| `/w/{slug}` | serveren | alle | Website |
+| `/login` | appen | alle | Log ind · kan indlejres |
+| `/extension/login` | appen | alle | Log ind i udvidelsen · eget layout · kan indlejres |
+| `/m/login` | appen | alle | Log ind på mobil · eget layout |
+| `/klip` | appen | logget ind | Klip (feature `klip`) |
+| `/klip/:id` | appen | logget ind | Klip (feature `klip`) |
+| `/filer` | appen | logget ind | Filer (feature `filer`) |
+| `/konto` | appen | logget ind | Konto |
+| `/privatliv` | appen | alle | Privatliv |
+| `/forbind` | appen | logget ind | Forbind MCP-klient |
+| `/go` | appen | alle | Deep link |
+| `/admin` | admin-appen | admin | Statistik |
+| `/admin/go` | admin-appen | admin | Deep link |
+| `/admin/users` | admin-appen | admin | Brugere og roller |
+| `/admin/impersonation` | admin-appen | admin | Efterligning |
+| `/admin/features` | admin-appen | admin | Features og ringe |
+| `/admin/app-stores` | admin-appen | admin | App Stores |
+| `/admin/app-stores/:tab` | admin-appen | admin | App Stores |
+| `/admin/analytics` | admin-appen | admin | Analytics |
+| `/admin/heatmaps` | admin-appen | admin | Heatmaps |
+| `/admin/logs/auth` | admin-appen | admin | Auth-log |
+| `/admin/logs/audit` | admin-appen | admin | Audit-log |
+| `/admin/web` | admin-appen | admin | Website |
+| `/admin/files` | admin-appen | admin | Filer |
+| `/admin/ai` | admin-appen | admin | AI |
+| `/admin/integrations` | admin-appen | admin | Udvidelse og Office |
+| `/admin/mcp` | admin-appen | admin | MCP-servere |
+| `/admin/data` | admin-appen | admin | Katalog |
+| `/admin/data/explore` | admin-appen | admin | Udforsk |
+| `/admin/data/connect` | admin-appen | admin | Forbind API |
+| `/admin/data/:id` | admin-appen | admin | Datasæt |
+| `/admin/gdpr` | admin-appen | admin | GDPR-forespørgsler |
+| `/admin/retention` | admin-appen | admin | Sletning af logdata |
+| `/admin/consent` | admin-appen | admin | Samtykke og cookies |
+| `/admin/settings` | admin-appen | admin | Indstillinger |
+| `/m` | appen | logget ind | Hjem · eget layout |
+| `/m/klip` | appen | logget ind | Klip · eget layout |
+| `/m/chat` | appen | logget ind | AI · eget layout |
+| `/m/filer` | appen | logget ind | Filer · eget layout |
+| `/m/profil` | appen | logget ind | Profil · eget layout |
+| `/extension` | appen | logget ind | Aktuel side · eget layout · kan indlejres |
+| `/extension/chat` | appen | logget ind | AI · eget layout · kan indlejres |
+| `/extension/klip` | appen | logget ind | Klip · eget layout · kan indlejres |
+| `/extension/konto` | appen | logget ind | Konto · eget layout · kan indlejres |
+| `/office-addin` | appen | alle | Office-router · eget layout · kan indlejres |
+| `/extension/tools` | appen | logget ind | Office-værktøjer · eget layout · kan indlejres |
+| `/extension/tools/word` | appen | logget ind | Word · eget layout · kan indlejres |
+| `/extension/tools/outlook` | appen | logget ind | Outlook · eget layout · kan indlejres |
+| `/extension/tools/document` | appen | logget ind | Dokument · eget layout · kan indlejres |
+| `/api/{path}` | serveren | alle | API · kan indlejres |
+| `/mcp` | serveren | OAuth | MCP (appen) |
+| `/mcp/admin` | serveren | OAuth | MCP (admin) |
+| `/.well-known/{name}` | serveren | alle | OAuth-metadata |
+| `/health` | serveren | alle | Sundhedstjek |
+
+</details>
+<!-- routes:end -->
 
 ## GDPR
 

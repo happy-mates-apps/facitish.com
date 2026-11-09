@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
+import manifest from "./routes.json";
 import { FeatureGate } from "./features";
 import { GoPage, useDeepLinkFocus } from "./deeplink";
 import ConsentBanner from "./ConsentBanner";
@@ -81,8 +82,9 @@ function PageTracker() {
   return null;
 }
 
-// Embedded surfaces (browser extension, Office) and the mobile app have their own chrome.
-const OWN_CHROME = ["/extension", "/office-addin", "/m"];
+// Embedded surfaces (browser extension, Office) and the mobile app have their own chrome: "chrome": "own" in
+// routes.json, the one description of every route (npm run app-map checks it against the <Route>s below).
+const OWN_CHROME = [...new Set(manifest.routes.filter((r) => "chrome" in r && r.chrome === "own").map((r) => r.path))];
 
 function ExtensionClips() {
   const clips = useClips();
