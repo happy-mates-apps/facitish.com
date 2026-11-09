@@ -10,10 +10,13 @@ Which switches exist, and what they close, is code (SWITCHES) — never configur
 """
 
 import asyncio
+import logging
 import time
 from datetime import datetime, timezone
 
 from app import db
+
+log = logging.getLogger("gaer.killswitch")
 
 CACHE_SECONDS = 2.0
 
@@ -75,8 +78,14 @@ async def refresh(force: bool = False) -> dict[str, dict]:
     async with _lock:
         if not force and time.monotonic() - _loaded_at < CACHE_SECONDS:
             return _state
-        async with db.connection() as conn:
-            rows = await db.fetch_all(conn, "select key, active, expires_at from kill_switches where active")
+        try:
+            async with db.connection() as conn:
+                rows = await db.fetch_all(conn, "select key, active, expires_at from kill_switches where active")
+        except Exception:
+            # Fail open on the last known state: a database hiccup must not turn into a 500 on every request.
+            log.warning("kill switches could not be read, keeping the cached state", exc_info=True)
+            _loaded_at = time.monotonic()
+            return _state
         _state = {r["key"]: r for r in rows}
         _loaded_at = time.monotonic()
     return _state

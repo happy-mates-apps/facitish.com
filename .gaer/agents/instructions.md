@@ -38,6 +38,8 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/config.py` | all settings from environment variables |
 | `server/app/migrations/` | plain SQL, applied by `python -m app.migrate` |
 | `server/app/ai.py`, `routes/ai.py` | optional AI chat (OVHcloud AI Endpoints), client tools, usage + monthly limits |
+| `server/app/consumption.py`, `routes/consumption.py` | AI consumption: what limit applies (budget → own limit → default), budgets per user (monthly cap, warning levels, hard/soft, optional period total, start/end date), alerts (`ai_budget_alerts`, webhooks `ai.budget.*`), reports per period/model/user for `/admin/consumption`, the user's own page `/konto/forbrug` (`GET /api/ai/usage`) |
+| `server/app/adoption.py`, `adoption_match.py`, `routes/adoption.py` | adoption journeys (`/admin/adoption`): signed-in page visits (`adoption_visits`, only while the setting `adoption_tracking` is on), steps matched exact/prefix/glob/regex, sequential funnel, forecast, cohorts, nudges as webhook `adoption.nudge.sent`; journey roles reader/editor/owner |
 | `server/app/logs.py`, `retention.py` | auth/audit log writers, purge of logs, cleanup of operational data (`retention_policies`) |
 | `server/app/jobs.py` | background jobs: queue in Postgres (`jobs`), workers + scheduler (`job_schedules`) in the app process, retries with backoff; `@jobs.handler("kind")`, `jobs.enqueue(conn, …)` |
 | `server/app/webhooks.py`, `secrets_box.py` | outgoing webhooks: `webhooks.emit(conn, event, data)` in the same transaction; signed (HMAC), optional auth header, retries via jobs, SSRF guard; secrets encrypted (AES-GCM) |

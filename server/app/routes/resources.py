@@ -3,7 +3,7 @@
 GET measures everything live (app.resources); like every /admin read it is logged as admin.read by require_admin.
 PUT /config changes the admin's own limits and prices, audited in the same transaction.
 GET /control: kill switches, rules and events by kind. PUT /killswitches/{key} closes or opens a switch,
-PUT /rules replaces the automatic rules (app.events); both audited.
+PUT /rules replaces the automatic rules (app.events); both need a fresh second factor (require_admin_stepup) and are audited.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from app import config, db, events, killswitch, resources, settings_store
 from app.logs import audit, changed
-from app.sessions import Principal, require_admin
+from app.sessions import Principal, require_admin, require_admin_stepup
 
 router = APIRouter(prefix="/api/admin/resources", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -94,7 +94,7 @@ class SwitchIn(BaseModel):
 
 
 @router.put("/killswitches/{key}")
-async def set_killswitch(key: str, body: SwitchIn, admin: Principal = Depends(require_admin)):
+async def set_killswitch(key: str, body: SwitchIn, admin: Principal = Depends(require_admin_stepup)):
     if key not in killswitch.SWITCHES:
         raise HTTPException(404, "Ukendt nødstop")
     if body.closed and not body.reason.strip():
@@ -121,7 +121,7 @@ class RulesIn(BaseModel):
 
 
 @router.put("/rules")
-async def put_rules(body: RulesIn, admin: Principal = Depends(require_admin)):
+async def put_rules(body: RulesIn, admin: Principal = Depends(require_admin_stepup)):
     bad = sorted({r.switch for r in body.rules} - set(killswitch.SWITCHES))
     if bad:
         raise HTTPException(422, f"Ukendt nødstop: {', '.join(bad)}")

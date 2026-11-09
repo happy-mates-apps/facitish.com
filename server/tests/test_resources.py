@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from app import admin_roles, config, events, killswitch, nats_monitor
-from tests.helpers import full_user
+from tests.helpers import SoftAuthenticator, full_user, otp_login, register_passkey
 
 H = {"X-Gaer": "1"}
 
@@ -206,6 +206,18 @@ async def test_closing_needs_a_reason_and_a_known_switch(client, no_nats):
     assert (await client.put("/api/admin/resources/killswitches/all", json={"closed": True}, headers=H)).status_code == 422
     assert (await client.put("/api/admin/resources/killswitches/nope", json={"closed": True, "reason": "x"},
                              headers=H)).status_code == 404
+
+
+async def test_switches_and_rules_need_a_fresh_second_factor(client, no_nats):
+    await otp_login(client, "11111111")           # first user: admin on a grace login, no second factor yet
+    assert (await client.get("/api/admin/resources/control")).status_code == 200
+    r = await client.put("/api/admin/resources/killswitches/all", json={"closed": True, "reason": "Angreb"}, headers=H)
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "stepup_required"
+    r = await client.put("/api/admin/resources/rules", json={"rules": []}, headers=H)
+    assert r.status_code == 403 and r.headers["x-gaer-error"] == "stepup_required"
+    assert (await client.get("/api/me")).status_code != 503
+    await register_passkey(client, SoftAuthenticator())   # used with user verification: counts as the second factor
+    assert (await client.put("/api/admin/resources/rules", json={"rules": []}, headers=H)).status_code == 200
 
 
 async def test_a_switch_with_minutes_opens_by_itself(client, no_nats, owner_conn):
