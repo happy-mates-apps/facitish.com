@@ -35,7 +35,8 @@ OWN_SOURCE = {"id": None, "key": "gaer", "name": "Gær (egen database)", "kind":
 # Never offered in Udforsk: one-time codes, challenges, sessions, tokens, authenticator secrets, the auth log
 # (phone/e-mail hashes), settings, the migration list and the catalog itself.
 HIDDEN_TABLES = {"otp_codes", "webauthn_challenges", "sessions", "mcp_tokens", "mcp_clients", "totp_factors", "auth_log",
-                 "settings", "schema_migrations", "data_sources", "datasets", "dataset_fields"}
+                 "settings", "schema_migrations", "data_sources", "datasets", "dataset_fields",
+                 "mcp_access_links", "mcp_tools", "mcp_tool_endpoints"}
 TABLE_NAMES = {"users": "Brugere", "clips": "Klip", "files": "Filer", "audit_log": "Audit-log", "web_pages": "Website-sider",
                "features": "Features", "feature_rings": "Feature-niveauer", "feature_usage": "Feature-brug",
                "consents": "Samtykker", "bridge_consents": "Samtykker til udvidelsen", "gdpr_requests": "GDPR-forespørgsler",

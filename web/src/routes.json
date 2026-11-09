@@ -113,7 +113,7 @@
     "da": "admin (+ MFA)"
    },
    "what": {
-    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), data catalog + Udforsk + API sources (`/admin/data`), settings. Every read and change is audited.",
     "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
    },
    "code": [
@@ -350,6 +350,13 @@
    "title": "Forbind MCP-klient"
   },
   {
+   "path": "/godkend",
+   "group": "mcp-links",
+   "app": "app",
+   "access": "user",
+   "title": "Godkend adgang"
+  },
+  {
    "path": "/go",
    "group": "mcp-links",
    "app": "app",
@@ -448,6 +455,27 @@
    "title": "Filer"
   },
   {
+   "path": "/admin/knowledge",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Viden"
+  },
+  {
+   "path": "/admin/knowledge/spaces/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Vidensrum"
+  },
+  {
+   "path": "/admin/knowledge/agents/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Agent"
+  },
+  {
    "path": "/admin/ai",
    "group": "admin",
    "app": "admin",
@@ -483,6 +511,13 @@
    "title": "Jobs og oprydning"
   },
   {
+   "path": "/admin/nats",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "NATS"
+  },
+  {
    "path": "/admin/data",
    "group": "admin",
    "app": "admin",
@@ -504,6 +539,13 @@
    "title": "Forbind API"
   },
   {
+   "path": "/admin/data/tools",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "MCP-værktøjer"
+  },
+  {
    "path": "/admin/data/:id",
    "group": "admin",
    "app": "admin",
@@ -516,6 +558,13 @@
    "app": "admin",
    "access": "admin",
    "title": "GDPR-forespørgsler"
+  },
+  {
+   "path": "/admin/access",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Adgangsanmodninger"
   },
   {
    "path": "/admin/retention",
@@ -613,6 +662,26 @@
    "title": "Konto",
    "chrome": "own",
    "embeddable": true
+  },
+  {
+   "path": "/extension/agent",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "Agenter",
+   "chrome": "own",
+   "embeddable": true,
+   "feature": "knowledge"
+  },
+  {
+   "path": "/extension/agent/:slug",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "Agent",
+   "chrome": "own",
+   "embeddable": true,
+   "feature": "knowledge"
   },
   {
    "path": "/office-addin",

@@ -30,10 +30,16 @@ import Settings from "./pages/Settings";
 import Mcp from "./pages/Mcp";
 import Webhooks from "./pages/Webhooks";
 import Jobs from "./pages/Jobs";
+import KnowledgeOverview from "./pages/knowledge/Overview";
+import KnowledgeSpace from "./pages/knowledge/Space";
+import KnowledgeAgent from "./pages/knowledge/Agent";
+import Nats from "./pages/Nats";
 import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
 import DataConnect from "./pages/data/Connect";
+import DataTools from "./pages/data/Tools";
+import Access from "./pages/Access";
 import { AdminGo } from "./go";
 import "./base.css";
 import "./admin.css";
@@ -88,16 +94,22 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="logs/audit" element={legacy(<AuditLog />)} />
                   <Route path="web" element={legacy(<Web />)} />
                   <Route path="files" element={<AdminFiles />} />
+                  <Route path="knowledge" element={<KnowledgeOverview />} />
+                  <Route path="knowledge/spaces/:id" element={<KnowledgeSpace />} />
+                  <Route path="knowledge/agents/:id" element={<KnowledgeAgent />} />
                   <Route path="ai" element={legacy(<AiAdmin />)} />
                   <Route path="integrations" element={legacy(<Integrations />)} />
                   <Route path="mcp" element={<Mcp />} />
                   <Route path="webhooks" element={legacy(<Webhooks />)} />
                   <Route path="jobs" element={legacy(<Jobs />)} />
+                  <Route path="nats" element={<Nats />} />
                   <Route path="data" element={<DataCatalog />} />
                   <Route path="data/explore" element={<DataExplore />} />
                   <Route path="data/connect" element={<DataConnect />} />
+                  <Route path="data/tools" element={legacy(<DataTools />)} />
                   <Route path="data/:id" element={<DataDataset />} />
                   <Route path="gdpr" element={legacy(<Gdpr />)} />
+                  <Route path="access" element={legacy(<Access />)} />
                   <Route path="retention" element={legacy(<Retention />)} />
                   <Route path="consent" element={legacy(<Consent />)} />
                   <Route path="settings" element={legacy(<Settings />)} />

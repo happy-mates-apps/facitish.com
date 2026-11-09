@@ -12,6 +12,12 @@
         "stats-login"
       ]
     },
+    "/admin/access": {
+      "title": "Adgangsanmodninger",
+      "anchors": [
+        "access-requests"
+      ]
+    },
     "/admin/ai": {
       "title": "AI",
       "anchors": []
@@ -54,6 +60,13 @@
     "/admin/data/explore": {
       "title": "Udforsk",
       "anchors": []
+    },
+    "/admin/data/tools": {
+      "title": "MCP-værktøjer",
+      "anchors": [
+        "data-tool-new",
+        "data-tools"
+      ]
     },
     "/admin/features": {
       "title": "Features og ringe",
@@ -103,6 +116,18 @@
       "title": "Jobs og oprydning",
       "anchors": []
     },
+    "/admin/knowledge": {
+      "title": "Viden",
+      "anchors": []
+    },
+    "/admin/knowledge/agents/:id": {
+      "title": "Agent",
+      "anchors": []
+    },
+    "/admin/knowledge/spaces/:id": {
+      "title": "Vidensrum",
+      "anchors": []
+    },
     "/admin/logs/audit": {
       "title": "Audit-log",
       "anchors": []
@@ -115,6 +140,16 @@
       "title": "MCP-servere",
       "anchors": [
         "mcp-drafts"
+      ]
+    },
+    "/admin/nats": {
+      "title": "NATS",
+      "anchors": [
+        "nats-health",
+        "nats-jetstream-summary",
+        "nats-kpis",
+        "nats-live",
+        "nats-tab-{x}"
       ]
     },
     "/admin/retention": {
@@ -133,6 +168,7 @@
       "title": "Brugere og roller",
       "anchors": [
         "user-admin-roles",
+        "user-audience",
         "user-block",
         "user-drawer",
         "user-mfa",
@@ -152,6 +188,14 @@
     },
     "/extension": {
       "title": "Aktuel side",
+      "anchors": []
+    },
+    "/extension/agent": {
+      "title": "Agenter",
+      "anchors": []
+    },
+    "/extension/agent/:slug": {
+      "title": "Agent",
       "anchors": []
     },
     "/extension/chat": {
@@ -200,6 +244,13 @@
       "title": "Deep link",
       "anchors": []
     },
+    "/godkend": {
+      "title": "Godkend adgang",
+      "anchors": [
+        "approve-request",
+        "mcp-access"
+      ]
+    },
     "/klip": {
       "title": "Klip",
       "anchors": [
@@ -223,7 +274,8 @@
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
       ]
     },
     "/login": {
@@ -261,7 +313,8 @@
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
       ]
     },
     "/office-addin": {
@@ -282,6 +335,7 @@
         "account-ring",
         "account-security",
         "account-sessions",
+        "mcp-access",
         "user-activity",
         "user-grant",
         "user-grants",
@@ -297,6 +351,7 @@
         "account-ring",
         "account-security",
         "account-sessions",
+        "mcp-access",
         "user-activity",
         "user-grant",
         "user-grants",
@@ -312,6 +367,7 @@
         "account-ring",
         "account-security",
         "account-sessions",
+        "mcp-access",
         "user-activity",
         "user-grant",
         "user-grants",
@@ -327,6 +383,7 @@
         "account-ring",
         "account-security",
         "account-sessions",
+        "mcp-access",
         "user-activity",
         "user-grant",
         "user-grants",

@@ -5,6 +5,7 @@ import { useAuth } from "../auth";
 import { Alert, fmtDate, PageHeader, useLoad } from "../ui";
 import AccountSecurity from "./AccountSecurity";
 import ContactChange from "./ContactChange";
+import McpAccess from "./McpAccess";
 
 type Profile = { locale: string | null; time_zone: string | null };
 type Session = {
@@ -150,6 +151,8 @@ export default function Account({ inArea = false }: { inArea?: boolean }) {
           </div>
         ))}
       </div>
+
+      <McpAccess />
 
       <div className="card" data-deeplink="account-ring">
         <span className="eyebrow">Dit niveau</span>
