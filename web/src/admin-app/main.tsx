@@ -30,6 +30,9 @@ import Settings from "./pages/Settings";
 import Mcp from "./pages/Mcp";
 import Webhooks from "./pages/Webhooks";
 import Jobs from "./pages/Jobs";
+import KnowledgeOverview from "./pages/knowledge/Overview";
+import KnowledgeSpace from "./pages/knowledge/Space";
+import KnowledgeAgent from "./pages/knowledge/Agent";
 import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
@@ -88,6 +91,9 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="logs/audit" element={legacy(<AuditLog />)} />
                   <Route path="web" element={legacy(<Web />)} />
                   <Route path="files" element={legacy(<AdminFiles />)} />
+                  <Route path="knowledge" element={<KnowledgeOverview />} />
+                  <Route path="knowledge/spaces/:id" element={<KnowledgeSpace />} />
+                  <Route path="knowledge/agents/:id" element={<KnowledgeAgent />} />
                   <Route path="ai" element={legacy(<AiAdmin />)} />
                   <Route path="integrations" element={legacy(<Integrations />)} />
                   <Route path="mcp" element={<Mcp />} />
