@@ -33,5 +33,7 @@ Code: `server/app/storage.py`, `server/app/routes/files.py`, `server/app/filetre
   `file.folder_delete`.
 - Preview: `GET …/{id}/raw` serves images and PDFs inline and text as `text/plain`, under a sandbox CSP — never
   serve an uploaded file with its own HTML/SVG type on our origin without it.
+- The app: `/filer` and `/m/filer` use `web/src/pages/FileBrowser.tsx` (tabs "Mine filer" / "Fælles", folders, upload,
+  preview, move, delete; `?mappe=` in the URL). /admin/files is its own page in `admin-app/`.
 - GDPR: the export lists home files (with folder) and `shared_files` (paths only); erasure deletes the home and its
   folders; shared files stay, with `uploaded_by` set to null.

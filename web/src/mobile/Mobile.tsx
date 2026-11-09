@@ -1,12 +1,13 @@
 // /m — the mobile app (PWA). Same login and data as the web app; a phone layout with a
 // bottom tab bar, installable on the home screen (public/m/manifest.webmanifest, public/m/sw.js).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { api, errorText } from "../api";
+import { api } from "../api";
 import { useAuth } from "../auth";
 import { useAiStatus } from "../ai";
 import { ClipsList, useClips, type Clip } from "../clips";
+import { FileBrowser } from "../pages/FileBrowser";
 import { Alert, fmtBytes, fmtDate, useLoad } from "../ui";
 
 function usePwa() {
@@ -94,47 +95,5 @@ export function MobileClips() {
 }
 
 export function MobileFiles() {
-  const files = useLoad(() => api.get<FileRow[]>("/api/files"));
-  const camera = useRef<HTMLInputElement>(null);
-  const picker = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const upload = async (list: FileList | null) => {
-    if (!list?.length) return;
-    setBusy(true);
-    setError(null);
-    try {
-      for (const f of Array.from(list)) {
-        const form = new FormData();
-        form.append("file", f);
-        await api.post("/api/files", form);
-      }
-      await files.reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="stack">
-      <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => upload(e.target.files)} />
-      <input ref={picker} type="file" multiple hidden onChange={(e) => upload(e.target.files)} />
-      <div className="row">
-        <button className="btn btn-primary" disabled={busy} onClick={() => camera.current?.click()}>Tag billede</button>
-        <button className="btn btn-outline" disabled={busy} onClick={() => picker.current?.click()}>Vælg fil</button>
-      </div>
-      <Alert>{error}</Alert>
-      {files.data?.map((f) => (
-        <div key={f.id} className="card" style={{ padding: "12px 14px" }}>
-          <div className="spread">
-            <div style={{ minWidth: 0 }}><strong className="small" style={{ wordBreak: "break-all" }}>{f.filename}</strong><div className="muted tiny">{fmtBytes(f.size_bytes)} · {fmtDate(f.created_at)}</div></div>
-            <button className="btn btn-outline btn-sm" onClick={async () => { window.location.href = (await api.get<{ url: string }>(`/api/files/${f.id}/link`)).url; }}>Hent</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  return <FileBrowser compact camera />;
 }
