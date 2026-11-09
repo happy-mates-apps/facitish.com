@@ -15,7 +15,7 @@ from app.mcp import oauth as mcp_oauth
 from app.mcp import transport as mcp_transport
 from app import route_manifest
 from app.routes import (admin, admin_files, admin_ops, ai, app_store, auth, clips, data, features, files, hooks, impersonation, me,
-                        office, public, review, security, web)
+                        office, public, review, security, user_area, web)
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -111,7 +111,7 @@ def create_app() -> FastAPI:
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router,
               admin_files.router, admin.router,  # admin_files first: /files/folders before /files/{file_id}
               app_store.router, data.router, features.router, features.admin_router, impersonation.router, mcp_oauth.router,
-              mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router,
+              mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, user_area.router,
               web.router, files.memory_router):
         app.include_router(r)
 

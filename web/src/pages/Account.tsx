@@ -12,7 +12,8 @@ type Session = {
   mcp_client: string | null; mcp_scope: string | null;
 };
 
-export default function Account() {
+/** inArea: shown inside /user/indstillinger, which has its own page frame and heading. */
+export default function Account({ inArea = false }: { inArea?: boolean }) {
   const { user, refresh, config } = useAuth();
   const [name, setName] = useState(user?.display_name ?? "");
   const [message, setMessage] = useState<string | null>(null);
@@ -44,8 +45,8 @@ export default function Account() {
   };
 
   return (
-    <div className="page">
-      <PageHeader eyebrow="Konto" title="Din konto" />
+    <div className={inArea ? "stack" : "page"} style={inArea ? ({ "--gap": "24px" } as React.CSSProperties) : undefined}>
+      {!inArea && <PageHeader eyebrow="Konto" title="Din konto" />}
       <Alert kind="success">{message}</Alert>
       <Alert>{error}</Alert>
 

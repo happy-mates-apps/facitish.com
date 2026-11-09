@@ -68,8 +68,9 @@ async def purge_user(user_id: int, *, logs: list[str], actor_id: int | None, met
             counts["audit_log"] = (await conn.execute("""
                 delete from audit_log
                 where action not in ('log.purged', 'gdpr.erasure')   -- the record that we erased must survive
-                  and (actor_user_id = %s or (table_name = 'users' and row_id = %s))""",
-                (user_id, str(user_id)))).rowcount
+                  and (actor_user_id = %s or (table_name = 'users' and row_id = %s)
+                       or (detail ? 'on_behalf_of' and (detail ->> 'on_behalf_of')::bigint = %s))""",
+                (user_id, str(user_id), user_id))).rowcount
         if "analytics" in logs:
             counts["analytics"] = (await conn.execute("""
                 delete from analytics_events
@@ -112,6 +113,7 @@ CLEANUP_SQL = {
     "webhook_inbound": """delete from webhook_inbound where status in ('processed', 'ignored', 'failed')
                           and received_at < now() - make_interval(days => %s)""",
     "captcha_spent": "delete from captcha_spent where expires_at < now() - make_interval(days => %s)",
+    "user_delegations": "delete from user_delegations where expires_at < now() - make_interval(days => %s)",
     "review_orphans": """delete from review_sessions s where ended_at < now() - make_interval(days => %s)
                          and jsonb_array_length(pages) = 0
                          and not exists (select 1 from review_feedback r where r.session_id = s.id)""",

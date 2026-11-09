@@ -48,6 +48,15 @@ async def build_user_export(conn, user_id: int) -> dict:
                                       where space = 'shared' and uploaded_by = %s order by created_at""", user_id),
         "clips": await rows("""select id, source, title, body, url, created_at, updated_at from clips
                                where user_id = %s order by created_at""", user_id),
+        # Mit område: who you have given access to your area, and whose areas you have access to.
+        "delegations_given": await rows("""select delegate_email, role, created_at, updated_at, expires_at, accepted_at,
+                                                  last_used_at from user_delegations
+                                           where owner_id = %s order by created_at""", user_id),
+        "delegations_received": await rows("""select owner_id, role, created_at, updated_at, expires_at, accepted_at,
+                                                     last_used_at from user_delegations
+                                              where delegate_id = %s
+                                                 or (delegate_id is null and delegate_email = %s)
+                                              order by created_at""", user_id, user["email"]),
         "bridge_consents": await rows("select domain, created_at from bridge_consents where user_id = %s order by domain",
                                       user_id),
         "gdpr_requests": await rows("""select id, kind, status, message, received_at, completed_at from gdpr_requests
@@ -85,7 +94,7 @@ README = """Indsigt i dine data
 
 data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnøgler, godkendelsesapps
             (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), filer du har lagt i /shared
-            (kun oversigt), tilladte domæner,
+            (kun oversigt), hvem du har delt dit område med og hvis områder du har adgang til, tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
             review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
@@ -135,7 +144,7 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, one-time
-    codes, feature level, review sessions and notes and their test accounts cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage (their whole home, folders cascade; files they put in /shared stay, the link to them is set to null), the contact details on their GDPR requests, and
+    codes, feature level, review sessions and notes, their test accounts and access to and from their area (/user) cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage (their whole home, folders cascade; files they put in /shared stay, the link to them is set to null), the contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)
@@ -147,6 +156,10 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
                                             then 'completed' else status end,
                               completed_at = coalesce(completed_at, now()), handled_by = coalesce(handled_by, %s)
                               where user_id = %s or id = %s""", (actor_id, user_id, gdpr_request))
+        # Delegations cascade with the user; access given to their e-mail before they claimed it is removed here.
+        if user["email"]:
+            await conn.execute("delete from user_delegations where delegate_id is null and delegate_email = %s",
+                               (user["email"],))
         await conn.execute("delete from users where id = %s", (user_id,))
         await audit(conn, "gdpr.erasure", actor_id=actor_id if actor_id != user_id else None, meta=meta,
                     table="users", row_id=user_id, reason=reason, gdpr_request=gdpr_request, files=len(files),

@@ -273,6 +273,66 @@
       "anchors": [
         "privacy-export"
       ]
+    },
+    "/user": {
+      "title": "Mit område",
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/:id": {
+      "title": "Delt område",
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/deling": {
+      "title": "Deling",
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/indstillinger": {
+      "title": "Indstillinger",
+      "anchors": [
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-shared",
+        "user-sharing"
+      ]
     }
   }
 }

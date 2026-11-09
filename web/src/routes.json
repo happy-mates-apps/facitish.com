@@ -72,6 +72,23 @@
    ]
   },
   {
+   "id": "user-area",
+   "docs_path": "`/user`, `/user/<id>`",
+   "who": {
+    "en": "logged in (`/user/<id>`: people the owner gave access)",
+    "da": "logget ind (`/user/<id>`: dem ejeren har givet adgang)"
+   },
+   "what": {
+    "en": "**Mit område**: your dashboard (counts, recent activity in your area, areas shared with you), settings (the account page) and sharing: give another user access by e-mail as **reader** (sees overview, clips, files, downloads) or **author** (also creates/edits clips and uploads files; never deletes), optionally expiring. They open it at `/user/<id>`; settings, security and sharing stay the owner's. Everything a delegate does is audited with `on_behalf_of`.",
+    "da": "**Mit område**: overblik (tal, seneste aktivitet, områder delt med dig), indstillinger og deling. Giv en anden bruger adgang som **læser** eller **forfatter** (kan oprette og redigere, aldrig slette), evt. med udløb. De åbner det på `/user/<id>`."
+   },
+   "code": [
+    "pages/UserArea.tsx",
+    "routes/user_area.py",
+    "delegation.py"
+   ]
+  },
+  {
    "id": "mcp-links",
    "docs_path": "`/forbind`, `/go`",
    "who": {
@@ -289,6 +306,34 @@
    "app": "app",
    "access": "user",
    "title": "Konto"
+  },
+  {
+   "path": "/user",
+   "group": "user-area",
+   "app": "app",
+   "access": "user",
+   "title": "Mit område"
+  },
+  {
+   "path": "/user/indstillinger",
+   "group": "user-area",
+   "app": "app",
+   "access": "user",
+   "title": "Indstillinger"
+  },
+  {
+   "path": "/user/deling",
+   "group": "user-area",
+   "app": "app",
+   "access": "user",
+   "title": "Deling"
+  },
+  {
+   "path": "/user/:id",
+   "group": "user-area",
+   "app": "app",
+   "access": "user",
+   "title": "Delt område"
   },
   {
    "path": "/privatliv",
