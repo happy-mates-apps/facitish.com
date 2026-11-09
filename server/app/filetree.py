@@ -348,7 +348,7 @@ def _unique_name(name: str, taken: set[str]) -> str:
 
 
 async def write(conn, loc: Loc, filename: str, data: bytes, content_type: str | None, p: Principal, *, admin: bool,
-                overwrite: bool = False, via: str | None = None) -> dict:
+                overwrite: bool = False, via: str | None = None, audit_extra: dict | None = None) -> dict:
     """Stores bytes at loc/filename. An existing file with that name is replaced when overwrite is true (it keeps
     its id and uploader; who wrote it is in the audit log), else the new file gets a free name ("x (2).md")."""
     _check(p, loc, admin, write=True)
@@ -358,7 +358,7 @@ async def write(conn, loc: Loc, filename: str, data: bytes, content_type: str | 
     if len(data) > limit:
         raise HTTPException(413, f"Filen er større end {config.settings.max_upload_mb} MB")
     content_type = content_type or guess_type(filename)
-    extra = {"via": via} if via else {}
+    extra = {**({"via": via} if via else {}), **(audit_extra or {})}
     scope, params = _scope(loc)
     same = await db.fetch_all(conn, f"""select f.id, f.filename, f.storage_key, f.size_bytes from files f
                                         where {scope} and f.folder = %s for update""", params + [loc.folder])
@@ -399,11 +399,13 @@ def _prefix(loc: Loc) -> str:
     return f"users/{loc.user_id}" if loc.kind == "home" else "shared"
 
 
-async def upload(conn, loc: Loc, file: UploadFile, p: Principal, *, admin: bool, overwrite: bool = False) -> dict:
+async def upload(conn, loc: Loc, file: UploadFile, p: Principal, *, admin: bool, overwrite: bool = False,
+                 audit_extra: dict | None = None) -> dict:
     limit = config.settings.max_upload_mb * 1024 * 1024
     data = await file.read(limit + 1)
     name = (file.filename or "fil").replace("\\", "/").rsplit("/", 1)[-1][:200] or "fil"
-    return await write(conn, loc, name, data, file.content_type, p, admin=admin, overwrite=overwrite)
+    return await write(conn, loc, name, data, file.content_type, p, admin=admin, overwrite=overwrite,
+                       audit_extra=audit_extra)
 
 
 def _may_change(row: dict, p: Principal, admin: bool) -> None:

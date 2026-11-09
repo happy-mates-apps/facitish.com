@@ -15,7 +15,7 @@ import re
 import httpx
 from fastapi import HTTPException
 
-from app import ai, config, db
+from app import ai, config, consumption, db
 
 TOP_K = 8
 MIN_SIMILARITY = 0.2
@@ -120,8 +120,11 @@ def _excerpt(text: str, limit: int) -> str:
 async def _chat(messages: list[dict], user_id: int) -> str:
     s = config.settings
     async with db.connection() as conn:
-        if await ai.used_this_month(conn, user_id) >= await ai.limit_for(conn, user_id):
-            raise HTTPException(429, "Du har brugt din AI-kvote for denne måned.")
+        pol = await consumption.policy(conn, user_id)
+    if pol["blocked"] == "off":
+        raise HTTPException(403, consumption.BLOCKED_TEXT["off"])
+    if pol["blocked"]:
+        raise HTTPException(429, consumption.BLOCKED_TEXT[pol["blocked"]])
     payload = {"model": s.ai_model, "messages": messages, "max_tokens": s.ai_max_output_tokens, "temperature": 0.2}
     try:
         async with httpx.AsyncClient(transport=ai.transport, timeout=httpx.Timeout(120, connect=10)) as client:

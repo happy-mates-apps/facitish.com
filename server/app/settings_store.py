@@ -6,7 +6,7 @@ from app import config
 from app.db import fetch_all
 
 DEFAULTS: dict = {
-    "app_name": "Gær",
+    "app_name": "Tørgær",
     "logo_key": None,
     "sms_sender": None,             # falls back to SMS_SENDER
     "gdpr_email": "",
@@ -22,9 +22,18 @@ DEFAULTS: dict = {
     "retention_mcp_log_days": 90,
     "retention_last_run": None,
     "ai_default_monthly_tokens": 200_000,   # per user; 0 turns AI off for users without their own limit
-    "resources": {"items": {}},
-    "kill_rules": [],                       # app.events: [{kind, threshold, window_seconds, switch, minutes, enabled}]             # /admin/resources: per resource {max, monthly, unit_price} (app.resources)
+    "adoption_tracking": False,             # /admin/adoption: record which pages signed-in users open
+    "ai_default_warn_pct": 80,              # warn users without a budget at this share of their limit; 0: never
+    "ai_warning_mail": True,                # e-mail users when they pass a warning level, reach the cap or use up a budget
+    "og_images": {},                        # og:image per anonymous surface → storage key (app/og.py)
+    "resources": {"items": {}},             # /admin/resources: per resource {max, monthly, unit_price} (app.resources)
+    "kill_rules": [],                       # app.events: [{kind, threshold, window_seconds, switch, minutes, enabled}]
     "web_front": "markdown",                # /w/: "markdown" (slug '') or "facit246" (app/web_front.py); default: WEB_FRONT
+    "mail_archive_export": False,           # mail: copy .eml to the archive before expiry; users may request a download
+    "mail_relay_rotated_at": None,          # mail: when the Lettermint SMTP credentials were last rotated
+    "mail_relay_paused": False,             # mail: outbound queue paused from /admin/mail → Drift
+    "mail_last_sync": None,                 # mail: {at, mailboxes, drift} from the nightly sync
+    "mail_last_backup": None,               # mail: {at, calendars, address_books, failures} from the nightly backup
 }
 
 PUBLIC_KEYS = ("app_name", "logo_key", "consent_version", "consent_title", "consent_text",

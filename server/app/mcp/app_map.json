@@ -2,7 +2,7 @@
   "generated_by": "npm run app-map --prefix web",
   "routes": {
     "/": {
-      "title": "Forside",
+      "title": "Overblik",
       "anchors": []
     },
     "/admin": {
@@ -11,6 +11,40 @@
         "stats-kpis",
         "stats-login"
       ]
+    },
+    "/admin/access": {
+      "title": "Adgangsanmodninger",
+      "anchors": [
+        "access-requests"
+      ]
+    },
+    "/admin/adoption": {
+      "title": "Adoption",
+      "anchors": []
+    },
+    "/admin/adoption/access": {
+      "title": "Adgang til forløb",
+      "anchors": []
+    },
+    "/admin/adoption/console": {
+      "title": "Live-strøm",
+      "anchors": []
+    },
+    "/admin/adoption/journeys": {
+      "title": "Forløb",
+      "anchors": []
+    },
+    "/admin/adoption/journeys/:id": {
+      "title": "Forløb",
+      "anchors": []
+    },
+    "/admin/adoption/journeys/:id/setup": {
+      "title": "Opsætning af forløb",
+      "anchors": []
+    },
+    "/admin/adoption/routes": {
+      "title": "Ruter og URL'er",
+      "anchors": []
     },
     "/admin/ai": {
       "title": "AI",
@@ -39,6 +73,15 @@
       "title": "Samtykke og cookies",
       "anchors": []
     },
+    "/admin/consumption": {
+      "title": "AI-forbrug",
+      "anchors": [
+        "consumption-budget",
+        "consumption-new-budget",
+        "consumption-tab-{x}",
+        "consumption-warning-mail"
+      ]
+    },
     "/admin/data": {
       "title": "Katalog",
       "anchors": []
@@ -54,6 +97,13 @@
     "/admin/data/explore": {
       "title": "Udforsk",
       "anchors": []
+    },
+    "/admin/data/tools": {
+      "title": "MCP-værktøjer",
+      "anchors": [
+        "data-tool-new",
+        "data-tools"
+      ]
     },
     "/admin/features": {
       "title": "Features og ringe",
@@ -123,6 +173,29 @@
       "title": "Auth-log",
       "anchors": []
     },
+    "/admin/mail": {
+      "title": "Mail",
+      "anchors": [
+        "mail-alias-requests",
+        "mail-bulk",
+        "mail-domain-{x}",
+        "mail-drift",
+        "mail-retention-policy",
+        "mail-shared-collections",
+        "mail-shared-{x}",
+        "mail-tab-{x}",
+        "mail-warnings"
+      ]
+    },
+    "/admin/mail/users/:id": {
+      "title": "Brugerens mail",
+      "anchors": [
+        "mail-user-audit",
+        "mail-user-mailbox",
+        "mail-user-offboarding",
+        "mail-user-provisioning"
+      ]
+    },
     "/admin/mcp": {
       "title": "MCP-servere",
       "anchors": [
@@ -169,6 +242,7 @@
       "title": "Brugere og roller",
       "anchors": [
         "user-admin-roles",
+        "user-audience",
         "user-block",
         "user-drawer",
         "user-mfa",
@@ -180,11 +254,19 @@
     },
     "/admin/web": {
       "title": "Website",
-      "anchors": []
+      "anchors": [
+        "web-og"
+      ]
     },
     "/admin/webhooks": {
       "title": "Webhooks",
       "anchors": []
+    },
+    "/develop": {
+      "title": "Udvikling",
+      "anchors": [
+        "prompt-{x}"
+      ]
     },
     "/extension": {
       "title": "Aktuel side",
@@ -244,6 +326,13 @@
       "title": "Deep link",
       "anchors": []
     },
+    "/godkend": {
+      "title": "Godkend adgang",
+      "anchors": [
+        "approve-request",
+        "mcp-access"
+      ]
+    },
     "/klip": {
       "title": "Klip",
       "anchors": [
@@ -263,11 +352,20 @@
     "/konto": {
       "title": "Konto",
       "anchors": [
+        "account-ai-usage",
         "account-mcp",
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
+      ]
+    },
+    "/konto/forbrug": {
+      "title": "Mit AI-forbrug",
+      "anchors": [
+        "ai-usage-budget",
+        "ai-usage-month"
       ]
     },
     "/login": {
@@ -301,11 +399,13 @@
     "/m/profil": {
       "title": "Profil",
       "anchors": [
+        "account-ai-usage",
         "account-mcp",
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
       ]
     },
     "/office-addin": {
@@ -316,6 +416,120 @@
       "title": "Privatliv",
       "anchors": [
         "privacy-export"
+      ]
+    },
+    "/user": {
+      "title": "Mit område",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/:id": {
+      "title": "Delt område",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/:id/mail": {
+      "title": "Mail",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mail-provisioning",
+        "mail-working-hours",
+        "mail-{x}",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/deling": {
+      "title": "Deling",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/indstillinger": {
+      "title": "Indstillinger",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
+      ]
+    },
+    "/user/mail": {
+      "title": "Mail",
+      "anchors": [
+        "account-ai-usage",
+        "account-mcp",
+        "account-profile",
+        "account-ring",
+        "account-security",
+        "account-sessions",
+        "mail-provisioning",
+        "mail-working-hours",
+        "mail-{x}",
+        "mcp-access",
+        "user-activity",
+        "user-grant",
+        "user-grants",
+        "user-mail",
+        "user-shared",
+        "user-sharing"
       ]
     }
   }

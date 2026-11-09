@@ -105,6 +105,7 @@ def clean_database():
     with psycopg.connect(OWNER_URL, autocommit=True) as conn:
         conn.execute("""truncate users, otp_codes, passkeys, sessions, webauthn_challenges, auth_log, audit_log,
                         files, settings, gdpr_requests, consents, analytics_events, clips, bridge_consents, ai_usage,
+                        ai_budgets, ai_budget_alerts, ai_model_prices, jobs,
                         features, feature_rings, feature_usage, app_store,
                         mcp_clients, mcp_tokens, mcp_drafts, mcp_log,
                         data_sources, datasets, dataset_fields, events, kill_switches

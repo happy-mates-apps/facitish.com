@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorText } from "../api";
 import { useAuth } from "../auth";
-import { Alert, fmtDate, PageHeader, useLoad } from "../ui";
+import { Alert, fmtDate, fmtNumber, PageHeader, useLoad } from "../ui";
 import AccountSecurity from "./AccountSecurity";
 import ContactChange from "./ContactChange";
+import McpAccess from "./McpAccess";
 
 type Profile = { locale: string | null; time_zone: string | null };
 type Session = {
@@ -12,7 +13,8 @@ type Session = {
   mcp_client: string | null; mcp_scope: string | null;
 };
 
-export default function Account() {
+/** inArea: shown inside /user/indstillinger, which has its own page frame and heading. */
+export default function Account({ inArea = false }: { inArea?: boolean }) {
   const { user, refresh, config } = useAuth();
   const [name, setName] = useState(user?.display_name ?? "");
   const [message, setMessage] = useState<string | null>(null);
@@ -44,8 +46,8 @@ export default function Account() {
   };
 
   return (
-    <div className="page">
-      <PageHeader eyebrow="Konto" title="Din konto" />
+    <div className={inArea ? "stack" : "page"} style={inArea ? ({ "--gap": "24px" } as React.CSSProperties) : undefined}>
+      {!inArea && <PageHeader eyebrow="Konto" title="Din konto" />}
       <Alert kind="success">{message}</Alert>
       <Alert>{error}</Alert>
 
@@ -105,6 +107,8 @@ export default function Account() {
         <AccountSecurity />
       </div>
 
+      <AiUsageCard />
+
       <div className="card" data-deeplink="account-sessions">
         <span className="eyebrow">Aktive logins</span>
         {devices.map((s) => (
@@ -150,6 +154,8 @@ export default function Account() {
         ))}
       </div>
 
+      <McpAccess />
+
       <div className="card" data-deeplink="account-ring">
         <span className="eyebrow">Dit niveau</span>
         <p className="small muted">
@@ -183,4 +189,33 @@ export default function Account() {
 function timeZones(): string[] {
   const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] };
   return intl.supportedValuesOf?.("timeZone") ?? ["Europe/Copenhagen", "Europe/London", "UTC"];
+}
+
+type AiStatus = { enabled: boolean; used?: number; limit?: number; warning?: number | null; blocked?: boolean; status?: string };
+
+/** Short view of this month's AI use; the full page is /konto/forbrug. Hidden when AI is off. */
+function AiUsageCard() {
+  const status = useLoad(() => api.get<AiStatus>("/api/ai/status"));
+  const s = status.data;
+  if (!s?.enabled || !s.limit) return null;
+  const pct = Math.min(100, ((s.used ?? 0) / s.limit) * 100);
+  const color = s.blocked || pct >= 100 ? "#dc2626" : s.warning ? "#f97316" : "#2563eb";
+  return (
+    <div className="card" data-deeplink="account-ai-usage">
+      <div className="spread">
+        <span className="eyebrow">AI-forbrug denne måned</span>
+        <Link to="/konto/forbrug" className="small">Se dit forbrug →</Link>
+      </div>
+      <div className="row" style={{ alignItems: "baseline" }}>
+        <span className="num" style={{ fontSize: 24, fontWeight: 700 }}>{fmtNumber(s.used ?? 0)}</span>
+        <span className="muted small">af {fmtNumber(s.limit)} tokens</span>
+      </div>
+      <div role="meter" aria-label="Brugt af månedens AI-loft" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}
+        style={{ height: 8, background: "#f1f5f9", borderRadius: 9999, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color }} />
+      </div>
+      {s.blocked && <span className="small" style={{ color: "#991b1b" }}>Du har brugt månedens AI-budget.</span>}
+      {!s.blocked && s.warning && <span className="small" style={{ color: "#92400e" }}>Du har passeret {s.warning} % af månedens budget.</span>}
+    </div>
+  );
 }

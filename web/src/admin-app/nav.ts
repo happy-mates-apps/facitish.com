@@ -1,6 +1,6 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, BookOpen, Bot, Gauge, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText,
+  Archive, BookOpen, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
   Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
@@ -9,7 +9,7 @@ export type NavItem = { path: string; label: string; icon: LucideIcon; badge?: N
 export type NavGroup = { label: string; items: NavItem[] };
 
 // Grouped by job, so each administrative role (server/app/admin_roles.py) mostly sees whole groups:
-// Support → Brugere og support, Indhold, Produkt, Data, Privatliv → Privatliv og compliance, Drift → Drift og integrationer.
+// Produkt → Adoption, Support → Brugere og support, Indhold, Produkt, Data, Privatliv → Privatliv og compliance, Drift → Drift og integrationer.
 export const NAV: NavGroup[] = [
   {
     label: "Overblik",
@@ -17,6 +17,16 @@ export const NAV: NavGroup[] = [
       { path: "/", label: "Statistik", icon: ChartColumn },
       { path: "/analytics", label: "Analytics", icon: TrendingUp },
       { path: "/heatmaps", label: "Heatmaps", icon: MousePointerClick },
+    ],
+  },
+  {
+    label: "Adoption",
+    items: [
+      { path: "/adoption", label: "Adoption", icon: LayoutDashboard },
+      { path: "/adoption/journeys", label: "Forløb", icon: RouteIcon },
+      { path: "/adoption/routes", label: "Ruter og URL'er", icon: Waypoints },
+      { path: "/adoption/console", label: "Live-strøm", icon: SquareTerminal },
+      { path: "/adoption/access", label: "Adgang til forløb", icon: UsersRound },
     ],
   },
   {
@@ -41,6 +51,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: "/features", label: "Features og ringe", icon: Flag, badge: "features" },
       { path: "/ai", label: "AI", icon: Bot },
+      { path: "/consumption", label: "AI-forbrug", icon: Gauge },
       { path: "/webhooks", label: "Webhooks", icon: Webhook },
     ],
   },
@@ -50,12 +61,14 @@ export const NAV: NavGroup[] = [
       { path: "/data", label: "Katalog", icon: BookOpen },
       { path: "/data/explore", label: "Udforsk", icon: Table2 },
       { path: "/data/connect", label: "Forbind API", icon: Plug },
+      { path: "/data/tools", label: "MCP-værktøjer", icon: Wrench },
     ],
   },
   {
     label: "Privatliv og compliance",
     items: [
       { path: "/gdpr", label: "GDPR-forespørgsler", icon: FileSearch },
+      { path: "/access", label: "Adgangsanmodninger", icon: KeySquare },
       { path: "/consent", label: "Samtykke og cookies", icon: Cookie },
       { path: "/retention", label: "Sletning af logdata", icon: Archive },
       { path: "/jobs", label: "Jobs og oprydning", icon: Timer },
@@ -65,11 +78,12 @@ export const NAV: NavGroup[] = [
   {
     label: "Drift og integrationer",
     items: [
+      { path: "/mail", label: "Mail", icon: Mail },
       { path: "/mcp", label: "MCP-servere", icon: PlugZap, badge: "mcp" },
       { path: "/integrations", label: "Udvidelse og Office", icon: Puzzle },
       { path: "/webhooks", label: "Webhooks", icon: Webhook },
       { path: "/nats", label: "NATS", icon: RadioTower },
-      { path: "/resources", label: "Ressourcer", icon: Gauge },
+      { path: "/resources", label: "Ressourcer", icon: Server },
       { path: "/settings", label: "Indstillinger", icon: Settings },
     ],
   },

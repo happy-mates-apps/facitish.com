@@ -191,18 +191,31 @@ async def invoke(server: str, name: str, raw_args: dict | None, caller: Caller) 
     the draft (nothing changes before confirm_draft)."""
     from app.mcp import drafts  # drafts registers confirm/cancel and imports this module
 
+    from app.mcp import data_tools, toolmap
+
     started = time.monotonic()
     status, args = "ok", raw_args
-    handler = HANDLERS.get((server, name))
     try:
-        if handler is None:
-            raise ToolError(f"Ukendt værktøj: {name}")
-        args = coerce_args(handler.spec, raw_args)
-        if handler.plan is not None:
+        # The endpoint map in the database (governed from /admin/data) decides which tools exist here and who may
+        # call them; catalog.json only describes the Code tools' handlers.
+        async with db.connection() as conn:
+            t = await toolmap.resolve(conn, server, name)
+            if t is None:
+                raise ToolError(f"Ukendt værktøj: {name}")
+            decision = await toolmap.decide(conn, t, caller.user_id, caller.principal.session_id)
+        if not decision["allowed"]:
+            raise PermissionError(decision["message"])
+        spec = toolmap.spec_for(t, server)
+        args = coerce_args(spec, raw_args)
+        handler = HANDLERS.get((server, name))
+        if t["kind"] == "data":
+            out: ToolOutput = await data_tools.run(t, args, caller, decision["grant"])
+            result = {**out.data, **({"summary": out.text} if out.text else {})}
+        elif handler.plan is not None:
             result = await drafts.create(server, name, args, caller)
             status = "draft"
         else:
-            out: ToolOutput = await handler.run(args, caller)
+            out = await handler.run(args, caller)
             result = {**(out.data if isinstance(out.data, dict) else {"result": out.data}),
                       **({"links": out.links} if out.links else {})}
             if out.text:
@@ -227,6 +240,16 @@ async def invoke(server: str, name: str, raw_args: dict | None, caller: Caller) 
                        status=status, ip=caller.principal.meta.ip)
 
 
-def tool_list(server: str) -> list[dict]:
-    """The catalog for one server as the hub shows it."""
-    return [{**t, "inputSchema": input_schema(t)} for t in catalog_tools(server)]
+async def tool_list(server: str) -> list[dict]:
+    """The tools one endpoint offers (the map in the database), in catalog form, as the hub and tools/list show them."""
+    from app.mcp import toolmap
+
+    async with db.connection() as conn:
+        tools = await toolmap.for_endpoint(conn, server)
+    out = []
+    for t in tools:
+        if t["kind"] == "code" and (server, t["name"]) not in HANDLERS:
+            continue
+        spec = toolmap.spec_for(t, server)
+        out.append({**spec, "inputSchema": input_schema(spec)})
+    return out

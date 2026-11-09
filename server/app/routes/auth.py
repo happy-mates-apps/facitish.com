@@ -29,7 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSele
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import admin_roles, captcha, config, db, events, mfa, settings_store, totp, webhooks
+from app import access, admin_roles, captcha, config, db, events, mfa, settings_store, totp, webhooks
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
@@ -327,10 +327,11 @@ async def _get_or_create_user(conn, channel: str, contact: str, meta: RequestMet
         exists = (await db.fetch_one(conn, "select exists (select 1 from users) as e"))["e"]
         role = "user" if exists else "admin"
     super_admin = role == "admin" and not await _has_super_admin(conn)
-    user = await db.fetch_one(conn, f"insert into users ({channel}, role, super_admin) values (%s, %s, %s) returning *",
-                              (contact, role, super_admin))
+    audience = "internal" if role == "admin" or (channel == "email" and access.internal_domain(contact)) else "external"
+    user = await db.fetch_one(conn, f"""insert into users ({channel}, role, super_admin, audience) values (%s, %s, %s, %s)
+                                        returning *""", (contact, role, super_admin, audience))
     await audit(conn, "create", actor_id=user["id"], meta=meta, table="users", row_id=user["id"],
-                after={channel: contact, "role": role, "super_admin": super_admin})
+                after={channel: contact, "role": role, "super_admin": super_admin, "audience": audience})
     await webhooks.emit(conn, "user.created", {"user_id": user["id"], "role": role})
     if role == "admin":
         await audit(conn, "admin.first_user", actor_id=user["id"], meta=meta, table="users", row_id=user["id"],

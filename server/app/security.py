@@ -18,7 +18,8 @@ class InvalidEmail(ValueError):
     pass
 
 
-EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+# Dot-free labels keep the match unambiguous, so it runs in linear time on hostile input (CodeQL py/polynomial-redos).
+EMAIL_RE = re.compile(r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+")
 
 
 def normalize_email(raw: str) -> str:
