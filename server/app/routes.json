@@ -299,6 +299,13 @@
    "title": "Forbind MCP-klient"
   },
   {
+   "path": "/godkend",
+   "group": "mcp-links",
+   "app": "app",
+   "access": "user",
+   "title": "Godkend adgang"
+  },
+  {
    "path": "/go",
    "group": "mcp-links",
    "app": "app",
@@ -453,6 +460,13 @@
    "title": "Forbind API"
   },
   {
+   "path": "/admin/data/tools",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "MCP-værktøjer"
+  },
+  {
    "path": "/admin/data/:id",
    "group": "admin",
    "app": "admin",
@@ -465,6 +479,13 @@
    "app": "admin",
    "access": "admin",
    "title": "GDPR-forespørgsler"
+  },
+  {
+   "path": "/admin/access",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Adgangsanmodninger"
   },
   {
    "path": "/admin/retention",

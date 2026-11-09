@@ -120,6 +120,11 @@ class Settings:
     mcp_draft_ttl_min: int = field(default_factory=lambda: _int("MCP_DRAFT_TTL_MIN", 10))
     mcp_access_token_minutes: int = field(default_factory=lambda: _int("MCP_ACCESS_TOKEN_MINUTES", 60))
     mcp_refresh_token_days: int = field(default_factory=lambda: _int("MCP_REFRESH_TOKEN_DAYS", 30))
+    # Access requests from MCP clients (app/access.py): e-mail links live this long; new users with an e-mail on one
+    # of these domains (comma separated, e.g. "firma.dk,firma.com") start as internal instead of external.
+    mcp_access_link_hours: int = field(default_factory=lambda: _int("MCP_ACCESS_LINK_HOURS", 72))
+    internal_email_domains: tuple[str, ...] = field(default_factory=lambda: tuple(
+        d.strip().lower().lstrip("@") for d in (_env("INTERNAL_EMAIL_DOMAINS", "") or "").split(",") if d.strip()))
     # The read-only <db>_mcp_ro user for db_query. Without it the tool answers "ikke tilgængelig".
     mcp_db_query_url: str | None = field(default_factory=lambda: _env("MCP_DB_QUERY_URL"))
 

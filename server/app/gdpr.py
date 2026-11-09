@@ -22,7 +22,7 @@ async def build_user_export(conn, user_id: int) -> dict:
         return await db.fetch_all(conn, sql, params)
 
     user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin, admin_roles,
-                                              mfa_required, grace_logins_used, blocked_at, created_at, updated_at,
+                                              mfa_required, grace_logins_used, blocked_at, audience, created_at, updated_at,
                                               last_login_at, avatar_file_id
                                        from users where id = %s""", (user_id,))
     if user is None:
@@ -68,6 +68,11 @@ async def build_user_export(conn, user_id: int) -> dict:
                                          where r.user_id = %s group by r.id order by r.created_at""", user_id),
         "test_accounts": await rows("""select id, display_name, role, created_at from users
                                        where impersonation_only and impersonation_owner_id = %s""", user_id),
+        "mcp_access_requests": await rows("""select r.id, r.endpoint, r.client_name, r.target, r.tool_name, r.level,
+                                                    r.reason, r.status, r.user_decided_at, r.user_via,
+                                                    r.approver_decided_at, r.approver_via, r.note, r.expires_at,
+                                                    r.created_at from mcp_access_requests r
+                                             where r.user_id = %s order by r.created_at""", user_id),
         "ai_usage": await rows("""select ts, surface, model, prompt_tokens, completion_tokens from ai_usage
                                   where user_id = %s order by ts""", user_id),
         "analytics_events": await rows("""select ts, kind, path, referrer, device, browser from analytics_events
@@ -81,6 +86,7 @@ README = """Indsigt i dine data
 data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnøgler, godkendelsesapps
             (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
+            MCP-adgangsanmodninger (hvad dine MCP-klienter har bedt om, og hvem der godkendte),
             review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
 

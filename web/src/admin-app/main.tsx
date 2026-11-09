@@ -34,6 +34,8 @@ import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
 import DataConnect from "./pages/data/Connect";
+import DataTools from "./pages/data/Tools";
+import Access from "./pages/Access";
 import { AdminGo } from "./go";
 import "./base.css";
 import "./admin.css";
@@ -96,8 +98,10 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="data" element={<DataCatalog />} />
                   <Route path="data/explore" element={<DataExplore />} />
                   <Route path="data/connect" element={<DataConnect />} />
+                  <Route path="data/tools" element={legacy(<DataTools />)} />
                   <Route path="data/:id" element={<DataDataset />} />
                   <Route path="gdpr" element={legacy(<Gdpr />)} />
+                  <Route path="access" element={legacy(<Access />)} />
                   <Route path="retention" element={legacy(<Retention />)} />
                   <Route path="consent" element={legacy(<Consent />)} />
                   <Route path="settings" element={legacy(<Settings />)} />

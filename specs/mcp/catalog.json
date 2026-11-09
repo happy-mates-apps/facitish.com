@@ -110,6 +110,13 @@
    "src": [
     "server/app/settings_store.py"
    ]
+  },
+  "access": {
+   "label": "Adgang",
+   "src": [
+    "server/app/access.py",
+    "server/app/mcp/toolmap.py"
+   ]
   }
  },
  "tools": [
@@ -1291,6 +1298,180 @@
     "args": [],
     "focus": "setting-{key}",
     "label": "Indstilling"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "access",
+   "name": "access_list",
+   "mode": "read",
+   "description": "What this client may ask for: your own e-mail and phone in clear, and the tools on this endpoint that need a grant (yellow: you approve; red: you and an approver in /admin approve). Shows the state of each request and when grants expire.",
+   "params": [],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "mcp-access",
+    "label": "MCP-adgang"
+   }
+  },
+  {
+   "server": "app",
+   "domain": "access",
+   "name": "access_request",
+   "mode": "write",
+   "description": "Asks for access. target is email, phone or a tool name from access_list. The user approves it in Konto → MCP-adgang or from the e-mail we send; confidential (red) access then also needs an approver in /admin. You can never approve it yourself — tell the user to check their mail.",
+   "params": [
+    {
+     "name": "target",
+     "type": "string",
+     "desc": "email | phone | <tool name>"
+    },
+    {
+     "name": "reason",
+     "type": "string",
+     "desc": "why, 5–500 chars — shown to the user and the approver"
+    }
+   ],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "mcp-access",
+    "label": "MCP-adgang"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "access",
+   "name": "access_list",
+   "mode": "read",
+   "description": "What this client may ask for: your own e-mail and phone in clear, and the tools on this endpoint that need a grant (yellow: you approve; red: you and an approver in /admin approve). Shows the state of each request and when grants expire.",
+   "params": [],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "mcp-access",
+    "label": "MCP-adgang"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "access",
+   "name": "access_request",
+   "mode": "write",
+   "description": "Asks for access. target is email, phone or a tool name from access_list. The user approves it in Konto → MCP-adgang or from the e-mail we send; confidential (red) access then also needs an approver in /admin. You can never approve it yourself — tell the user to check their mail.",
+   "params": [
+    {
+     "name": "target",
+     "type": "string",
+     "desc": "email | phone | <tool name>"
+    },
+    {
+     "name": "reason",
+     "type": "string",
+     "desc": "why, 5–500 chars — shown to the user and the approver"
+    }
+   ],
+   "link": {
+    "section": "/konto",
+    "args": [],
+    "focus": "mcp-access",
+    "label": "MCP-adgang"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "access",
+   "name": "access_requests_list",
+   "mode": "read",
+   "description": "Access requests from MCP clients. status: open (awaiting an approver, default), user (awaiting the user), active (approved, not expired) or all.",
+   "params": [
+    {
+     "name": "status",
+     "type": "string",
+     "desc": "open | user | active | all",
+     "optional": true
+    },
+    {
+     "name": "limit",
+     "type": "int",
+     "desc": "max 200",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/access",
+    "args": [],
+    "focus": "access-requests",
+    "label": "Adgangsanmodninger"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "access",
+   "name": "access_request_decide",
+   "mode": "draft",
+   "description": "Approves or denies a confidential access request as approver. You cannot decide your own request. days: 1, 7 or 30 (default 7). A denial needs a note. Returns a draft.",
+   "params": [
+    {
+     "name": "requestId",
+     "type": "int",
+     "desc": "request id"
+    },
+    {
+     "name": "approve",
+     "type": "bool",
+     "desc": "true approves, false denies"
+    },
+    {
+     "name": "days",
+     "type": "int",
+     "desc": "1 | 7 | 30",
+     "optional": true
+    },
+    {
+     "name": "note",
+     "type": "string",
+     "desc": "stored in the audit log; required when denying",
+     "optional": true
+    }
+   ],
+   "link": {
+    "section": "/admin/access",
+    "args": [],
+    "focus": "access-requests",
+    "label": "Adgangsanmodninger"
+   }
+  },
+  {
+   "server": "admin",
+   "domain": "users",
+   "name": "user_set_audience",
+   "mode": "draft",
+   "description": "Marks a user internal (employee) or external (partner, customer). External users only see white tools and may only ask for their own data; going external ends their other grants at once. Returns a draft.",
+   "params": [
+    {
+     "name": "userId",
+     "type": "int",
+     "desc": "user id"
+    },
+    {
+     "name": "audience",
+     "type": "string",
+     "desc": "internal | external"
+    },
+    {
+     "name": "reason",
+     "type": "string",
+     "desc": "min 5 chars"
+    }
+   ],
+   "link": {
+    "section": "/admin/users",
+    "args": [
+     "userId"
+    ],
+    "focus": "user-audience",
+    "label": "Brugertype"
    }
   }
  ],

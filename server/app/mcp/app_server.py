@@ -5,7 +5,7 @@ and a GDPR export are drafts. Security (passkeys, authenticator apps, "Kræv pas
 
 from fastapi import HTTPException
 
-from app import config, db, gdpr, mfa
+from app import access, config, db, gdpr, mfa
 from app.logs import audit
 from app.mcp.common import absolute, limit, masked, store_file
 from app.mcp.links import link_for, links_for
@@ -20,6 +20,15 @@ RING_NAMES = {1: "Internt", 2: "Beta", 3: "Preview", 4: "Stabilt"}
 SOURCE_FILTER = {"web": ["manual"], "extension": ["extension"], "office": ["word", "outlook"], "mobile": ["mobile"],
                  "mcp": ["mcp"]}
 CLIP_COLUMNS = "id, source, title, body, url, created_at, updated_at"
+
+
+async def _contact(conn, caller: Caller, user: dict) -> dict:
+    """E-mail and phone, masked unless this MCP session holds a grant for them (access_request email/phone)."""
+    out = {}
+    for key in ("email", "phone"):
+        grant = await access.own_grant(conn, caller.user_id, caller.principal.session_id, key) if user[key] else None
+        out[key] = user[key] if grant else masked(user[key])
+    return out
 
 
 def _clip_row(c: dict, full: bool = False) -> dict:
@@ -42,14 +51,15 @@ async def _own_clip(conn, caller: Caller, clip_id: int, lock: bool = False) -> d
 @tool(S, "whoami")
 async def whoami(args, caller: Caller) -> ToolOutput:
     async with db.connection() as conn:
-        user = await db.fetch_one(conn, "select id, display_name, email, phone, role, created_at from users where id = %s",
+        user = await db.fetch_one(conn, "select id, display_name, email, phone, role, audience, created_at from users where id = %s",
                                   (caller.user_id,))
         session = await db.fetch_one(conn, """
             select s.id, s.created_at, c.name as client from sessions s left join mcp_clients c on c.id = s.mcp_client_id
             where s.id = %s""", (caller.principal.session_id,))
         level = await user_level(conn, caller.user_id)
-    return ToolOutput({"user": {"id": user["id"], "displayName": user["display_name"], "email": masked(user["email"]),
-                                "phone": masked(user["phone"]),
+        contact = await _contact(conn, caller, user)
+    return ToolOutput({"user": {"id": user["id"], "displayName": user["display_name"], "email": contact["email"],
+                                "phone": contact["phone"], "audience": user["audience"],
                                 "role": user["role"], "createdAt": user["created_at"]},
                        "ring": {"level": level, "name": RING_NAMES[level]}, "session": session},
                       links=[x for x in [link_for(S, "whoami", {})] if x])
@@ -95,7 +105,8 @@ async def profile_get(args, caller: Caller) -> ToolOutput:
     async with db.connection() as conn:
         u = await db.fetch_one(conn, """select display_name, email, phone, locale, time_zone, avatar_file_id is not null
                                         as has_avatar, created_at from users where id = %s""", (caller.user_id,))
-    return ToolOutput({"profile": {"displayName": u["display_name"], "email": masked(u["email"]), "phone": masked(u["phone"]),
+        contact = await _contact(conn, caller, u)
+    return ToolOutput({"profile": {"displayName": u["display_name"], "email": contact["email"], "phone": contact["phone"],
                                    "locale": u["locale"], "timeZone": u["time_zone"], "hasAvatar": u["has_avatar"],
                                    "createdAt": u["created_at"]}, "locales": list(LOCALES)},
                       links=[x for x in [link_for(S, "profile_get", {})] if x])

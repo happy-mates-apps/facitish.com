@@ -22,6 +22,8 @@ export type AdminUser = {
   active_sessions: number;
   impersonation_only?: boolean;
   feature_ring?: number | null;
+  /** Internal (employee) or external (partner, customer): decides which MCP tools and data the user may use. */
+  audience: "internal" | "external";
 };
 
 /** An administrative role as the server describes it (server/app/admin_roles.py). */

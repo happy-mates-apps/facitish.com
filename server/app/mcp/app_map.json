@@ -12,6 +12,12 @@
         "stats-login"
       ]
     },
+    "/admin/access": {
+      "title": "Adgangsanmodninger",
+      "anchors": [
+        "access-requests"
+      ]
+    },
     "/admin/ai": {
       "title": "AI",
       "anchors": []
@@ -54,6 +60,13 @@
     "/admin/data/explore": {
       "title": "Udforsk",
       "anchors": []
+    },
+    "/admin/data/tools": {
+      "title": "MCP-værktøjer",
+      "anchors": [
+        "data-tool-new",
+        "data-tools"
+      ]
     },
     "/admin/features": {
       "title": "Features og ringe",
@@ -129,6 +142,7 @@
       "title": "Brugere og roller",
       "anchors": [
         "user-admin-roles",
+        "user-audience",
         "user-block",
         "user-drawer",
         "user-mfa",
@@ -196,6 +210,13 @@
       "title": "Deep link",
       "anchors": []
     },
+    "/godkend": {
+      "title": "Godkend adgang",
+      "anchors": [
+        "approve-request",
+        "mcp-access"
+      ]
+    },
     "/klip": {
       "title": "Klip",
       "anchors": [
@@ -219,7 +240,8 @@
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
       ]
     },
     "/login": {
@@ -257,7 +279,8 @@
         "account-profile",
         "account-ring",
         "account-security",
-        "account-sessions"
+        "account-sessions",
+        "mcp-access"
       ]
     },
     "/office-addin": {
