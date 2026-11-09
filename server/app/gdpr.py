@@ -39,8 +39,13 @@ async def build_user_export(conn, user_id: int) -> dict:
         "sessions": await rows("""select created_at, last_seen_at, expires_at, revoked_at, host(ip) as ip, user_agent,
                                          mfa_at
                                   from sessions where user_id = %s order by created_at""", user_id),
-        "files": await rows("""select id, filename, content_type, size_bytes, kind, created_at from files
-                               where user_id = %s order by created_at""", user_id),
+        "files": await rows("""select id, filename, folder, content_type, size_bytes, kind, created_at, updated_at
+                               from files where user_id = %s order by created_at""", user_id),
+        # Files you put in /shared are common project files: they stay when you are erased (without your name),
+        # so only which ones they are is exported, not their content.
+        "shared_files": await rows("""select id, '/shared' || folder || filename as path, content_type, size_bytes,
+                                             created_at from files
+                                      where space = 'shared' and uploaded_by = %s order by created_at""", user_id),
         "clips": await rows("""select id, source, title, body, url, created_at, updated_at from clips
                                where user_id = %s order by created_at""", user_id),
         "knowledge_agent_members": await rows("""select a.name as agent, a.slug, m.privilege, m.created_at
@@ -90,7 +95,8 @@ async def build_user_export(conn, user_id: int) -> dict:
 README = """Indsigt i dine data
 
 data.json   alt, vi har gemt om dig: bruger og profil, passkeys og sikkerhedsnøgler, godkendelsesapps
-            (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), tilladte domæner,
+            (uden den hemmelige nøgle), sessioner, klip, filer (oversigt), filer du har lagt i /shared
+            (kun oversigt), tilladte domæner,
             GDPR-anmodninger, samtykker, login-log, ændringslog, AI-forbrug, feature-niveau og -brug,
             review-sessioner og -noter, testkonti du har oprettet og statistik knyttet til dig.
 files/      kopier af de filer, du har uploadet, dit profilbillede og skærmbilleder og lyd fra review-noter.
@@ -140,7 +146,10 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage, one-time
-    codes, feature level, review sessions and notes and their test accounts, Viden conversations and agent memberships cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage, the contact details on their GDPR requests, and
+    codes, feature level, review sessions and notes and their test accounts, Viden conversations and agent memberships
+    cascade; review screenshots and audio are files; feature usage is purged with the logs), their files in Object Storage
+    (their whole home and folders cascade; files they put in /shared stay, with the uploader link set to null), the
+    contact details on their GDPR requests, and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)

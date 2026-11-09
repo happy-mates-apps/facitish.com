@@ -5,7 +5,7 @@ and a GDPR export are drafts. Security (passkeys, authenticator apps, "Kræv pas
 
 from fastapi import HTTPException
 
-from app import config, db, gdpr, mfa
+from app import config, db, filetree, gdpr, mfa
 from app.logs import audit
 from app.mcp.common import absolute, limit, masked, store_file
 from app.mcp.links import link_for, links_for
@@ -239,9 +239,10 @@ async def clip_delete(args, caller: Caller, conn) -> DraftPlan:
 async def files_list(args, caller: Caller) -> ToolOutput:
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, """
-            select id, filename, content_type, size_bytes, created_at from files where user_id = %s
+            select id, filename, content_type, size_bytes, created_at, updated_at, space, user_id, folder, uploaded_by, kind
+            from files where user_id = %s and kind = 'file'
             order by created_at desc limit %s""", (caller.user_id, limit(args.get("limit"), 50, 200)))
-    files = [{**r, "fileId": str(r["id"])} for r in rows]
+    files = [{**filetree.out(r), "fileId": str(r["id"])} for r in rows]
     return ToolOutput({"files": files}, links=[x for x in [link_for(S, "files_list", {})] if x] + links_for(S, "file_link", files, label="filename"))
 
 
@@ -249,16 +250,98 @@ async def files_list(args, caller: Caller) -> ToolOutput:
 async def file_link(args, caller: Caller) -> ToolOutput:
     async with db.connection() as conn:
         try:
-            row = await db.fetch_one(conn, "select id, filename, storage_key from files where id = %s::uuid and user_id = %s",
-                                     (args["fileId"], caller.user_id))
-        except Exception:
+            row = await filetree.get_file(conn, args["fileId"], caller.principal, admin=False)
+        except HTTPException:
             row = None
-    if row is None:
+    if row is None or row["kind"] != "file":
         raise ToolError("Filen findes ikke")
     url = absolute(await get_storage().download_url(row["storage_key"], row["filename"]))
-    return ToolOutput({"fileId": str(row["id"]), "filename": row["filename"], "download_url": url,
-                       "expires_in": config.settings.download_link_seconds},
+    return ToolOutput({"fileId": str(row["id"]), "filename": row["filename"], "path": filetree.file_path(row),
+                       "download_url": url, "expires_in": config.settings.download_link_seconds},
                       links=[x for x in [link_for(S, "file_link", {"fileId": str(row["id"])})] if x])
+
+
+def _files_link() -> list[dict]:
+    return [x for x in [link_for(S, "files_browse", {})] if x]
+
+
+@tool(S, "files_browse")
+async def files_browse(args, caller: Caller) -> ToolOutput:
+    async with db.connection() as conn:
+        listing = await filetree.list_dir(conn, filetree.parse(args.get("path") or "~/", me=caller.user_id),
+                                          caller.principal, admin=False)
+    return ToolOutput(listing, links=_files_link())
+
+
+async def file_read_impl(args, caller: Caller, *, admin: bool) -> dict:
+    """Shared by /mcp and /mcp/admin: a file by path or fileId → metadata + text or download link."""
+    if not args.get("path") and not args.get("fileId"):
+        raise ToolError("Angiv path eller fileId")
+    async with db.connection() as conn:
+        row = (await filetree.get_by_path(conn, args["path"], caller.principal, admin=admin) if args.get("path")
+               else await filetree.get_file(conn, args["fileId"], caller.principal, admin=admin))
+    out = {**filetree.out(row, admin=admin), "fileId": str(row["id"])}
+    if out["preview"] == "text":
+        out.update(await filetree.read_text(row))
+    else:
+        out["download_url"] = absolute(await get_storage().download_url(row["storage_key"], row["filename"]))
+        out["expires_in"] = config.settings.download_link_seconds
+    return out
+
+
+@tool(S, "file_read")
+async def file_read(args, caller: Caller) -> ToolOutput:
+    return ToolOutput(await file_read_impl(args, caller, admin=False), links=_files_link())
+
+
+@tool(S, "file_write")
+async def file_write(args, caller: Caller) -> ToolOutput:
+    loc, name = filetree.split_file(args["path"], me=caller.user_id)
+    overwrite = args.get("overwrite") is not False
+    async with db.connection() as conn:
+        row = await filetree.write(conn, loc, name, args["content"].encode(), None, caller.principal, admin=False,
+                                   overwrite=overwrite, via="mcp")
+    out = filetree.out(row)
+    return ToolOutput({"file": out}, links=_files_link(), text=f"Gemt som {out['path']}")
+
+
+@tool(S, "folder_create")
+async def folder_create(args, caller: Caller) -> ToolOutput:
+    async with db.connection() as conn:
+        made = await filetree.make_folder(conn, filetree.parse(args["path"], me=caller.user_id), caller.principal,
+                                          admin=False, via="mcp")
+    return ToolOutput(made, links=_files_link(), text=f"Mappen {made['path']} findes nu")
+
+
+@tool(S, "file_move")
+async def file_move(args, caller: Caller) -> ToolOutput:
+    if not args.get("toFolder") and not args.get("newName"):
+        raise ToolError("Angiv toFolder og/eller newName")
+    async with db.connection() as conn:
+        row = await filetree.get_by_path(conn, args["path"], caller.principal, admin=False, lock=True)
+        new = await filetree.move(conn, row, caller.principal, admin=False, folder=args.get("toFolder"),
+                                  filename=args.get("newName"), via="mcp")
+    out = filetree.out(new)
+    return ToolOutput({"file": out}, links=_files_link(), text=f"Flyttet til {out['path']}")
+
+
+@draft(S, "file_delete")
+async def file_delete(args, caller: Caller, conn) -> DraftPlan:
+    row = await filetree.get_by_path(conn, args["path"], caller.principal, admin=False)
+    if row["space"] == "shared" and row["uploaded_by"] != caller.user_id:
+        raise ToolError("Kun den, der har lagt filen i /shared, eller en administrator kan slette den")
+
+    async def execute(conn):
+        current = await filetree.get_file(conn, row["id"], caller.principal, admin=False, lock=True)
+        await filetree.delete(conn, current, caller.principal, admin=False, via="mcp")
+        return {"deleted": filetree.file_path(current)}
+
+    return DraftPlan(summary=f"Slet filen {filetree.file_path(row)}.",
+                     impact={"bullets": [f"{row['size_bytes']} bytes · {row['content_type']}",
+                                         "Filen slettes fra lageret og kan ikke hentes igen"], "counts": {"files": 1}},
+                     state={"id": str(row["id"]), "size": row["size_bytes"], "updated_at": row["updated_at"],
+                            "path": filetree.file_path(row)},
+                     execute=execute, links=_files_link())
 
 
 # ── Privacy ─────────────────────────────────────────────────────────────────

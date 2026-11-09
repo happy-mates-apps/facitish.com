@@ -90,7 +90,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="logs/auth" element={legacy(<AuthLog />)} />
                   <Route path="logs/audit" element={legacy(<AuditLog />)} />
                   <Route path="web" element={legacy(<Web />)} />
-                  <Route path="files" element={legacy(<AdminFiles />)} />
+                  <Route path="files" element={<AdminFiles />} />
                   <Route path="knowledge" element={<KnowledgeOverview />} />
                   <Route path="knowledge/spaces/:id" element={<KnowledgeSpace />} />
                   <Route path="knowledge/agents/:id" element={<KnowledgeAgent />} />
