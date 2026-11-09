@@ -22,7 +22,7 @@ ROLES: dict[str, dict] = {
     "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics, heatmaps og adoptionsforløb."},
     "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad)."},
     "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, og godkendelse af adgang til fortrolige data."},
-    "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, MCP-servere, udvidelse og Office, webhooks, jobs, NATS og indstillinger."},
+    "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, MCP-servere, udvidelse og Office, webhooks, jobs, NATS, ressourcer og indstillinger."},
 }
 
 # /admin section (path under the router basename) → the API path prefixes it uses.
@@ -60,6 +60,7 @@ SECTIONS: dict[str, list[str]] = {
     "/jobs": ["/api/admin/jobs", "/api/admin/retention"],
     "/nats": ["/api/admin/nats"],
     "/mail": ["/api/admin/mail"],
+    "/resources": ["/api/admin/resources"],
     "/settings": ["/api/admin/settings"],
 }
 
@@ -71,7 +72,7 @@ ROLE_SECTIONS: dict[str, list[str]] = {
                 "/adoption/routes", "/adoption/console", "/adoption/access"],
     "data": ["/data", "/data/explore", "/data/connect", "/data/tools"],
     "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth", "/access"],
-    "drift": ["/mail", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/settings"],
+    "drift": ["/mail", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/resources", "/settings"],
 }
 
 # Only `fuld`, even for roles whose sections contain the path.

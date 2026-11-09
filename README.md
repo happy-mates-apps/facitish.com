@@ -48,7 +48,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (84)</summary>
+<details><summary>Alle ruter (85)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -103,6 +103,7 @@ herfra ind i sin fork.
 | `/admin/webhooks` | admin-appen | admin | Webhooks |
 | `/admin/jobs` | admin-appen | admin | Jobs og oprydning |
 | `/admin/nats` | admin-appen | admin | NATS |
+| `/admin/resources` | admin-appen | admin | Ressourcer |
 | `/admin/mail` | admin-appen | admin | Mail |
 | `/admin/mail/users/:id` | admin-appen | admin | Brugerens mail |
 | `/admin/data` | admin-appen | admin | Katalog |
@@ -229,6 +230,17 @@ NATS kan kun nås inde fra stakken). Overvågningen ses i `/admin/nats` (rollen 
 JetStream (streams og consumers), abonnementer, cluster/gateways/leaf nodes, konti og rå data — læst fra NATS'
 overvågningsport (`NATS_MONITOR_URL`, port 8222) gennem appen. Sæt `NATS_TOKEN` (`openssl rand -hex 24`) inden
 næste udrulning på en eksisterende server.
+
+**Ressourcer, hændelser og nødstop** (`/admin/resources`, rollen Drift). Siden viser alt instansen bruger — container
+(CPU, hukommelse, disk), Postgres, hændelser, Object Storage, NATS, AI-tokens, e-mail, SMS og jobkøen — med forbrug,
+grænse og anslået pris pr. måned; grænser appen ikke kan måle og priserne sættes under "Priser og grænser".
+Appen tæller hændelser med `events.emit(…)` (serverfejl, 429, forkerte koder, AI-tokens, fejlede jobs): de går
+gennem NATS-streamen `EVENTS` (gemt 7 dage, højst `EVENTS_STREAM_MAX_MB`), og en consumer gemmer dem i Postgres-tabellen
+`events` (7 dage, oprydningspolitikken "Hændelser"). Uden NATS skrives de direkte i Postgres. Ingen persondata.
+Under **Nødstop** lukkes hele tjenesten eller dele af den (AI, filer, MCP, indgående webhooks, analytics) inden for et
+par sekunder i alle containere; /admin, login og /health lukker aldrig. **Automatiske regler** lukker et område af sig
+selv ("mindst 50 × http.5xx på 1 minut → luk AI i 15 minutter"). Ændringer logges i audit-loggen og sendes som
+webhook-hændelsen `killswitch.changed`.
 
 GitHub-environment **production** skal have secrets `HOST` (serverens IP), `SSH_KEY` (privat deploy-nøgle
 til brugeren `deploy`) og `SSH_KNOWN_HOSTS` (`ssh-keyscan <host>`), samt variablen `DOMAIN` (smoke test).

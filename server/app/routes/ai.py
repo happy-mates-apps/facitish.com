@@ -4,7 +4,7 @@ Which limit applies (budget, own limit or default) is decided in app/consumption
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app import ai, consumption, db, settings_store
+from app import ai, consumption, db, killswitch, settings_store
 from app.routes.features import user_level
 from app.sessions import Principal, current_user
 
@@ -15,6 +15,8 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 async def status(p: Principal = Depends(current_user)):
     if not ai.enabled():
         return {"enabled": False}
+    if await killswitch.is_active("ai"):
+        return {"enabled": False, "closed": True}
     async with db.connection() as conn:
         pol = await consumption.policy(conn, p.user_id)
     return {"enabled": pol["limit"] > 0, "used": pol["used"], "limit": pol["limit"], "hard": pol["hard"],

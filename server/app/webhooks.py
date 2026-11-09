@@ -66,6 +66,7 @@ EVENTS: dict[str, str] = {
     "mail.mailbox.suspended": "En postkasse er suspenderet (postkasse-id)",
     "mail.mailbox.deleted": "En postkasse er slettet eller lavet om til et alias (postkasse-id)",
     "mail.retention.completed": "Sletningen af gammel mail har kørt (kørsel-id, antal slettet, fejl)",
+    "killswitch.changed": "Et nødstop er lukket eller åbnet, i hånden eller af en regel (nøgle, lukket, automatisk)",
 }
 
 # Tests replace this with an httpx.MockTransport.

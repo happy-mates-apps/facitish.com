@@ -38,10 +38,15 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/config.py` | all settings from environment variables |
 | `server/app/migrations/` | plain SQL, applied by `python -m app.migrate` |
 | `server/app/ai.py`, `routes/ai.py` | optional AI chat (OVHcloud AI Endpoints), client tools, usage + monthly limits |
+| `server/app/consumption.py`, `routes/consumption.py` | AI consumption: what limit applies (budget → own limit → default), budgets per user (monthly cap, warning levels, hard/soft, optional period total, start/end date), alerts (`ai_budget_alerts`, webhooks `ai.budget.*`), reports per period/model/user for `/admin/consumption`, the user's own page `/konto/forbrug` (`GET /api/ai/usage`) |
+| `server/app/adoption.py`, `adoption_match.py`, `routes/adoption.py` | adoption journeys (`/admin/adoption`): signed-in page visits (`adoption_visits`, only while the setting `adoption_tracking` is on), steps matched exact/prefix/glob/regex, sequential funnel, forecast, cohorts, nudges as webhook `adoption.nudge.sent`; journey roles reader/editor/owner |
 | `server/app/logs.py`, `retention.py` | auth/audit log writers, purge of logs, cleanup of operational data (`retention_policies`) |
 | `server/app/jobs.py` | background jobs: queue in Postgres (`jobs`), workers + scheduler (`job_schedules`) in the app process, retries with backoff; `@jobs.handler("kind")`, `jobs.enqueue(conn, …)` |
 | `server/app/webhooks.py`, `secrets_box.py` | outgoing webhooks: `webhooks.emit(conn, event, data)` in the same transaction; signed (HMAC), optional auth header, retries via jobs, SSRF guard; secrets encrypted (AES-GCM) |
 | `server/app/webhooks_in.py`, `routes/hooks.py` | incoming webhooks: `POST /api/hooks/in/<key>` (CSRF-exempt), verified per endpoint (Gær signature, HMAC header, fixed header such as Authorization, or URL only) + IP filter, size and rate limits, dedupe on delivery id; stored, then `@webhooks_in.handler("name")` runs as a job |
+| `server/app/events.py` | events: `await events.emit("kind", ref=…, value=…)` → NATS stream `EVENTS` (7 days) → consumer → Postgres `events` (7 days); without NATS straight to Postgres. Rules (setting `kill_rules`) close a kill switch when a kind happens too often |
+| `server/app/killswitch.py` | kill switches (`SWITCHES`, code not config): a closed one answers 503 for its paths within ~2 s in every container (guard middleware); /admin, login, /health never close |
+| `server/app/resources.py`, `routes/resources.py` | /admin/resources: resources in use (container, Postgres, events, Object Storage, NATS, AI, e-mail/SMS, jobs) with limits and prices (setting `resources`), plus kill switches, rules and events by kind |
 | `server/app/nats_monitor.py`, `routes/nats.py` | /admin/nats: reads NATS' HTTP monitoring port (`NATS_MONITOR_URL`), whitelisted endpoints and parameters, secrets masked; read only |
 | `server/app/og.py` | og:image and sharing tags for the anonymous pages (/w, /login, /privatliv): generated images in `web_static/og/` (`node web/scripts/brand-assets.cjs`), replaced per surface or per Markdown page in /admin/web |
 | `server/app/captcha.py` | proof-of-work captcha (no third party) in front of `POST /api/auth/otp/start` |
@@ -71,7 +76,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/user/mail`, `/admin/mail` | logged in (`/admin/mail`: admin, section Drift) | **Mail, calendar and contacts** (spec in `specs/mail/`): one personal mailbox per user in **Stalwart** plus shared mailboxes (reader/sender/manager), calendars (CalDAV/JMAP) and address books (CardDAV) with sharing, all outbound mail relayed by **Lettermint**, mail kept at most **30 days**. `/user/mail` manages your mailbox, aliases, identities, app passwords, calendars, address books and client setup (`/user/<id>/mail` is the same page for your own id, 404 for anyone else); `/admin/mail` is the operator console (domains + DNS check, mailboxes, shared, calendars & contacts, sending, retention, health, audit) and `/admin/mail/users/<id>` one user's mail. Off unless `MAILBOX_BACKEND` is set. | `pages/Mail.tsx`, `admin-app/pages/mail/`, `mailbox/`, `routes/mail.py`, `routes/admin_mail.py` |
 | `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
 | `/develop` | logged in | **Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). | `pages/Develop.tsx`, `develop/prompts.ts` |
-| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
 | `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
@@ -80,7 +85,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (84)</summary>
+<details><summary>All routes (85)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -135,6 +140,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/webhooks` | admin app (`admin.html`) | admin | Webhooks |
 | `/admin/jobs` | admin app (`admin.html`) | admin | Jobs og oprydning |
 | `/admin/nats` | admin app (`admin.html`) | admin | NATS |
+| `/admin/resources` | admin app (`admin.html`) | admin | Ressourcer |
 | `/admin/mail` | admin app (`admin.html`) | admin | Mail |
 | `/admin/mail/users/:id` | admin app (`admin.html`) | admin | Brugerens mail |
 | `/admin/data` | admin app (`admin.html`) | admin | Katalog |
@@ -203,7 +209,9 @@ Rules for routes:
    third parties.
 5. **Migrations are new files**; never edit an applied one.
 6. **Background work goes through `app.jobs`** (never a loose `asyncio.create_task`), so it is retried, visible in
-   /admin/jobs and safe with several containers. Data that grows gets a row in `retention_policies` with its SQL in
+   /admin/jobs and safe with several containers. The only other long-running loops are `app.events` (NATS consumer and
+   rule check), started and stopped by the lifespan like the job workers. Things worth counting are `events.emit(…)`:
+   a kind like `area.what`, ref = an object id or route, never personal data (no user ids, e-mails, phones, IPs). Data that grows gets a row in `retention_policies` with its SQL in
    `retention.CLEANUP_SQL`. New webhook events go in `webhooks.EVENTS` and carry ids, not personal data. What an incoming webhook may do is
    a handler in the code (`webhooks_in.HANDLERS`), never configuration.
 7. **No secrets in the repo.** Configuration comes from environment variables (`server/app/config.py`).

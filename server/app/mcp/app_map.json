@@ -212,6 +212,20 @@
         "nats-tab-{x}"
       ]
     },
+    "/admin/resources": {
+      "title": "Ressourcer",
+      "anchors": [
+        "killswitch-{x}",
+        "resource-{x}",
+        "resources-config",
+        "resources-config-drawer",
+        "resources-events",
+        "resources-filter-{x}",
+        "resources-killswitches",
+        "resources-refresh",
+        "resources-rules"
+      ]
+    },
     "/admin/retention": {
       "title": "Sletning af logdata",
       "anchors": []
