@@ -1,13 +1,12 @@
 """Deletion of log data. Runs on the separate purge database user, never the app user.
 
 Every purge writes log.purged to the audit log in the same transaction, with counts.
-Automatic retention runs once a day from the maintenance loop; /admin/retention can
+Automatic retention runs once a day as the job retention.logs (app.jobs, job_schedules); /admin/retention can
 run it now or purge everything about one user.
 """
 
-import asyncio
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from app import config, db, settings_store
 from app.logs import RequestMeta, audit
@@ -99,29 +98,48 @@ async def log_stats() -> list[dict]:
         return rows
 
 
-# ── Maintenance loop ────────────────────────────────────────────────────────
+# ── Operational data (retention_policies) ───────────────────────────────────
+# Each policy key has fixed SQL here; the table only holds the period and whether it is on. Runs on the app user
+# (these are not log tables) from the hourly job retention.cleanup, and writes retention.cleanup to the audit log.
 
-async def maintenance_once() -> None:
+CLEANUP_SQL = {
+    "jobs": "delete from jobs where status in ('succeeded', 'failed', 'dead') and finished_at < now() - make_interval(days => %s)",
+    "webhook_deliveries": """delete from webhook_deliveries where status in ('succeeded', 'dead')
+                             and created_at < now() - make_interval(days => %s)""",
+    "otp_codes": "delete from otp_codes where created_at < now() - make_interval(days => %s)",
+    "webauthn_challenges": "delete from webauthn_challenges where expires_at < now() - make_interval(days => %s)",
+    "sessions": "delete from sessions where expires_at < now() - make_interval(days => %s)",
+    "webhook_inbound": """delete from webhook_inbound where status in ('processed', 'ignored', 'failed')
+                          and received_at < now() - make_interval(days => %s)""",
+    "captcha_spent": "delete from captcha_spent where expires_at < now() - make_interval(days => %s)",
+    "review_orphans": """delete from review_sessions s where ended_at < now() - make_interval(days => %s)
+                         and jsonb_array_length(pages) = 0
+                         and not exists (select 1 from review_feedback r where r.session_id = s.id)""",
+}
+
+
+async def cleanup(*, only: str | None = None, actor_id: int | None = None, meta: RequestMeta | None = None) -> dict:
+    """Deletes operational data older than each enabled policy. Returns {policy: rows deleted}."""
+    counts = {}
     async with db.connection() as conn:
-        await conn.execute("delete from otp_codes where created_at < now() - interval '1 day'")
-        await conn.execute("delete from webauthn_challenges where expires_at < now()")
-        await conn.execute("delete from sessions where expires_at < now() - interval '30 days'")
-        today = date.today()
-        await conn.execute("select gaer_ensure_analytics_partition(%s)", (today,))
-        await conn.execute("select gaer_ensure_analytics_partition(%s)", (today.replace(day=1) + timedelta(days=32),))
-        last_run = await settings_store.get(conn, "retention_last_run")
-    if last_run != date.today().isoformat():
-        counts = await purge_old(actor_id=None, meta=RequestMeta(), reason="retention")
-        log.info("retention purge: %s", counts)
+        policies = await db.fetch_all(conn, "select key, days from retention_policies where enabled"
+                                      + (" and key = %s" if only else "") + " order by key", (only,) if only else ())
+        for p in policies:
+            sql = CLEANUP_SQL.get(p["key"])
+            if sql is None:
+                continue
+            n = (await conn.execute(sql, (p["days"],))).rowcount
+            counts[p["key"]] = n
+            await conn.execute("update retention_policies set last_run_at = now(), last_deleted = %s where key = %s",
+                               (n, p["key"]))
+        if any(counts.values()) or actor_id is not None:
+            await audit(conn, "retention.cleanup", actor_id=actor_id, meta=meta or RequestMeta(), deleted=counts)
+    return counts
 
 
-async def maintenance_loop() -> None:
-    while True:
-        try:
-            await maintenance_once()
-        except Exception:
-            log.exception("maintenance failed")
-        await asyncio.sleep(3600)
+async def policies() -> list[dict]:
+    async with db.connection() as conn:
+        return await db.fetch_all(conn, "select * from retention_policies order by key")
 
 
 def enabled() -> bool:

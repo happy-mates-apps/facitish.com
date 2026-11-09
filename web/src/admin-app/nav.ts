@@ -1,7 +1,7 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
   Archive, BookOpen, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Globe, LogIn, MousePointerClick, PlugZap, Puzzle, ScrollText,
-  Settings, Smartphone, Table2, Plug, TrendingUp, Users, VenetianMask, type LucideIcon,
+  Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
 export type NavBadge = "impersonation" | "features" | "mcp";
@@ -40,6 +40,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: "/features", label: "Features og ringe", icon: Flag, badge: "features" },
       { path: "/ai", label: "AI", icon: Bot },
+      { path: "/webhooks", label: "Webhooks", icon: Webhook },
     ],
   },
   {
@@ -56,6 +57,7 @@ export const NAV: NavGroup[] = [
       { path: "/gdpr", label: "GDPR-forespørgsler", icon: FileSearch },
       { path: "/consent", label: "Samtykke og cookies", icon: Cookie },
       { path: "/retention", label: "Sletning af logdata", icon: Archive },
+      { path: "/jobs", label: "Jobs og oprydning", icon: Timer },
       { path: "/logs/audit", label: "Audit-log", icon: ScrollText },
     ],
   },
@@ -64,6 +66,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: "/mcp", label: "MCP-servere", icon: PlugZap, badge: "mcp" },
       { path: "/integrations", label: "Udvidelse og Office", icon: Puzzle },
+      { path: "/webhooks", label: "Webhooks", icon: Webhook },
       { path: "/settings", label: "Indstillinger", icon: Settings },
     ],
   },

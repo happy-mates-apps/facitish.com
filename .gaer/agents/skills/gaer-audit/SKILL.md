@@ -14,7 +14,10 @@ Code: `server/app/logs.py`, `server/app/retention.py`, migration `0001_init.sql`
   `passkey.deleted`, `passkey.reset`, `session.revoked`.
 - **audit_log** — `audit(conn, action, actor_id=..., meta=..., table=..., row_id=..., before=..., after=..., **detail)`.
   Actions: `create`, `update`, `delete`, `file.upload`, `file.delete`, `role.changed`, `admin.first_user`,
-  `admin.read`, `gdpr.request`, `gdpr.export`, `gdpr.erasure`, `log.exported`, `log.purged`, `session.revoked`.
+  `admin.read`, `gdpr.request`, `gdpr.export`, `gdpr.erasure`, `log.exported`, `log.purged`, `session.revoked`,
+  `retention.cleanup` (operational data, with counts), `job.enqueued`, `job.retry`, `webhook.test`, `webhook.redeliver`,
+  `webhook.secret_rotated`, `webhook.key_rotated`, `webhook.disabled`, `webhook.received` (incoming, no body),
+  `webhook.replay`. Webhook secrets and auth header values are never logged.
   Auth events also include `phone.changed` (self-service with a code to the new number, or admin rectification).
 
 ## Rules
@@ -26,7 +29,8 @@ Code: `server/app/logs.py`, `server/app/retention.py`, migration `0001_init.sql`
 5. Deletion only through `retention.py` on the **purge** user (`PURGE_DATABASE_URL`), and every purge writes
    `log.purged` with counts in the same transaction. `log.purged` and `gdpr.erasure` entries are never deleted —
    they prove that data was erased and drive `app.reapply_erasures` after a backup restore.
-6. Automatic retention runs daily (`maintenance_loop`); periods are set in `/admin/retention`.
+6. Automatic retention runs as jobs (`app.jobs`, schedules in `job_schedules`): `retention.logs` daily for the logs
+   (periods in `/admin/retention`), `retention.cleanup` hourly for operational data (`retention_policies`, `/admin/jobs`).
 
 ## Checklist for new code
 - [ ] each create/update/delete calls `audit()`

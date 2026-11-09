@@ -95,6 +95,10 @@
       "title": "Udvidelse og Office",
       "anchors": []
     },
+    "/admin/jobs": {
+      "title": "Jobs og oprydning",
+      "anchors": []
+    },
     "/admin/logs/audit": {
       "title": "Audit-log",
       "anchors": []
@@ -136,6 +140,10 @@
     },
     "/admin/web": {
       "title": "Website",
+      "anchors": []
+    },
+    "/admin/webhooks": {
+      "title": "Webhooks",
       "anchors": []
     },
     "/extension": {

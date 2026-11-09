@@ -81,6 +81,9 @@ def test_every_section_has_rules_and_every_role_is_known():
     for role, sections in admin_roles.ROLE_SECTIONS.items():
         assert role in admin_roles.ROLES and set(sections) <= set(admin_roles.SECTIONS)
     assert admin_roles.allows(["fuld"], "DELETE", "/api/admin/anything")
+    assert admin_roles.allows(["drift"], "GET", "/api/admin/inbound-webhooks")
+    assert admin_roles.allows(["drift"], "POST", "/api/admin/inbound-webhooks/events/1/replay")
+    assert admin_roles.allows(["drift"], "POST", "/api/admin/retention/policies/run")
     assert not admin_roles.allows(["drift"], "GET", "/api/admin/unknown")   # deny by default
     assert not admin_roles.allows(["support"], "PATCH", "/api/admin/users/5/role")
     assert admin_roles.allows(["support"], "PATCH", "/api/admin/users/5/email")
