@@ -202,6 +202,10 @@
         "mcp-drafts"
       ]
     },
+    "/admin/meta": {
+      "title": "Træstrukturer",
+      "anchors": []
+    },
     "/admin/nats": {
       "title": "NATS",
       "anchors": [
@@ -267,6 +271,10 @@
       "anchors": [
         "prompt-{x}"
       ]
+    },
+    "/develop/trae": {
+      "title": "Træstrukturer",
+      "anchors": []
     },
     "/extension": {
       "title": "Aktuel side",

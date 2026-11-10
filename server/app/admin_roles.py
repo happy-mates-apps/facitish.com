@@ -18,7 +18,7 @@ FULL = "fuld"
 ROLES: dict[str, dict] = {
     FULL: {"label": "Fuld adgang", "description": "Alt i /admin, også hvem der er admin og med hvilke roller, og MCP for admin."},
     "support": {"label": "Support", "description": "Hjælper brugere: konti, spærring, nulstilling af login, efterligning og auth-loggen."},
-    "indhold": {"label": "Indhold", "description": "Website, filer, App Stores og Viden (vidensrum og agenter)."},
+    "indhold": {"label": "Indhold", "description": "Website, filer, App Stores, Viden (vidensrum og agenter) og træstrukturer."},
     "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics, heatmaps og adoptionsforløb."},
     "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad)."},
     "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, og godkendelse af adgang til fortrolige data."},
@@ -45,6 +45,7 @@ SECTIONS: dict[str, list[str]] = {
     "/web": ["/api/admin/web"],
     "/files": ["/api/admin/files"],
     "/knowledge": ["/api/admin/knowledge"],
+    "/meta": ["/api/admin/meta"],
     "/app-stores": ["/api/admin/app-store"],
     "/data": ["/api/admin/data"],
     "/data/explore": ["/api/admin/data"],
@@ -67,7 +68,7 @@ SECTIONS: dict[str, list[str]] = {
 EVERYONE = ["/"]
 ROLE_SECTIONS: dict[str, list[str]] = {
     "support": ["/users", "/impersonation", "/logs/auth"],
-    "indhold": ["/web", "/files", "/app-stores", "/knowledge"],
+    "indhold": ["/web", "/files", "/app-stores", "/knowledge", "/meta"],
     "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption", "/adoption", "/adoption/journeys",
                 "/adoption/routes", "/adoption/console", "/adoption/access"],
     "data": ["/data", "/data/explore", "/data/connect", "/data/tools"],

@@ -126,12 +126,14 @@
     "da": "logget ind"
    },
    "what": {
-    "en": "**Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`).",
-    "da": "**Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden."
+    "en": "**Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). `/develop/trae` shows **tree structures** (`web/src/tree/`: TreeView, TreeSelect) against the real `/api/meta`: four renderings and the input fields (one node, a start node, tags, a subtree filter, creating a node).",
+    "da": "**Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne."
    },
    "code": [
     "pages/Develop.tsx",
-    "develop/prompts.ts"
+    "develop/prompts.ts",
+    "pages/Trees.tsx",
+    "tree/"
    ]
   },
   {
@@ -142,7 +144,7 @@
     "da": "admin (+ MFA)"
    },
    "what": {
-    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited.",
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, tree structures (`/admin/meta`), website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited.",
     "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
    },
    "code": [
@@ -150,7 +152,8 @@
     "routes/admin.py",
     "impersonation.py",
     "features.py",
-    "app_store.py"
+    "app_store.py",
+    "admin-app/pages/Meta.tsx"
    ]
   },
   {
@@ -423,6 +426,13 @@
    "title": "Udvikling"
   },
   {
+   "path": "/develop/trae",
+   "group": "develop",
+   "app": "app",
+   "access": "user",
+   "title": "Træstrukturer"
+  },
+  {
    "path": "/admin",
    "group": "admin",
    "app": "admin",
@@ -582,6 +592,13 @@
    "app": "admin",
    "access": "admin",
    "title": "Agent"
+  },
+  {
+   "path": "/admin/meta",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Træstrukturer"
   },
   {
    "path": "/admin/ai",

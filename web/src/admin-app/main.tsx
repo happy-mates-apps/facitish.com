@@ -34,6 +34,7 @@ import Jobs from "./pages/Jobs";
 import KnowledgeOverview from "./pages/knowledge/Overview";
 import KnowledgeSpace from "./pages/knowledge/Space";
 import KnowledgeAgent from "./pages/knowledge/Agent";
+import Meta from "./pages/Meta";
 import Nats from "./pages/Nats";
 import Resources from "./pages/Resources";
 import MailAdmin from "./pages/mail/MailAdmin";
@@ -116,6 +117,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="knowledge" element={<KnowledgeOverview />} />
                   <Route path="knowledge/spaces/:id" element={<KnowledgeSpace />} />
                   <Route path="knowledge/agents/:id" element={<KnowledgeAgent />} />
+                  <Route path="meta" element={<Meta />} />
                   <Route path="ai" element={legacy(<AiAdmin />)} />
                   <Route path="consumption" element={<Consumption />} />
                   <Route path="integrations" element={legacy(<Integrations />)} />

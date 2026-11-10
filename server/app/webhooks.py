@@ -66,6 +66,9 @@ EVENTS: dict[str, str] = {
     "mail.mailbox.suspended": "En postkasse er suspenderet (postkasse-id)",
     "mail.mailbox.deleted": "En postkasse er slettet eller lavet om til et alias (postkasse-id)",
     "mail.retention.completed": "Sletningen af gammel mail har kørt (kørsel-id, antal slettet, fejl)",
+    "meta.node.created": "En node er oprettet i et delt træ (node-id, dimension-id, forælder-id)",
+    "meta.node.updated": "En node i et delt træ er rettet, flyttet eller arkiveret (node-id, flyttet)",
+    "meta.node.deleted": "En node i et delt træ er slettet (node-id, antal noder under den)",
     "killswitch.changed": "Et nødstop er lukket eller åbnet, i hånden eller af en regel (nøgle, lukket, automatisk)",
 }
 

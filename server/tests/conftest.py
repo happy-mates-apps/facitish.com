@@ -108,7 +108,7 @@ def clean_database():
                         ai_budgets, ai_budget_alerts, ai_model_prices, jobs,
                         features, feature_rings, feature_usage, app_store,
                         mcp_clients, mcp_tokens, mcp_drafts, mcp_log,
-                        data_sources, datasets, dataset_fields, events, kill_switches
+                        data_sources, datasets, dataset_fields, events, kill_switches, meta_dimensions, meta_nodes
                         restart identity cascade""")
         # The features seeded by migration 0006 (truncate cascades to them via features.created_by).
         from app.features_catalog import CATALOG

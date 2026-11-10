@@ -100,6 +100,10 @@ async def build_user_export(conn, user_id: int) -> dict:
         "mail_events": await rows("""select e.type, e.message_id, e.from_address, e.recipient_domain, e.count, e.at
                                      from mail_events e join mailboxes m on m.id = e.mailbox_id
                                      where m.owner_id = %s order by e.at limit 50000""", user_id),
+        "meta_private_nodes": await rows("""select id, path, label, description, archived_at, created_at, updated_at
+                                            from meta_nodes where owner_id = %s order by path""", user_id),
+        "meta_nodes_created": await rows("""select id, path, label, created_at from meta_nodes
+                                            where created_by = %s and owner_id is null order by path""", user_id),
         "bridge_consents": await rows("select domain, created_at from bridge_consents where user_id = %s order by domain",
                                       user_id),
         "gdpr_requests": await rows("""select id, kind, status, message, received_at, completed_at from gdpr_requests
@@ -210,7 +214,7 @@ async def ensure_can_erase(conn, user_id: int) -> dict:
 async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, reason: str,
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage,
-    AI budgets and their alerts, one-time codes, feature level, review sessions and notes, their test accounts, access to
+    AI budgets and their alerts, one-time codes, feature level, review sessions and notes, their private tree (meta_nodes with owner_id; shared nodes they made keep created_by = null), their test accounts, access to
     and from their area (/user), adoption visits, nudges and journey roles, Viden conversations and agent memberships
     cascade; their mailbox rows cascade and the mailbox itself is removed in Stalwart by the job mail.principal.delete;
     review screenshots and audio are files; feature usage is purged with the logs; their files in Object Storage (their
