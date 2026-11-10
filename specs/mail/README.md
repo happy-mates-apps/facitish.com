@@ -33,8 +33,16 @@ Phase 1 (Stalwart on UpCloud with Managed PostgreSQL and Object Storage, the Let
   user (`POST /api/mail/users/<id>/mailbox` …) are `/api/admin/mail/users/<id>/…`. `me` works wherever `<id>` does
   under `/api/mail`.
 - **Lettermint webhooks** use Gær's incoming webhooks instead of `/api/mail/webhooks/lettermint`: create an endpoint
-  in `/admin/webhooks → Indgående` with handler `lettermint` and HMAC verification, and give its URL to Lettermint.
-  It gets verification, IP filter, rate limit, dedupe and retries for free.
+  in `/admin/webhooks → Indgående` with handler `lettermint`, verification `gaer` (the `t=…,v1=…` scheme Lettermint
+  also uses) on header `X-Lettermint-Signature`, event header `X-Lettermint-Event`, and Lettermint's signing secret
+  (`whsec_…`) as the endpoint's secret; give its URL to Lettermint with the `message.*` events. It gets verification,
+  IP filter, rate limit, dedupe and retries for free.
+- **Outbound mail without the module** (`app/outbound_mail.py`, `/admin/mail → Udgående mail`): every mail the app
+  itself sends through Lettermint (login codes, GDPR and access links, budget alerts) gets a row in `outbound_mail`
+  with the status Lettermint reports — from the same webhook handler, and from the job `mail.lettermint_poll`, which
+  reads `GET /v1/messages` with a Team API token (`LETTERMINT_TEAM_TOKEN`) for the last 7 days filtered on `MAIL_FROM`.
+  Works with `MAILBOX_BACKEND=off`; recipients are stored as HMAC + domain, subjects with digits masked; rows are in
+  the GDPR export, erased with the user and cleaned by the retention policy `outbound_mail` (90 days).
 - **Destructive admin actions** (suspend, delete/convert, revoke all app passwords, rotate relay credentials, delete
   shared mailbox/collection) need a fresh second factor as well as a reason.
 - **Force sign-out of clients** is "revoke all app passwords": clients only ever log in with app passwords.

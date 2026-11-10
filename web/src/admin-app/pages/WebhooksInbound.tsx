@@ -20,7 +20,7 @@ type InEvent = {
 type Data = { items: Endpoint[]; handlers: { name: string; description: string }[] };
 
 const VERIFY: Record<Verify, [string, string]> = {
-  gaer: ["Gær-signatur", "X-Gaer-Signature (t=…,v1=…), som Gærs egne webhooks sender. Tidsstemplet skal være nyt."],
+  gaer: ["Signatur t=…,v1=…", "X-Gaer-Signature, som Gærs egne webhooks sender — samme skema som Stripe, Svix og Lettermint (X-Lettermint-Signature). Tidsstemplet skal være nyt."],
   hmac: ["HMAC-header", "HMAC-SHA256 af body i et header, som sha256=…, hex eller base64 (GitHub, Shopify …)."],
   token: ["Fast header", "Et header med en fast værdi, fx Authorization: Bearer …"],
   none: ["Kun URL", "Ingen header. Den hemmelige URL er beskyttelsen; brug gerne IP-filter."],
@@ -118,7 +118,7 @@ export default function WebhooksInbound() {
                   <tr key={e.id}>
                     <td><strong>{e.name}</strong>{!e.active && <> <span className="pill red">Slået fra</span></>}</td>
                     <td className="mono tiny" style={{ wordBreak: "break-all", maxWidth: 260 }}>{e.url}</td>
-                    <td className="small">{VERIFY[e.verify][0]}{e.header_name && e.verify !== "gaer" && e.verify !== "none" ? <div className="muted tiny">{e.header_name}{e.secret_hint ? `: ${e.secret_hint}` : ""}</div> : null}{e.allowed_ips.length > 0 && <div className="muted tiny">IP: {e.allowed_ips.join(", ")}</div>}</td>
+                    <td className="small">{VERIFY[e.verify][0]}{e.header_name && e.verify !== "none" ? <div className="muted tiny">{e.header_name}{e.secret_hint ? `: ${e.secret_hint}` : ""}</div> : null}{e.allowed_ips.length > 0 && <div className="muted tiny">IP: {e.allowed_ips.join(", ")}</div>}</td>
                     <td className="mono small">{e.handler}</td>
                     <td className="small"><span className="num">{e.received_count}</span>{e.last_received_at && <div className="muted tiny">{fmtDate(e.last_received_at)}</div>}</td>
                     <td className="small"><span className="num">{e.rejected_count}</span>{e.last_rejected_reason && <div className="muted tiny">{REASONS[e.last_rejected_reason] ?? e.last_rejected_reason} · {fmtDate(e.last_rejected_at)}</div>}</td>
@@ -159,10 +159,8 @@ export default function WebhooksInbound() {
             </div>
             {form.verify !== "none" && (
               <div className="filters">
-                {form.verify !== "gaer" && (
-                  <label className="field">Header<input value={form.header_name} onChange={(e) => setForm({ ...form, header_name: e.target.value })}
-                    placeholder={form.verify === "token" ? "Authorization" : "X-Hub-Signature-256"} /></label>
-                )}
+                <label className="field">Header<input value={form.header_name} onChange={(e) => setForm({ ...form, header_name: e.target.value })}
+                  placeholder={form.verify === "token" ? "Authorization" : form.verify === "gaer" ? "X-Gaer-Signature" : "X-Hub-Signature-256"} /></label>
                 <label className="field" style={{ flex: 2, minWidth: 260 }}>{form.verify === "token" ? "Værdi" : "Nøgle"}
                   <input type="password" autoComplete="off" value={form.secret} onChange={(e) => setForm({ ...form, secret: e.target.value })}
                          placeholder={editing ? "Tom = behold den gemte" : "Tom = vi laver en, som du giver afsenderen"} />

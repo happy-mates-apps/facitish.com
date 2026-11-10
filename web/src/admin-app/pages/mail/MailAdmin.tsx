@@ -9,10 +9,11 @@ import { fmt, input, label, select } from "../../theme";
 import { Btn, Empty, ErrorBox, fmtBytes, fmtDate, PageTitle, Pill, useLoad } from "../../ui";
 import { askReason, Card, COLL_ROLES, Label, mono, muted, PersonPicker, SHARED_ROLES, STATUS_LABEL, Table, td, useRun } from "./shared";
 
-type Tab = "overview" | "domains" | "mailboxes" | "shared" | "collections" | "sending" | "retention" | "health" | "audit";
+type Tab = "overview" | "domains" | "mailboxes" | "shared" | "collections" | "sending" | "outbound" | "retention" | "health" | "audit";
 const TABS: [Tab, string][] = [
   ["overview", "Overblik"], ["domains", "Domæner"], ["mailboxes", "Postkasser"], ["shared", "Fælles postkasser"],
-  ["collections", "Kalendere og kontakter"], ["sending", "Afsendelse"], ["retention", "Opbevaring"], ["health", "Drift"], ["audit", "Audit"],
+  ["collections", "Kalendere og kontakter"], ["sending", "Afsendelse"], ["outbound", "Udgående mail"], ["retention", "Opbevaring"],
+  ["health", "Drift"], ["audit", "Audit"],
 ];
 
 type Warning = { key: string; tab: Tab; text: string };
@@ -44,7 +45,8 @@ export default function MailAdmin() {
   );
   if (ov.error) return <>{title}<ErrorBox>{ov.error}</ErrorBox></>;
   if (!ov.data) return title;
-  if (!ov.data.enabled) return <>{title}<NotConfigured /></>;
+  // Without the mail module (Stalwart) the page still follows the app's own mail through Lettermint.
+  if (!ov.data.enabled) return <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>{title}<Outbound /><NotConfigured /></div>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {title}
@@ -63,6 +65,7 @@ export default function MailAdmin() {
       {tab === "shared" && <SharedMailboxes />}
       {tab === "collections" && <CollectionsTab />}
       {tab === "sending" && <Sending />}
+      {tab === "outbound" && <Outbound />}
       {tab === "retention" && <Retention />}
       {tab === "health" && <Health />}
       {tab === "audit" && <Audit />}
@@ -72,8 +75,8 @@ export default function MailAdmin() {
 
 function NotConfigured() {
   return (
-    <Card title="Mail er ikke sat op" style={{ maxWidth: 760 }}>
-      <p style={muted}>Modulet er slået fra, indtil appen kender mailserveren. Sæt i miljøet (se <code>specs/mail/README.md</code>):</p>
+    <Card title="Postkasser, kalendere og kontakter er ikke sat op" style={{ maxWidth: 760 }}>
+      <p style={muted}>Mailmodulet (Stalwart) er slået fra, indtil appen kender mailserveren. Sæt i miljøet (se <code>specs/mail/README.md</code>):</p>
       <pre style={{ margin: 0, padding: 12, borderRadius: 8, background: "#f8fafc", ...mono }}>
         MAILBOX_BACKEND=stalwart{"\n"}STALWART_URL=http://stalwart.internal:8080{"\n"}STALWART_API_KEY=…{"\n"}STALWART_MASTER_USER=gaer-master{"\n"}STALWART_MASTER_SECRET=…{"\n"}MAIL_HOSTNAME=mail.firma.dk
       </pre>
@@ -468,6 +471,151 @@ function Sending() {
           <Table head={["Tidspunkt", "Hændelse", "Modtagerdomæne"]}>
             {d.recent_problems.map((p, i) => <tr key={i}><td style={td}>{fmtDate(p.at)}</td><td style={td}><Pill tone={p.type === "bounced" ? "red" : "orange"}>{p.type === "bounced" ? "Afvist" : "Klage"}</Pill></td><td style={td}>{p.recipient_domain ?? "—"}</td></tr>)}
           </Table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Udgående mail (appens egne mails gennem Lettermint — også uden mailmodulet) ─────────────────────────────────
+
+type OutboundRow = {
+  id: number; provider_message_id: string; user_id: number | null; user_name: string | null; recipient_domain: string | null;
+  purpose: string; subject: string | null; status: string; status_source: string; status_changed_at: string | null; created_at: string;
+};
+type OutboundEndpoint = {
+  id: number; name: string; url: string; verify: string; header_name: string | null; event_header: string | null; active: boolean;
+  received_count: number; rejected_count: number; last_received_at: string | null; last_rejected_at: string | null; last_rejected_reason: string | null;
+};
+type OutboundData = {
+  days: number;
+  counts: { total: number; delivered: number; pending: number; problems: number; unknown: number };
+  per_day: { day: string; sent: number; delivered: number; problems: number }[];
+  by_purpose: { purpose: string; n: number }[];
+  poll: { enabled: boolean; last: { status: string; finished_at: string | null; result: Record<string, unknown> | null; error: string | null } | null;
+          schedule: { enabled: boolean; next_run_at: string; last_run_at: string | null } | null };
+  webhook: { last_event_at: string | null };
+  items: OutboundRow[]; total: number;
+  provider: string; mail_from: string | null; api_token_set: boolean; team_token_set: boolean;
+  webhook_endpoints: OutboundEndpoint[]; statuses: string[]; purposes: string[];
+};
+
+const OUT_STATUS: Record<string, [string, "green" | "orange" | "red" | "gray" | "blue"]> = {
+  scheduled: ["Planlagt", "gray"], queued: ["I kø", "gray"], sent: ["Sendt", "blue"], delivered: ["Leveret", "green"], opened: ["Åbnet", "green"],
+  deferred: ["Udsat", "orange"], soft_bounced: ["Afvist (midlertidigt)", "orange"], hard_bounced: ["Afvist", "red"], failed: ["Fejlet", "red"],
+  spam_complaint: ["Klage", "red"], suppressed: ["Spærret modtager", "red"], unknown: ["Ukendt", "gray"],
+};
+const OUT_PURPOSE: Record<string, string> = {
+  login: "Engangskode", email_change: "Skift af e-mail", gdpr: "GDPR", access: "Adgang (MCP)", budget: "AI-budget", other: "Andet",
+};
+const OUT_SOURCE: Record<string, string> = { app: "appen", webhook: "webhook", poll: "poll" };
+
+function Outbound() {
+  const [status, setStatus] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [offset, setOffset] = useState(0);
+  const data = useLoad(() => api.get<OutboundData>(`/api/admin/mail/outbound${query({ status, purpose, offset })}`), [status, purpose, offset]);
+  const act = useRun(data.reload);
+  const d = data.data;
+  if (!d) return data.error ? <ErrorBox>{data.error}</ErrorBox> : null;
+  const c = d.counts;
+  const rate = c.total ? (c.delivered / c.total) : null;
+  const lastPoll = d.poll.last;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {act.error && <ErrorBox>{act.error}</ErrorBox>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+        <Stat label={`Sendt · ${d.days} dage`} value={fmt(c.total)} sub={d.by_purpose.map((p) => `${OUT_PURPOSE[p.purpose] ?? p.purpose} ${fmt(p.n)}`).join(" · ") || "Ingen endnu"} />
+        <Stat label="Leveret" value={rate == null ? "—" : `${Math.round(rate * 100)} %`} sub={`${fmt(c.delivered)} leveret · ${fmt(c.pending)} undervejs`} />
+        <Stat label="Problemer" value={fmt(c.problems)} sub={c.unknown ? `${fmt(c.unknown)} med ukendt status` : "Afvist, fejlet, klager og spærrede"} />
+        <Stat label="Sidste status fra Lettermint"
+              value={d.webhook.last_event_at || lastPoll?.finished_at ? fmtDate([d.webhook.last_event_at, lastPoll?.finished_at].filter(Boolean).sort().at(-1)!) : "—"}
+              sub={`Webhook ${d.webhook.last_event_at ? fmtDate(d.webhook.last_event_at) : "aldrig"} · poll ${lastPoll?.finished_at ? fmtDate(lastPoll.finished_at) : "aldrig"}`} />
+      </div>
+
+      <Card title="Lettermint" aside={
+        <Btn height={32} disabled={act.busy || !d.team_token_set} title={d.team_token_set ? "Hent status fra Lettermint nu" : "Kræver LETTERMINT_TEAM_TOKEN"}
+             onClick={() => act.run(() => api.post("/api/admin/mail/outbound/poll", {}), "Status hentet fra Lettermint")}>
+          <RefreshCw size={14} /> Hent status nu
+        </Btn>}>
+        <p style={muted}>
+          Appen sender sin egen mail — engangskoder, GDPR- og adgangslinks, AI-budgetadvarsler — med <code>MAIL_PROVIDER={d.provider}</code>
+          {d.mail_from ? <> fra <code>{d.mail_from}</code></> : null}. Status kommer to veje: Lettermint poster hændelser til en indgående webhook, og
+          jobbet <code>mail.lettermint_poll</code> henter resten hvert kvarter med en Team API-nøgle.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+          <div>
+            <Label>Webhook fra Lettermint</Label>
+            {d.webhook_endpoints.length === 0 ? (
+              <p style={muted}>
+                Ingen endpoint endnu. Opret et i <a href="/admin/webhooks#indgaaende">Webhooks → Indgående</a> med handleren „lettermint“, verifikation „gaer“ og
+                header <code>X-Lettermint-Signature</code>, hændelsesheader <code>X-Lettermint-Event</code>. Opret derefter webhooken i Lettermint med endpointets URL
+                og hændelserne <code>message.*</code>, og indsæt Lettermints signeringshemmelighed (<code>whsec_…</code>) som endpointets hemmelighed.
+              </p>
+            ) : d.webhook_endpoints.map((w) => (
+              <div key={w.id} style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <strong style={{ fontSize: 13 }}>{w.name}</strong>
+                  <Pill tone={w.active ? "green" : "gray"}>{w.active ? "aktiv" : "slået fra"}</Pill>
+                  {(w.verify !== "gaer" || (w.header_name ?? "").toLowerCase() !== "x-lettermint-signature") && <Pill tone="orange">tjek verifikation: gaer + X-Lettermint-Signature</Pill>}
+                </div>
+                <code style={{ ...mono, wordBreak: "break-all" }}>{w.url}</code>
+                <span style={muted}>{fmt(w.received_count)} modtaget · sidst {w.last_received_at ? fmtDate(w.last_received_at) : "aldrig"}
+                  {w.rejected_count ? ` · ${fmt(w.rejected_count)} afvist (${w.last_rejected_reason ?? "?"})` : ""}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <Label>Poll (Team API)</Label>
+            {!d.team_token_set ? (
+              <p style={muted}>Sæt <code>LETTERMINT_TEAM_TOKEN</code> (en Team API-nøgle, <code>lm_team_…</code>) i miljøet, så jobbet kan læse status på sendte mails. Indtil da kommer status kun fra webhooken.</p>
+            ) : (
+              <p style={muted}>
+                {d.poll.schedule ? <>Kører {d.poll.schedule.enabled ? "automatisk" : "ikke (planen er slået fra)"}; næste {fmtDate(d.poll.schedule.next_run_at)}. </> : null}
+                {lastPoll ? <>Sidst {fmtDate(lastPoll.finished_at ?? "")} — {lastPoll.status === "succeeded" ? `så ${String(lastPoll.result?.seen ?? 0)} mails, ${String(lastPoll.result?.updated ?? 0)} opdateret, ${String(lastPoll.result?.created ?? 0)} nye` : `fejlede: ${lastPoll.error ?? "?"}`}.</> : "Har ikke kørt endnu."}
+                {" "}Planen ændres i <Link to="/jobs">Jobs og oprydning</Link>.
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Sendte mails" aside={
+        <div style={{ display: "flex", gap: 8 }}>
+          <select value={status} onChange={(e) => { setStatus(e.target.value); setOffset(0); }} style={{ ...select, height: 32 }}>
+            <option value="">Alle statusser</option>
+            <option value="pending">Undervejs</option>
+            <option value="problems">Problemer</option>
+            {d.statuses.map((st) => <option key={st} value={st}>{OUT_STATUS[st]?.[0] ?? st}</option>)}
+          </select>
+          <select value={purpose} onChange={(e) => { setPurpose(e.target.value); setOffset(0); }} style={{ ...select, height: 32 }}>
+            <option value="">Alle formål</option>
+            {d.purposes.map((pu) => <option key={pu} value={pu}>{OUT_PURPOSE[pu] ?? pu}</option>)}
+          </select>
+        </div>}>
+        {d.items.length === 0 ? <Empty>Ingen mails {status || purpose ? "med det filter" : "endnu"}. Modtageren gemmes kun som hash og domæne; emnet uden tal.</Empty> : (
+          <Table head={["Sendt", "Formål", "Emne", "Modtager", "Status", "Kilde"]}>
+            {d.items.map((m) => {
+              const [text, tone] = OUT_STATUS[m.status] ?? [m.status, "gray"];
+              return (
+                <tr key={m.id}>
+                  <td style={td}>{fmtDate(m.created_at)}</td>
+                  <td style={td}>{OUT_PURPOSE[m.purpose] ?? m.purpose}</td>
+                  <td style={{ ...td, maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.subject ?? ""}>{m.subject ?? "—"}</td>
+                  <td style={td}>{m.user_name ? <>{m.user_name}{m.user_id ? <span style={{ ...muted, display: "block" }}>#{m.user_id} · {m.recipient_domain ?? "?"}</span> : null}</> : m.recipient_domain ? `@${m.recipient_domain}` : "—"}</td>
+                  <td style={td}><Pill tone={tone}>{text}</Pill>{m.status_changed_at && <span style={{ ...muted, display: "block" }}>{fmtDate(m.status_changed_at)}</span>}</td>
+                  <td style={td}>{OUT_SOURCE[m.status_source] ?? m.status_source}</td>
+                </tr>
+              );
+            })}
+          </Table>
+        )}
+        {d.total > 100 && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Btn height={32} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>Forrige</Btn>
+            <Btn height={32} disabled={offset + 100 >= d.total} onClick={() => setOffset(offset + 100)}>Næste</Btn>
+            <span style={muted}>{offset + 1}–{Math.min(offset + 100, d.total)} af {fmt(d.total)}</span>
+          </div>
         )}
       </Card>
     </div>

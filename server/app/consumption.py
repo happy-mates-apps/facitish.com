@@ -15,7 +15,7 @@ Only token counts are used; prompts and answers are never stored (see app/ai.py)
 
 from datetime import date, datetime, timedelta
 
-from app import config, db, jobs, mail, settings_store, webhooks
+from app import config, db, jobs, mail, outbound_mail, settings_store, webhooks
 
 WARN_CHOICES = (10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95)
 RANGES = ("day", "week", "month", "year", "custom")
@@ -160,7 +160,7 @@ async def send_alert_mail(payload: dict, job: dict) -> dict:
     purged) or it was already mailed. A mail error raises, so the job is retried."""
     async with db.connection() as conn:
         row = await db.fetch_one(conn, """
-            select a.id, a.kind, a.pct, a.used, a.limit_tokens, a.mailed_at, a.month, u.email
+            select a.id, a.kind, a.pct, a.used, a.limit_tokens, a.mailed_at, a.month, u.email, a.user_id
             from ai_budget_alerts a join users u on u.id = a.user_id where a.id = %s""", (payload["alert_id"],))
         if row is None:
             return {"skipped": "alert not found"}
@@ -175,9 +175,11 @@ async def send_alert_mail(payload: dict, job: dict) -> dict:
                                               bool(payload.get("hard", True)), app_name,
                                               config.settings.origin.rstrip("/") + "/konto/forbrug",
                                               f"{nxt.day}. {MONTHS[nxt.month - 1]} {nxt.year}")
-    await mail.send_mail(row["email"], subject, text, body, app_name)
+    message_id = await mail.send_mail(row["email"], subject, text, body, app_name)
     async with db.connection() as conn:
         await conn.execute("update ai_budget_alerts set mailed_at = now() where id = %s", (row["id"],))
+        await outbound_mail.record_sent(conn, message_id=message_id, recipient=row["email"], user_id=row.get("user_id"),
+                                        purpose="budget", subject=subject)
     return {"sent": row["kind"], "pct": row["pct"]}
 
 

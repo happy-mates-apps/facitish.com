@@ -123,6 +123,7 @@ CLEANUP_SQL = {
     "knowledge_ingest_log": "delete from knowledge_ingest_log where created_at < now() - make_interval(days => %s)",
     "knowledge_conversations": "delete from knowledge_conversations where updated_at < now() - make_interval(days => %s)",
     "mail_events": "delete from mail_events where at < now() - make_interval(days => %s)",
+    "outbound_mail": "delete from outbound_mail where created_at < now() - make_interval(days => %s)",
     "mail_retention_runs": "delete from mail_retention_runs where started_at < now() - make_interval(days => %s)",
     "mail_alias_requests": """delete from mail_alias_requests where status <> 'pending'
                               and decided_at < now() - make_interval(days => %s)""",

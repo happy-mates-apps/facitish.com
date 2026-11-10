@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
-from app import config, db, jobs, settings_store, webhooks_in
+from app import config, db, jobs, outbound_mail, settings_store, webhooks_in
 from app.logs import RequestMeta, audit
 from app.mailbox import backend as mb_backend
 from app.mailbox import service
@@ -203,27 +203,37 @@ def event_type(name: str) -> str | None:
     return None
 
 
-@webhooks_in.handler("lettermint", "Lettermint: levering, bounce og klager til mailmodulet (/admin/mail)")
+@webhooks_in.handler("lettermint", "Lettermint: status på appens udgående mail (/admin/mail → Udgående mail) og, med "
+                                   "mailmodulet, levering, bounce og klager pr. postkasse")
 async def on_lettermint(event: dict, endpoint: dict) -> dict:
     body = event.get("body_json") or {}
     if isinstance(body, str):
         import json
         body = json.loads(body)
     items = body if isinstance(body, list) else [body]
-    stored = 0
+    stored = outbound = 0
     async with db.connection() as conn:
         for item in items:
             name = event.get("event") or _first(item, "event", "type", "name") or ""
-            kind = event_type(name)
-            if kind is None:
-                continue
             data = item.get("data") if isinstance(item.get("data"), dict) else item
-            sender = (_first(data, "from", "sender", "message.from", "envelope.from") or "").lower()
+            sender = (_first(data, "from", "from_email", "sender", "message.from", "envelope.from") or "").lower()
             sender = re.sub(r"^.*<([^>]+)>.*$", r"\1", sender)
-            recipient = _first(data, "to", "recipient", "email", "message.to", "envelope.to") or ""
+            recipient = _first(data, "to", "recipient", "recipient_email", "email", "message.to", "envelope.to") or ""
             recipient = re.sub(r"^.*<([^>]+)>.*$", r"\1", recipient)
             message_id = _first(data, "message_id", "messageId", "message.id", "id")
             provider_id = _first(item, "id", "event_id", "uuid")
+            # The app's own mail: every message.* event moves the row in outbound_mail (created if the send was not
+            # recorded here), whatever the mail module's state.
+            if message_id and name.lower().startswith("message."):
+                await outbound_mail.apply_event(
+                    conn, message_id=str(message_id), status=outbound_mail.normalize_status(name), source="webhook",
+                    at=outbound_mail.parse_when(item.get("timestamp")), recipient=recipient or None,
+                    subject=data.get("subject") if isinstance(data.get("subject"), str) else None,
+                    detail={"event": name[:100], "inbound_id": str(event.get("id"))})
+                outbound += 1
+            kind = event_type(name)
+            if kind is None:
+                continue
             mb = None
             if sender:
                 mb = await db.fetch_one(conn, """
@@ -239,4 +249,4 @@ async def on_lettermint(event: dict, endpoint: dict) -> dict:
                  f"{endpoint['id']}:{provider_id}"[:300] if provider_id else None,
                  Jsonb({"event": name[:100], "inbound_id": str(event.get("id"))})))
             stored += 1 if row else 0
-    return {"stored": stored}
+    return {"stored": stored, "outbound": outbound}
