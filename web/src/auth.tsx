@@ -45,6 +45,7 @@ export type PublicConfig = {
   first_user: boolean;
   sms_login: boolean;
   demo_mode: boolean;
+  demo_logins: boolean;
   /** POST /api/auth/otp/start needs a solved robot check (src/captcha.ts). */
   captcha: boolean;
 };
