@@ -169,7 +169,10 @@ docker compose up -d                                   # Postgres + MinIO + NATS
 npm run dev --prefix web                               # http://localhost:5173
 ```
 
-Med `SMS_PROVIDER=console` står engangskoden i serverens log og på login-siden. Den første bruger bliver admin.
+Med `MAIL_PROVIDER=console` står engangskoden i serverens log og på login-siden, og login-siden tilbyder
+**demo-konti** for alle roller (fuld adgang, support, indhold, produkt, data, privatliv, drift og en almindelig
+bruger — `server/app/demo_logins.py`). De logger ind med den almindelige engangskode og tæller med i auth-loggen og
+grace-logins som alle andre. Den første bruger bliver admin.
 Websitet `/w/` serveres af Python-serveren: http://localhost:8000/w/.
 
 ### Test
