@@ -351,13 +351,42 @@ async def write(conn, loc: Loc, filename: str, data: bytes, content_type: str | 
                 overwrite: bool = False, via: str | None = None, audit_extra: dict | None = None) -> dict:
     """Stores bytes at loc/filename. An existing file with that name is replaced when overwrite is true (it keeps
     its id and uploader; who wrote it is in the audit log), else the new file gets a free name ("x (2).md")."""
-    _check(p, loc, admin, write=True)
-    await _home_owner(conn, loc)
-    filename = clean_name(filename)
     limit = config.settings.max_upload_mb * 1024 * 1024
     if len(data) > limit:
         raise HTTPException(413, f"Filen er større end {config.settings.max_upload_mb} MB")
-    content_type = content_type or guess_type(filename)
+    content_type = content_type or guess_type(clean_name(filename))
+
+    async def store(key: str) -> None:
+        await get_storage().put(key, data, content_type)
+
+    return await _place(conn, loc, filename, len(data), content_type, p, admin=admin, overwrite=overwrite, via=via,
+                        audit_extra=audit_extra, store=store)
+
+
+async def register(conn, loc: Loc, filename: str, key: str, size: int, content_type: str | None, p: Principal, *,
+                   admin: bool, overwrite: bool = False, via: str | None = None,
+                   audit_extra: dict | None = None) -> dict:
+    """Puts an object that is already in Object Storage (key) into the tree at loc/filename — a direct upload or a
+    file from a zip. Same rules and audit rows as write(); the caller removes the object if this raises."""
+    limit = config.settings.max_direct_upload_mb * 1024 * 1024
+    if size > limit:
+        raise HTTPException(413, f"Filen er større end {config.settings.max_direct_upload_mb} MB")
+    return await _place(conn, loc, filename, size, content_type or guess_type(clean_name(filename)), p, admin=admin,
+                        overwrite=overwrite, via=via, audit_extra=audit_extra, key=key)
+
+
+async def check_write(conn, loc: Loc, p: Principal, *, admin: bool) -> None:
+    """Raises unless p may save files in loc (used before a direct upload starts)."""
+    _check(p, loc, admin, write=True)
+    await _home_owner(conn, loc)
+
+
+async def _place(conn, loc: Loc, filename: str, size: int, content_type: str, p: Principal, *, admin: bool,
+                 overwrite: bool, via: str | None, audit_extra: dict | None, store=None, key: str | None = None) -> dict:
+    """The file row for loc/filename: store(key) writes the bytes to a new key, or key is an object already there."""
+    _check(p, loc, admin, write=True)
+    await _home_owner(conn, loc)
+    filename = clean_name(filename)
     extra = {**({"via": via} if via else {}), **(audit_extra or {})}
     scope, params = _scope(loc)
     same = await db.fetch_all(conn, f"""select f.id, f.filename, f.storage_key, f.size_bytes from files f
@@ -365,15 +394,16 @@ async def write(conn, loc: Loc, filename: str, data: bytes, content_type: str | 
     existing = next((r for r in same if r["filename"] == filename), None)
     storage = get_storage()
     if existing and overwrite:
-        key = f"{_prefix(loc)}/{uuid.uuid4()}"
-        await storage.put(key, data, content_type)
+        if key is None:
+            key = f"{prefix(loc)}/{uuid.uuid4()}"
+            await store(key)
         row = await db.fetch_one(conn, f"""
             update files set storage_key = %s, content_type = %s, size_bytes = %s, updated_at = now()
             where id = %s returning {FILE_COLS.replace('f.', '')}""",
-            (key, content_type, len(data), existing["id"]))
+            (key, content_type, size, existing["id"]))
         await audit(conn, "file.write", actor_id=p.user_id, meta=p.meta, table="files", row_id=existing["id"],
                     before={"size_bytes": existing["size_bytes"]},
-                    after={"path": file_path(row), "size_bytes": len(data), "content_type": content_type}, **extra)
+                    after={"path": file_path(row), "size_bytes": size, "content_type": content_type}, **extra)
         try:
             await storage.delete(existing["storage_key"])
         except Exception:
@@ -383,19 +413,21 @@ async def write(conn, loc: Loc, filename: str, data: bytes, content_type: str | 
     if loc.folder != "/":
         await _ensure_folders(conn, loc, p.user_id)
     file_id = uuid.uuid4()
-    key = f"{_prefix(loc)}/{file_id}"
-    await storage.put(key, data, content_type)
+    if key is None:
+        key = f"{prefix(loc)}/{file_id}"
+        await store(key)
     row = await db.fetch_one(conn, f"""
         insert into files (id, user_id, storage_key, filename, content_type, size_bytes, kind, space, folder, uploaded_by)
         values (%s, %s, %s, %s, %s, %s, 'file', %s, %s, %s) returning {FILE_COLS.replace('f.', '')}""",
-        (file_id, loc.user_id, key, filename, content_type, len(data), loc.space, loc.folder, p.user_id))
+        (file_id, loc.user_id, key, filename, content_type, size, loc.space, loc.folder, p.user_id))
     await audit(conn, "file.upload", actor_id=p.user_id, meta=p.meta, table="files", row_id=file_id,
-                after={"filename": filename, "size_bytes": len(data), "content_type": content_type,
+                after={"filename": filename, "size_bytes": size, "content_type": content_type,
                        "user_id": loc.user_id, "kind": "file", "path": file_path(row)}, **extra)
     return row
 
 
-def _prefix(loc: Loc) -> str:
+def prefix(loc: Loc) -> str:
+    """Where a tree file's object lives in the bucket (never user input)."""
     return f"users/{loc.user_id}" if loc.kind == "home" else "shared"
 
 

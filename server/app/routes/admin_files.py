@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, UploadFile
 
-from app import db, filetree
+from app import db, filetree, uploads
 from app.routes.files import FolderIn, MoveIn, TextFileIn, raw_response
 from app.sessions import Principal, require_admin
 from app.storage import get_storage
@@ -35,11 +35,46 @@ async def delete_folder(path: str, admin: Principal = Depends(require_admin)):
 
 
 @router.post("/upload")
-async def upload(file: UploadFile, path: str, overwrite: bool = False, admin: Principal = Depends(require_admin)):
+async def upload(file: UploadFile, path: str, overwrite: bool = False, unzip: bool = False, into_folder: bool = False,
+                 admin: Principal = Depends(require_admin)):
+    """Upload through the server (the fallback; /admin/files uploads straight to Object Storage via /uploads)."""
     async with db.connection() as conn:
-        row = await filetree.upload(conn, filetree.parse(path, me=admin.user_id), file, admin, admin=True,
-                                    overwrite=overwrite)
+        loc = filetree.parse(path, me=admin.user_id)
+        if unzip:
+            return {"upload": await uploads.unzip_via_server(conn, loc, file, admin, admin=True, overwrite=overwrite,
+                                                             into_folder=into_folder)}
+        row = await filetree.upload(conn, loc, file, admin, admin=True, overwrite=overwrite)
     return filetree.out(row, admin=True)
+
+
+@router.post("/uploads")
+async def upload_start(body: uploads.StartIn, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        return await uploads.start(conn, body, admin, admin=True)
+
+
+@router.post("/uploads/{upload_id}/parts")
+async def upload_parts(upload_id: uuid.UUID, body: uploads.PartsIn, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        return await uploads.part_links(conn, upload_id, body, admin, admin=True)
+
+
+@router.post("/uploads/{upload_id}/complete")
+async def upload_complete(upload_id: uuid.UUID, body: uploads.CompleteIn, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        return await uploads.complete(conn, upload_id, body, admin, admin=True)
+
+
+@router.get("/uploads/{upload_id}")
+async def upload_status(upload_id: uuid.UUID, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        return await uploads.status(conn, upload_id, admin, admin=True)
+
+
+@router.delete("/uploads/{upload_id}")
+async def upload_abort(upload_id: uuid.UUID, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        return await uploads.abort(conn, upload_id, admin, admin=True)
 
 
 @router.put("/text")
