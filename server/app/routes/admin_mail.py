@@ -20,7 +20,7 @@ from fastapi.responses import Response
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from app import config, db, jobs, settings_store, webhooks
+from app import config, db, jobs, outbound_mail, settings_store, webhooks
 from app.logs import audit
 from app.mailbox import backend as mb_backend
 from app.mailbox import dns as mail_dns
@@ -899,6 +899,47 @@ async def sending():
             "rotated_at": rotated, "credentials_age_days": age, "paused": bool(values["mail_relay_paused"]),
             "rates_24h": r24, "rates_30d": r30, "recent_problems": recent, "webhook_endpoints": endpoints,
             "thresholds": {"bounce": BOUNCE_WARN, "complaint": COMPLAINT_WARN}}
+
+
+# ── Udgående mail (the app's own mail through Lettermint; works without the mail module) ─────────────────────────
+
+@router.get("/outbound")
+async def outbound(status: str | None = None, purpose: str | None = None, limit: int = 100, offset: int = 0,
+                   days: int = 14):
+    s = config.settings
+    async with db.connection() as conn:
+        summary = await outbound_mail.summary(conn, days=max(1, min(days, 90)))
+        listing = await outbound_mail.recent(conn, status=status, purpose=purpose, limit=max(1, min(limit, 500)),
+                                             offset=max(0, offset))
+        endpoints = await db.fetch_all(conn, """select id, name, key, verify, header_name, event_header, active, received_count,
+                                                       rejected_count, last_received_at, last_rejected_at, last_rejected_reason
+                                                from webhook_endpoints where handler = 'lettermint' order by id""")
+    origin = s.origin.rstrip("/")
+    return {**summary, **listing,
+            "provider": s.mail_provider, "mail_from": s.mail_from,
+            "api_token_set": bool(s.lettermint_api_token), "team_token_set": bool(s.lettermint_team_token),
+            "webhook_endpoints": [{**e, "url": f"{origin}/api/hooks/in/{e['key']}"} for e in endpoints],
+            "statuses": outbound_mail.STATUSES, "purposes": outbound_mail.PURPOSES}
+
+
+class PollIn(BaseModel):
+    days: int = Field(default=outbound_mail.POLL_DAYS, ge=1, le=90)
+
+
+@router.post("/outbound/poll")
+async def outbound_poll(body: PollIn, p: Principal = Depends(require_admin)):
+    """Runs the Lettermint poll now (audited). Needs LETTERMINT_TEAM_TOKEN."""
+    if not outbound_mail.poll_enabled():
+        raise HTTPException(409, "LETTERMINT_TEAM_TOKEN er ikke sat")
+    try:
+        result = await outbound_mail.poll(days=body.days)
+    except jobs.Retry as e:
+        raise HTTPException(429, str(e))
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    async with db.connection() as conn:
+        await audit(conn, "mail.outbound_poll", actor_id=p.user_id, meta=p.meta, after=result)
+    return result
 
 
 class RelayIn(BaseModel):

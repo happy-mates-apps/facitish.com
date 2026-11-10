@@ -29,7 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSele
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import access, admin_roles, captcha, config, db, events, mfa, settings_store, totp, webhooks
+from app import access, admin_roles, captcha, config, db, events, mfa, outbound_mail, settings_store, totp, webhooks
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
@@ -155,7 +155,9 @@ async def issue_code(conn, channel: str, contact: str, meta: RequestMeta, *, pur
     try:
         if channel == "email":
             subject, text, body = otp_mail(code, values["app_name"], minutes)
-            await send_mail(contact, subject, text, body, values["app_name"])
+            message_id = await send_mail(contact, subject, text, body, values["app_name"])
+            await outbound_mail.record_sent(conn, message_id=message_id, recipient=contact, user_id=user_id,
+                                            purpose="login" if purpose == "login" else "email_change", subject=subject)
         else:
             await send_sms(contact, otp_message(code, values["app_name"], minutes), values["sms_sender"])
     except (MailError, SmsError) as e:

@@ -22,7 +22,7 @@ import html
 import logging
 from datetime import datetime, timezone
 
-from app import admin_roles, config, db, jobs, settings_store
+from app import admin_roles, config, db, jobs, outbound_mail, settings_store
 from app.logs import RequestMeta, audit
 from app.mail import send_mail
 from app.security import new_token, token_hash
@@ -433,5 +433,8 @@ async def send_one(payload: dict, job: dict) -> dict:
             button="Se og godkend", url=f"{origin}/admin/access?request={r['id']}&t={token}",
             footer=f"Linket virker i {hours} timer og kun for dig. Du skal logge ind og bruge din anden faktor, før du "
                    f"kan godkende. Anmodningen står også på listen i /admin/access.")
-    await send_mail(to["email"], subject, text, body, app_name)
+    message_id = await send_mail(to["email"], subject, text, body, app_name)
+    async with db.connection() as conn:
+        await outbound_mail.record_sent(conn, message_id=message_id, recipient=to["email"], user_id=to.get("id"),
+                                        purpose="access", subject=subject)
     return {"sent": True}
