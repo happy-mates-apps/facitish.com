@@ -244,7 +244,8 @@ async def summary(conn, *, days: int = 14) -> dict:
         group by 1 order by 2 desc""", (days,))
     last_poll = await db.fetch_one(conn, """
         select status, finished_at, result, last_error as error from jobs where kind = 'mail.lettermint_poll'
-        and status in ('succeeded', 'failed', 'dead') order by finished_at desc nulls last limit 1""")
+        and status in ('succeeded', 'failed', 'dead') and not coalesce(result ? 'skipped', false)
+        order by finished_at desc nulls last limit 1""")
     schedule = await db.fetch_one(conn, "select enabled, next_run_at, last_run_at from job_schedules where name = 'mail.lettermint_poll'")
     last_webhook = await db.fetch_one(conn, """select max(status_changed_at) as at from outbound_mail
                                               where status_source = 'webhook'""")
