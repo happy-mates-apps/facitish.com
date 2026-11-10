@@ -29,7 +29,7 @@ from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSele
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import access, admin_roles, captcha, config, db, events, mfa, settings_store, totp, webhooks
+from app import access, admin_roles, captcha, config, db, demo_logins, events, mfa, settings_store, totp, webhooks
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
@@ -233,6 +233,36 @@ async def otp_start(body: StartIn, request: Request):
     if dev_code_allowed(channel):
         response["dev_code"] = code
     return response
+
+
+# ── Demo logins (development only) ──────────────────────────────────────────
+
+@router.get("/demo-logins")
+async def demo_logins_list():
+    """The demo accounts the login page offers — one per role. Empty outside development."""
+    if not demo_logins.enabled():
+        return {"enabled": False, "accounts": []}
+    return {"enabled": True, "accounts": demo_logins.accounts()}
+
+
+@router.post("/demo-logins/{key}")
+async def demo_login_start(key: str, request: Request):
+    """Creates the demo user if needed and issues a one-time code for it, like otp/start does in development. The
+    login page then verifies the code through otp/verify, so the login itself is the ordinary one."""
+    if not demo_logins.enabled():
+        raise HTTPException(404)
+    if key not in demo_logins.ACCOUNTS:
+        raise HTTPException(404, "Ukendt demo-konto")
+    s = config.settings
+    meta = request_meta(request)
+    async with db.connection() as conn:
+        user = await demo_logins.ensure_user(conn, key, meta)
+        contact = user["email"]
+        await check_send_limits(conn, contact, meta, demo=key)
+        if user["blocked_at"]:
+            raise HTTPException(403, "Demo-kontoen er spærret. Ophæv spærringen i /admin/users.")
+        code = await issue_code(conn, "email", contact, meta, user_id=user["id"])
+    return {"ok": True, "email": contact, "dev_code": code, "expires_in": s.otp_ttl_seconds}
 
 
 @router.post("/otp/verify")

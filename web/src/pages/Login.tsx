@@ -17,6 +17,32 @@ type Step =
 
 const GRACE_LOGINS = 3;
 
+type DemoAccount = { key: string; email: string; label: string; role: "admin" | "user"; description: string };
+
+// Development only: the server offers one demo account per role (app/demo_logins.py). Each logs in through the
+// ordinary one-time code, which the server returns to the page just as otp/start does with MAIL_PROVIDER=console.
+function DemoLogins({ accounts, busy, onPick }: { accounts: DemoAccount[]; busy: boolean; onPick: (key: string) => void }) {
+  return (
+    <div className="stack" style={{ "--gap": "8px" } as React.CSSProperties} aria-label="Demo-konti">
+      <div className="row muted tiny" style={{ justifyContent: "center" }}>Demo-konti · kun i udvikling</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6 }}>
+        {accounts.map((a) => (
+          <button key={a.key} type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onPick(a.key)}
+                  title={a.description} style={{ justifyContent: "flex-start", gap: 6 }}>
+            <span className={`pill ${a.role === "admin" ? "blue" : ""}`} style={{ padding: "1px 7px", fontSize: 10 }}>
+              {a.role === "admin" ? "admin" : "bruger"}
+            </span>
+            {a.label}
+          </button>
+        ))}
+      </div>
+      <p className="muted tiny" style={{ margin: 0 }}>
+        Samme login som alle andre: engangskode, auth-log og sessioner. Efter tre logins kræver /admin en passkey — også for demo-konti.
+      </p>
+    </div>
+  );
+}
+
 function GracePills({ left }: { left: number }) {
   const used = GRACE_LOGINS - left;
   return (
@@ -49,6 +75,11 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supportsPasskey = browserSupportsWebAuthn();
+  const [demo, setDemo] = useState<DemoAccount[]>([]);
+  useEffect(() => {
+    if (!config?.demo_logins) return;
+    api.get<{ accounts: DemoAccount[] }>("/api/auth/demo-logins").then((r) => setDemo(r.accounts)).catch(() => setDemo([]));
+  }, [config?.demo_logins]);
 
   // Arriving with a pending login (e.g. after a reload) goes straight to the second factor.
   useEffect(() => {
@@ -121,6 +152,14 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
 
   const passkeyLogin = () => run(async () => after(await loginWithPasskey()), true);
 
+  const demoLogin = (key: string) =>
+    run(async () => {
+      const start = await api.post<{ email: string; dev_code: string }>(`/api/auth/demo-logins/${key}`);
+      setChannel("email");
+      setPhone(start.email);
+      await after(await api.post<LoginResult>("/api/auth/otp/verify", { email: start.email, code: start.dev_code }));
+    });
+
   return (
     <div className={`auth-shell${embedded ? " embedded" : ""}`}>
       <div className="auth-card glow">
@@ -175,6 +214,7 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                   </button>
                 </>
               )}
+              {config?.demo_logins && demo.length > 0 && <DemoLogins accounts={demo} busy={busy} onPick={demoLogin} />}
             </form>
           )}
 
