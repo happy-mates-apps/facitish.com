@@ -2,29 +2,9 @@
 // browser extension will, and the context of a node: parents, siblings, children, objects and related nodes.
 import { useEffect, useState } from "react";
 import { ApiError, errorText } from "../api";
-import { metaApi, type MetaContext, type MetaObject, type ObjectKind } from "../tree/api";
-import { TagChips, TagEditor } from "../tree/TagEditor";
-
-const KIND_LABEL: Record<ObjectKind, string> = { url: "URL", entity: "Entitet", note: "Note" };
-const MATCH_LABEL = { exact: "præcis", pattern: "mønster", host: "værtsnavn" } as const;
-
-function ObjectRow({ o, onChanged }: { o: MetaObject; onChanged?: () => void }) {
-  const untag = async (nodeId: number) => {
-    await metaApi.untag(o.id, nodeId);
-    onChanged?.();
-  };
-  return (
-    <div className="tr-object">
-      <div className="tr-object-head">
-        <span className="tr-kind">{KIND_LABEL[o.kind]}</span>
-        <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.title}</b>
-        {o.match && <span className="tr-hint">{MATCH_LABEL[o.match]}</span>}
-      </div>
-      {o.kind !== "note" && <span className="tr-ref">{o.ref}</span>}
-      <TagChips nodes={o.nodes} onRemove={onChanged ? untag : undefined} />
-    </div>
-  );
-}
+import { metaApi, type MetaObject, type ObjectKind } from "../tree/api";
+import { ContextView, KIND_LABEL, ObjectRow, useNodeTitle } from "../tree/MetaContext";
+import { TagEditor } from "../tree/TagEditor";
 
 function TagForm({ onSaved }: { onSaved: () => void }) {
   const [kind, setKind] = useState<ObjectKind>("url");
@@ -155,46 +135,13 @@ function UrlLookup({ version }: { version: number }) {
 }
 
 function Context({ node, onSelect, version, onChanged }: { node: number | null; onSelect: (id: number) => void; version: number; onChanged: () => void }) {
-  const [ctx, setCtx] = useState<MetaContext | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!node) return setCtx(null);
-    setError(null);
-    metaApi.context(node).then(setCtx, (e) => setError(errorText(e)));
-  }, [node, version]);
-
+  const title = useNodeTitle(node);
   if (!node) return <div className="card"><h3>Konteksten for en node</h3><p className="small muted">Vælg en node i en af visningerne ovenfor.</p></div>;
-  if (error) return <div className="card" role="alert">{error}</div>;
-  if (!ctx) return <div className="card"><p className="small muted">Henter …</p></div>;
-
-  const bucket = (title: string, hint: string, rows: { id: number; label: string; extra: string }[]) => (
-    <div className="tr-bucket">
-      <div className="tr-bucket-title">{title}<span>{hint}</span></div>
-      {rows.length ? (
-        <div className="row" style={{ "--gap": "6px" } as React.CSSProperties}>
-          {rows.map((r) => (
-            <button key={r.id} type="button" className="tr-link" onClick={() => onSelect(r.id)}>{r.label} <span className="muted">· {r.extra}</span></button>
-          ))}
-        </div>
-      ) : <span className="small muted">—</span>}
-    </div>
-  );
-
   return (
     <div className="card">
-      <h3>Konteksten for „{ctx.node.label}“</h3>
-      <code className="tiny muted">{ctx.node.display_path} · GET /api/meta/context</code>
-      <div className="tr-bucket-title">Objekter ved noden<span>{ctx.objects.length}</span></div>
-      <div className="tr-objects">
-        {ctx.objects.map((o) => <ObjectRow key={o.id} o={o} onChanged={onChanged} />)}
-        {!ctx.objects.length && <span className="small muted">Intet er tagget direkte her.</span>}
-      </div>
-      {bucket("Forældre", "fra stien, uden opslag", ctx.parents.map((p) => ({ id: p.id, label: p.label, extra: "op" })))}
-      {bucket("Børn", "næste niveau", ctx.children.map((c) => ({ id: c.id, label: c.label, extra: `${c.objects} objekter` })))}
-      {bucket("Søskende", "samme forælder", ctx.siblings.map((c) => ({ id: c.id, label: c.label, extra: `${c.objects} objekter` })))}
-      {bucket("Relateret", "samme objekter, andre steder", ctx.related.map((r) => ({
-        id: r.node.id, label: `${r.node.dimension_label} › ${r.node.label}`, extra: r.objects.map((o) => o.title).join(" · "),
-      })))}
+      <h3>Konteksten for „{title?.label ?? "…"}“</h3>
+      <code className="tiny muted">{title?.trail ? `${title.trail} › ` : ""}{title?.label} · GET /api/meta/context</code>
+      <ContextView node={node} onSelect={onSelect} version={version} onChanged={onChanged} />
     </div>
   );
 }

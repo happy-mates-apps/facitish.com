@@ -23,13 +23,14 @@ renderings, single select, multi select, creating a node, component and API), bu
 - `web/src/tree/` — `TreeView` (ARIA tree, keyboard), `TreeSelect` (single/multi, `root`, `includeRoot`, `selectable`, `cascade`, `max`, `allowCreate`, `variant`), `useTree` (lazy loading), `api.ts`.
 - `server/app/migrations/0023_meta_objects.sql` + `server/app/meta_objects.py` — `meta_objects`, `meta_assignments`; URL normalisation (lower-case scheme and host, no fragment or tracking parameters, sorted query, no trailing slash), tag/set/untag, objects at a node (or its subtree), `/context`, `/resolve-url` (exact › longest pattern › host, at most 3), `/objects/by-ref`.
 - `web/src/tree/TagEditor.tsx` — tags of one object across dimensions (one multi-select per tree in use), `TagChips`.
+- `/extension/meta` (the **Tags** tab in the side panel, `web/src/extension/ExtensionMeta.tsx`) — what the current page is tagged with (`/resolve-url`), tagging it as the page, everything under its folder (`…/*`) or the whole domain, editing the page's tags, and browsing a tag's context (`ContextView` in `web/src/tree/MetaContext.tsx`). The address is looked up automatically only on domains the user has allowed (`/api/bridge-consent`); elsewhere only when they press „Slå siden op“.
 - `/develop/trae` — examples against the real API, including tagging, URL look-up and the context of a node; `/admin/meta` — dimensions, editing shared nodes, what is tagged under a node.
 - Audit: `create`/`update`/`delete` on `meta_nodes`, `meta_dimensions` and `meta_objects` (tagging is an `update` with `tagged`/`untagged` node ids). Webhooks: `meta.node.created|updated|deleted`, `meta.object.tagged|untagged` (shared nodes, ids only). Event: `meta.node_created`.
 - GDPR: export has the private tree, nodes and objects the user created and the tags they set; erasure removes the private tree, the objects only tagged there, and sets `created_by` to null on shared content.
 
 ## Not yet (from Surdej, or open)
 
-- The side panel in the browser extension („Meta“ tab with `/resolve-url` and „Tag denne side“), AI path suggestions (`/suggest`, optional through `ai.py`).
+- AI path suggestions for „Tag denne side“ (`/suggest`, optional through `ai.py`, only on allowed domains since it reads the page).
 - Live titles and deep links for Gær entities (`clip:`, `file:`), and tagging from those pages; `/sites` reverse-domain nodes with key/value data.
 - The generation DSL and YAML paste in `/admin/meta`, manual drag-and-drop ordering, merging nodes.
 - Labels per language (`labels`), `childSort` per parent (today: `sort_order`, then label).

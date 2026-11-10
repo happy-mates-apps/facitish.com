@@ -304,6 +304,10 @@
       "title": "Log ind i udvidelsen",
       "anchors": []
     },
+    "/extension/meta": {
+      "title": "Tags",
+      "anchors": []
+    },
     "/extension/tools": {
       "title": "Office-værktøjer",
       "anchors": []

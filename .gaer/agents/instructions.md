@@ -80,14 +80,14 @@ They share the same login (session cookie), the same database and the same API.
 | `/develop` | logged in | **Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). `/develop/trae` shows **tree structures** (`web/src/tree/`: TreeView, TreeSelect) against the real `/api/meta`: four renderings and the input fields (one node, a start node, tags, a subtree filter, creating a node). | `pages/Develop.tsx`, `develop/prompts.ts`, `pages/Trees.tsx`, `tree/` |
 | `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, tree structures (`/admin/meta`), website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py`, `admin-app/pages/Meta.tsx` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
-| `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
+| `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, **tags** for the page (`/extension/meta`: what it is tagged with, tag it as the page, a folder pattern or the whole domain, browse a tag's context; the address is only looked up automatically on allowed domains), account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts`, `web/src/extension/ExtensionMeta.tsx` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
 | `/extension/tools/word\|outlook\|document` | logged in, inside the Office shell | Office tools: insert/save clips and AI chat with the document or mail as context; Office.js calls go to the shell over `gaer-office-host`. | `office/Tools.tsx`, `bridge/officeHost.ts` |
 | `/api/…` | per endpoint | JSON API. State-changing calls need the `X-Gaer: 1` header (CSRF). Groups: `auth`, `me`, `files`, `clips`, `bridge-consent`, `ai`, `public`, `consent`, `collect`, `office`, `extension/download`, `admin`. | `routes/` |
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (87)</summary>
+<details><summary>All routes (88)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -165,6 +165,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/extension` | app (`index.html`) | logged in | Aktuel side · own chrome · embeddable |
 | `/extension/chat` | app (`index.html`) | logged in | AI · own chrome · embeddable |
 | `/extension/klip` | app (`index.html`) | logged in | Klip · own chrome · embeddable |
+| `/extension/meta` | app (`index.html`) | logged in | Tags · own chrome · embeddable |
 | `/extension/konto` | app (`index.html`) | logged in | Konto · own chrome · embeddable |
 | `/extension/agent` | app (`index.html`) | logged in | Agenter (feature `knowledge`) · own chrome · embeddable |
 | `/extension/agent/:slug` | app (`index.html`) | logged in | Agent (feature `knowledge`) · own chrome · embeddable |

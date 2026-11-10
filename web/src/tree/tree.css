@@ -140,3 +140,16 @@
   color: #1d4ed8; cursor: pointer; text-align: left;
 }
 .tr-link:hover { background: var(--hm-muted, #f1f5f9); }
+.tr-context { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tr-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-title-link {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: none;
+  font: inherit; font-weight: 700; color: #1d4ed8; cursor: pointer; text-align: left;
+}
+.tr-title-link:hover { text-decoration: underline; }
+.tr-chip-btn { font: inherit; font-size: 13px; cursor: pointer; padding-right: 10px; color: inherit; }
+.tr-chip-btn:hover { background: #eef3fe; border-color: #93b4f5; }
+.tr-scope-opts { display: flex; flex-direction: column; gap: 6px; }
+.tr-scope-opt { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; }
+.tr-scope-opt input { margin-top: 3px; }
+.tr-scope-opt code { font-size: 11px; color: var(--hm-muted-foreground, #64748b); word-break: break-all; }
