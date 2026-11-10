@@ -12,6 +12,7 @@ herfra ind i sin fork.
 | | |
 | --- | --- |
 | **Login** | E-mail → engangskode (SMS er opt-in med `SMS_LOGIN=1`; koden gemt som hash, udløber, kan bruges én gang, spærring efter for mange forsøg). Alle tilbydes en passkey; brugere kan selv slå **Kræv passkey** (MFA) til. **/admin kræver MFA** efter tre grace logins: passkey, sikkerhedsnøgle (YubiKey) eller godkendelsesapp (TOTP), og sikkerhedshandlinger kræver en frisk bekræftelse. Første bruger bliver superadmin — eller, med `BOOTSTRAP_ADMIN_EMAIL`, kun den adresse (anbefalet i produktion). |
+| **Udgående mail** | Appens egne mails (engangskoder, GDPR- og adgangslinks, AI-budgetadvarsler) sendes gennem `MAIL_PROVIDER`. Med Lettermint følges leveringen i `/admin/mail → Udgående mail`: Lettermint poster hændelser til en indgående webhook (handler `lettermint`), og jobbet `mail.lettermint_poll` henter resten med en Team API-nøgle (`LETTERMINT_TEAM_TOKEN`). Modtager gemmes kun som hash og domæne, emnet uden tal. Kræver ikke mailmodulet. |
 | **Logning** | Auth-log og audit-log i Postgres. Kun tilføjelse: app-brugeren har ikke UPDATE/DELETE, og en trigger stopper UPDATE. Sletning kun fra /admin med en separat databasebruger, og sletningen logges. |
 | **/admin** | Brugere og roller · auth-log · audit-log (CSV) · analytics · heatmaps · GDPR-forespørgsler · sletning af logdata · samtykke og cookies · filer · website · udvidelse og Office · indstillinger. Alt i /admin skrives i audit-loggen. |
 | **Analytics og heatmaps** | Opsamles af Python-serveren og gemmes i en partitioneret tabel i containerens egen database. Ingen tredjepart. Kun anonyme sidevisninger uden samtykke. |
@@ -169,7 +170,10 @@ docker compose up -d                                   # Postgres + MinIO + NATS
 npm run dev --prefix web                               # http://localhost:5173
 ```
 
-Med `SMS_PROVIDER=console` står engangskoden i serverens log og på login-siden. Den første bruger bliver admin.
+Med `MAIL_PROVIDER=console` står engangskoden i serverens log og på login-siden, og login-siden tilbyder
+**demo-konti** for alle roller (fuld adgang, support, indhold, produkt, data, privatliv, drift og en almindelig
+bruger — `server/app/demo_logins.py`). De logger ind med den almindelige engangskode og tæller med i auth-loggen og
+grace-logins som alle andre. Den første bruger bliver admin.
 Websitet `/w/` serveres af Python-serveren: http://localhost:8000/w/.
 
 ### Test

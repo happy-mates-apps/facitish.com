@@ -87,6 +87,10 @@ class Settings:
     mailjet_api_secret: str | None = field(default_factory=lambda: _env("MAILJET_API_SECRET"))
     brevo_api_key: str | None = field(default_factory=lambda: _env("BREVO_API_KEY"))
     lettermint_api_token: str | None = field(default_factory=lambda: _env("LETTERMINT_API_TOKEN"))
+    # Lettermint Team API token (lm_team_…): lets the job mail.lettermint_poll read the status of sent mail
+    # (/admin/mail → Udgående mail). Optional — delivery events also arrive by webhook.
+    lettermint_team_token: str | None = field(default_factory=lambda: _env("LETTERMINT_TEAM_TOKEN"))
+    lettermint_api_url: str = field(default_factory=lambda: _env("LETTERMINT_API_URL", "https://api.lettermint.co/v1"))
 
     # Object Storage: "s3" (OVHcloud Object Storage, MinIO locally) or "memory" (tests)
     storage_backend: str = field(default_factory=lambda: _env("STORAGE_BACKEND", "s3"))

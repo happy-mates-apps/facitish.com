@@ -3,7 +3,8 @@
 Each endpoint (webhook_endpoints, set up in /admin/webhooks → Indgående) decides how a request is verified:
 
     gaer   X-Gaer-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<body>")>   (what our own webhooks send;
-           the timestamp must be within tolerance_seconds, so a captured request cannot be replayed later)
+           the timestamp must be within tolerance_seconds, so a captured request cannot be replayed later. With a
+           header_name the same scheme is read from that header — Lettermint sends X-Lettermint-Signature this way)
     hmac   <header_name>: sha256=<hex> | <hex> | <base64> of HMAC-SHA256(secret, body)   (GitHub, Shopify, …)
     token  <header_name>: <exact value>, e.g. Authorization: Bearer …                     (with an auth header)
     none   only the secret URL                                                            (without an auth header)
@@ -49,7 +50,8 @@ HANDLERS: dict[str, HandlerInfo] = {}
 
 # Never stored with an event, whatever the endpoint's settings.
 SECRET_HEADERS = {"authorization", "proxy-authorization", "cookie", "x-gaer-signature", "x-hub-signature",
-                  "x-hub-signature-256", "x-shopify-hmac-sha256", "stripe-signature", "x-signature"}
+                  "x-hub-signature-256", "x-shopify-hmac-sha256", "stripe-signature", "x-signature",
+                  "x-lettermint-signature"}
 
 
 class Rejected(Exception):
@@ -84,7 +86,8 @@ def verify(endpoint: dict, headers: dict[str, str], body: bytes) -> None:
     if mode == "none":
         return
     if mode == "gaer":
-        value = headers.get("x-gaer-signature")
+        # Our own scheme — and the Stripe/Svix convention other senders use (Lettermint: X-Lettermint-Signature).
+        value = headers.get((endpoint["header_name"] or "X-Gaer-Signature").lower())
         if not value:
             raise Rejected(401, "missing_signature")
         if not webhooks.verify_signature(_secret(endpoint), value, body, tolerance=endpoint["tolerance_seconds"]):

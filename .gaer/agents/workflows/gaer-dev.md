@@ -21,7 +21,8 @@ description: Start Postgres, MinIO, the Python server and Vite locally against a
    ```bash
    npm run dev --prefix web
    ```
-5. Open http://localhost:5173/login. With `SMS_PROVIDER=console` the code is printed in the server log and shown on the login page.
+5. Open http://localhost:5173/login. With `MAIL_PROVIDER=console` the code is printed in the server log and shown on the login page,
+   and the page offers demo accounts for every role (`server/app/demo_logins.py`) that log in through the same one-time code.
    The first user on a new database becomes admin.
 6. Surfaces to check: `/` (app), `/admin`, `/w/` (served by Python — use http://localhost:8000/w/), `/m`, `/extension`, `/office-addin`.
 7. To run the whole container as in production: `docker compose --profile app up --build`, then http://localhost:8000.

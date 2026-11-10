@@ -93,24 +93,26 @@ def ai_budget_mail(kind: str, pct: int, used: int, limit: int, hard: bool, app_n
     return subject, text, body
 
 
-async def send_mail(to: str, subject: str, text: str, html_body: str, sender_name: str) -> None:
+async def send_mail(to: str, subject: str, text: str, html_body: str, sender_name: str) -> str | None:
+    """Sends one mail. Returns the provider's message id when it gives one (Lettermint), so the delivery status can
+    be followed in outbound_mail; None otherwise."""
     s = config.settings
     if s.demo_mode:
         log.warning("DEMO_MODE mail to %s: %s", to, subject)
-        return
+        return None
     if s.mail_provider == "console":
         if s.is_production:
             raise MailError("MAIL_PROVIDER=console is not allowed in production")
         log.warning("mail to %s: %s", to, subject)
         print(f"[mail] to={to} subject={subject}\n{text}", flush=True)
-        return
+        return None
     missing = missing_config()
     if missing:
         raise MailError(f"mail is not configured ({', '.join(missing)})")
     send = SENDERS[s.mail_provider]
     async with httpx.AsyncClient(timeout=10) as client:
-        await send(client, s, {"email": s.mail_from, "name": s.mail_from_name or sender_name}, to, subject, text,
-                   html_body)
+        return await send(client, s, {"email": s.mail_from, "name": s.mail_from_name or sender_name}, to, subject, text,
+                          html_body)
 
 
 def _check(response: httpx.Response, provider: str) -> None:
@@ -162,14 +164,19 @@ async def _brevo(client, s, sender, to, subject, text, html_body) -> None:
     _check(response, "Brevo")
 
 
-async def _lettermint(client, s, sender, to, subject, text, html_body) -> None:
-    """https://lettermint.co/docs/quickstart"""
+async def _lettermint(client, s, sender, to, subject, text, html_body) -> str | None:
+    """https://lettermint.co/docs/quickstart — answers {"message_id": …}, followed in outbound_mail."""
     name = sender["name"].replace('"', "")
     response = await client.post(
-        "https://api.lettermint.co/v1/send", headers={"x-lettermint-token": s.lettermint_api_token},
+        f"{s.lettermint_api_url.rstrip('/')}/send", headers={"x-lettermint-token": s.lettermint_api_token},
         json={"from": f'"{name}" <{sender["email"]}>', "to": [to], "subject": subject, "text": text,
               "html": html_body})
     _check(response, "Lettermint")
+    try:
+        message_id = response.json().get("message_id")
+    except ValueError:
+        return None
+    return str(message_id) if message_id else None
 
 
 SENDERS = {"ahasend": _ahasend, "scaleway": _scaleway, "mailjet": _mailjet, "brevo": _brevo,

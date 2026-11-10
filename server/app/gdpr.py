@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from app import db, jobs, retention, uploads, webhooks
 from app.logs import RequestMeta, audit
+from app.security import phone_hash
 from app.storage import get_storage
 
 
@@ -97,6 +98,10 @@ async def build_user_export(conn, user_id: int) -> dict:
                                            where user_id = %s""", user_id),
         "mail_app_passwords": await rows("""select name, created_at, last_used_at, revoked_at from mail_app_passwords
                                             where user_id = %s order by created_at""", user_id),
+        # Mail the app sent to you (login codes, GDPR and access links): status only, recipient as a hash.
+        "outbound_mail": await rows("""select o.purpose, o.subject, o.status, o.status_source, o.status_changed_at, o.created_at
+                                       from outbound_mail o where o.user_id = %s or o.recipient_hash = %s
+                                       order by o.created_at""", user_id, phone_hash(user["email"])),
         "mail_events": await rows("""select e.type, e.message_id, e.from_address, e.recipient_domain, e.count, e.at
                                      from mail_events e join mailboxes m on m.id = e.mailbox_id
                                      where m.owner_id = %s order by e.at limit 50000""", user_id),
@@ -241,6 +246,8 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
         if user["email"]:
             await conn.execute("delete from user_delegations where delegate_id is null and delegate_email = %s",
                                (user["email"],))
+            # Outbound mail rows follow the user (cascade); those recorded before the account existed match the hash.
+            await conn.execute("delete from outbound_mail where recipient_hash = %s", (phone_hash(user["email"]),))
         await conn.execute("delete from users where id = %s", (user_id,))
         await audit(conn, "gdpr.erasure", actor_id=actor_id if actor_id != user_id else None, meta=meta,
                     table="users", row_id=user_id, reason=reason, gdpr_request=gdpr_request, files=len(files),

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
-from app import config, db, og, settings_store, webhooks
+from app import config, db, demo_logins, og, settings_store, webhooks
 from app.logs import RequestMeta, audit
 from app.routes.auth import admin_open_to_anyone
 from app.security import classify_device, client_ip, user_agent
@@ -37,6 +37,7 @@ async def public_config():
     out["sms_login"] = config.settings.sms_login
     out["captcha"] = config.settings.captcha != "off"
     out["demo_mode"] = config.settings.demo_mode
+    out["demo_logins"] = demo_logins.enabled()
     out["logo_url"] = "/api/public/logo" if values["logo_key"] else None
     out.pop("logo_key")
     return out
