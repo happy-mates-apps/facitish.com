@@ -16,6 +16,8 @@ export type MetaNode = {
   private: boolean;
   archived: boolean;
   has_children?: boolean;
+  /** Objects tagged directly with the node (in /api/meta/tree). */
+  objects?: number;
   trail?: { id: number; label: string }[];
   can_create?: boolean;
   create_denied?: string | null;
@@ -43,6 +45,33 @@ export type TreeResponse = {
 
 export const PRIVATE = "~";
 
+export type ObjectKind = "url" | "entity" | "note";
+export type TagNode = MetaNode & { dimension_label: string; color: string | null };
+
+export type MetaObject = {
+  id: number;
+  kind: ObjectKind;
+  ref: string;
+  title: string;
+  description: string;
+  mine: boolean;
+  created_at: string;
+  updated_at: string;
+  /** The tags you can see (others' private tags are left out). */
+  nodes: TagNode[];
+  created?: boolean;
+  match?: "exact" | "pattern" | "host";
+};
+
+export type MetaContext = {
+  node: MetaNode;
+  parents: { id: number; label: string }[];
+  siblings: (MetaNode & { objects: number })[];
+  children: (MetaNode & { objects: number })[];
+  objects: MetaObject[];
+  related: { node: TagNode; objects: { id: number; title: string }[] }[];
+};
+
 export const metaApi = {
   dimensions: () => api.get<MetaDimension[]>("/api/meta/dimensions"),
   tree: (p: { dimension?: string; root?: number | null; depth?: number; includeArchived?: boolean }) =>
@@ -56,6 +85,20 @@ export const metaApi = {
   expand: (ids: number[]) => api.get<{ ids: number[] }>("/api/meta/expand" + query({ ids: ids.join(",") })),
   create: (body: { dimension: string; parent_id: number | null; label: string; slug?: string }, admin = false) =>
     api.post<MetaNode>(admin ? "/api/admin/meta/nodes" : "/api/meta/nodes", body),
+
+  // Objects and tags
+  objects: (node: number, p: { subtree?: boolean; kind?: ObjectKind; q?: string; limit?: number } = {}) =>
+    api.get<MetaObject[]>("/api/meta/objects" + query({ node, subtree: p.subtree || undefined, kind: p.kind, q: p.q, limit: p.limit })),
+  object: (id: number) => api.get<MetaObject>(`/api/meta/objects/${id}`),
+  byRef: (kind: ObjectKind, ref: string) => api.get<MetaObject>("/api/meta/objects/by-ref" + query({ kind, ref })),
+  tag: (body: { kind: ObjectKind; ref?: string | null; title: string; description?: string; node_ids: number[] }) =>
+    api.post<MetaObject>("/api/meta/objects", body),
+  setTags: (id: number, nodeIds: number[]) => api.put<MetaObject | { id: number; deleted: true }>(`/api/meta/objects/${id}/nodes`, { node_ids: nodeIds }),
+  untag: (id: number, nodeId: number) => api.del<MetaObject | { id: number; deleted: true }>(`/api/meta/objects/${id}/nodes/${nodeId}`),
+  updateObject: (id: number, body: { title?: string; description?: string }) => api.patch<MetaObject>(`/api/meta/objects/${id}`, body),
+  context: (node: number) => api.get<MetaContext>("/api/meta/context" + query({ node })),
+  resolveUrl: (url: string) => api.get<{ url: string; matches: MetaObject[] }>("/api/meta/resolve-url" + query({ url })),
+  normalizeUrl: (url: string) => api.get<{ url: string }>("/api/meta/normalize-url" + query({ url })),
 };
 
 /** "Organisation › Drift" for a node with a trail (from search, resolve or create). */

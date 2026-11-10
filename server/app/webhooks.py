@@ -69,6 +69,8 @@ EVENTS: dict[str, str] = {
     "meta.node.created": "En node er oprettet i et delt træ (node-id, dimension-id, forælder-id)",
     "meta.node.updated": "En node i et delt træ er rettet, flyttet eller arkiveret (node-id, flyttet)",
     "meta.node.deleted": "En node i et delt træ er slettet (node-id, antal noder under den)",
+    "meta.object.tagged": "Et objekt er tagget med noder i delte træer (objekt-id, node-id'er)",
+    "meta.object.untagged": "Tags i delte træer er fjernet fra et objekt (objekt-id, node-id'er)",
     "killswitch.changed": "Et nødstop er lukket eller åbnet, i hånden eller af en regel (nøgle, lukket, automatisk)",
 }
 

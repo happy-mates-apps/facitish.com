@@ -12,6 +12,7 @@ from datetime import datetime
 from fastapi import HTTPException
 
 from app import db, jobs, retention, uploads, webhooks
+from app import meta as meta_tree
 from app.logs import RequestMeta, audit
 from app.storage import get_storage
 
@@ -102,6 +103,10 @@ async def build_user_export(conn, user_id: int) -> dict:
                                      where m.owner_id = %s order by e.at limit 50000""", user_id),
         "meta_private_nodes": await rows("""select id, path, label, description, archived_at, created_at, updated_at
                                             from meta_nodes where owner_id = %s order by path""", user_id),
+        "meta_objects_created": await rows("""select id, kind, ref, title, description, created_at from meta_objects
+                                              where created_by = %s order by id""", user_id),
+        "meta_tags_set": await rows("""select a.object_id, n.path, a.created_at from meta_assignments a
+                                       join meta_nodes n on n.id = a.node_id where a.created_by = %s order by a.created_at""", user_id),
         "meta_nodes_created": await rows("""select id, path, label, created_at from meta_nodes
                                             where created_by = %s and owner_id is null order by path""", user_id),
         "bridge_consents": await rows("select domain, created_at from bridge_consents where user_id = %s order by domain",
@@ -246,6 +251,7 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
             await conn.execute("delete from user_delegations where delegate_id is null and delegate_email = %s",
                                (user["email"],))
         await conn.execute("delete from users where id = %s", (user_id,))
+        await meta_tree.delete_orphan_objects(conn)  # objects tagged only in their private tree
         await audit(conn, "gdpr.erasure", actor_id=actor_id if actor_id != user_id else None, meta=meta,
                     table="users", row_id=user_id, reason=reason, gdpr_request=gdpr_request, files=len(files),
                     by_self=actor_id == user_id)

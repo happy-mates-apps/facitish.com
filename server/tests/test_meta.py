@@ -165,3 +165,117 @@ async def test_private_tree_is_exported_and_erased(make_client, owner_conn):
     assert r.status_code == 200, r.text
     assert owner_conn.execute("select count(*) from meta_nodes where owner_id is not null").fetchone()[0] == 0
     assert owner_conn.execute("select count(*) from meta_nodes").fetchone()[0] == 2
+
+
+# ── Tagging objects (app/meta_objects.py) ──────────────────────────────────
+
+def test_url_normalisation():
+    from app.meta_objects import normalize_url
+    assert normalize_url("https://GitHub.com/happy/surdej-v1/?utm_source=slack&b=2&a=1#readme") == "https://github.com/happy/surdej-v1/?a=1&b=2"
+    assert normalize_url("https://Example.com:443/Docs/") == "https://example.com/Docs"
+    assert normalize_url("https://example.com/") == "https://example.com"
+    assert normalize_url("https://github.com/happy/*") == "https://github.com/happy/*"
+    assert normalize_url("Status.Example.com") == "status.example.com"
+    for bad in ("ftp://x.dk/a", "not a url", "javascript:alert(1)"):
+        try:
+            normalize_url(bad)
+            raise AssertionError(bad)
+        except Exception as e:  # noqa: BLE001
+            assert getattr(e, "status_code", None) == 400
+
+
+async def test_tagging_across_dimensions_and_context(make_client, owner_conn):
+    admin, user = await _admin_and_user(make_client)
+    t = await _org(admin)
+    await admin.post("/api/admin/meta/dimensions", json={"slug": "produkt", "label": "Produkter"})
+    gaer = (await admin.post("/api/meta/nodes", json={"dimension": "produkt", "label": "Gær"})).json()
+    mine = (await user.post("/api/meta/nodes", json={"dimension": "~", "label": "Læseliste"})).json()
+
+    # One object, three nodes: shared in two dimensions and the user's own tree.
+    r = await user.post("/api/meta/objects", json={"kind": "url", "ref": "https://Status.example.com/?utm_source=x",
+                                                   "title": "Status", "node_ids": [t["support"]["id"], gaer["id"], mine["id"]]})
+    assert r.status_code == 200, r.text
+    obj = r.json()
+    assert obj["created"] is True and obj["ref"] == "https://status.example.com"
+    assert {n["label"] for n in obj["nodes"]} == {"Support", "Gær", "Læseliste"}
+
+    # Same URL again finds the object; the admin does not see the user's private tag.
+    r = await admin.post("/api/meta/objects", json={"kind": "url", "ref": "https://status.example.com/", "title": "Andet navn",
+                                                    "node_ids": [t["drift"]["id"]]})
+    assert r.json()["created"] is False and r.json()["title"] == "Status"
+    assert {n["label"] for n in r.json()["nodes"]} == {"Drift", "Support", "Gær"}
+
+    # Context of Support: parents, siblings, children, objects, and related nodes via shared objects.
+    ctx = (await admin.get(f"/api/meta/context?node={t['support']['id']}")).json()
+    assert [p["label"] for p in ctx["parents"]] == ["Drift"]
+    assert [o["title"] for o in ctx["objects"]] == ["Status"]
+    assert [r["node"]["label"] for r in ctx["related"]] == ["Gær"]  # Drift is the node's own line
+
+    # Objects at a node, also in the subtree; the tree counts direct tags.
+    assert [o["title"] for o in (await user.get(f"/api/meta/objects?node={t['drift']['id']}&subtree=true")).json()] == ["Status"]
+    tree = (await user.get("/api/meta/tree?dimension=org")).json()
+    assert {n["label"]: n["objects"] for n in tree["nodes"]} == {"Drift": 1, "Support": 1}
+
+    # URL look-up for the extension: exact before pattern before host.
+    await user.post("/api/meta/objects", json={"kind": "url", "ref": "https://status.example.com/*", "title": "Alt på status",
+                                               "node_ids": [gaer["id"]]})
+    await user.post("/api/meta/objects", json={"kind": "url", "ref": "status.example.com", "title": "Værten", "node_ids": [gaer["id"]]})
+    res = (await user.get("/api/meta/resolve-url?url=https://status.example.com/?fbclid=1")).json()
+    assert [(m["title"], m["match"]) for m in res["matches"]] == [("Status", "exact"), ("Alt på status", "pattern"), ("Værten", "host")]
+    res = (await user.get("/api/meta/resolve-url?url=https://status.example.com/incidents/42")).json()
+    assert [m["match"] for m in res["matches"]] == ["pattern", "host"]
+
+    # Entities by reference; the title is the creator's (or an admin's) to change.
+    clip = (await user.post("/api/meta/objects", json={"kind": "entity", "ref": "clip:12", "title": "Mødenoter",
+                                                       "node_ids": [t["support"]["id"]]})).json()
+    assert (await admin.get("/api/meta/objects/by-ref?kind=entity&ref=clip:12")).json()["id"] == clip["id"]
+    other = make_client()
+    await otp_login(other, "33333333")
+    assert (await other.patch(f"/api/meta/objects/{clip['id']}", json={"title": "X"})).status_code == 403
+    assert (await user.patch(f"/api/meta/objects/{clip['id']}", json={"title": "Mødenoter 2"})).json()["title"] == "Mødenoter 2"
+
+    actions = owner_conn.execute("select action from audit_log where table_name = 'meta_objects' order by id").fetchall()
+    assert [a[0] for a in actions][:3] == ["create", "update", "update"]
+
+
+async def test_private_tags_stay_private_and_last_tag_removes_object(make_client, owner_conn):
+    admin, user = await _admin_and_user(make_client)
+    t = await _org(admin)
+    mine = (await user.post("/api/meta/nodes", json={"dimension": "~", "label": "Hemmeligt"})).json()
+    obj = (await user.post("/api/meta/objects", json={"kind": "note", "title": "Min note", "node_ids": [mine["id"]]})).json()
+    assert obj["ref"].startswith("note:")
+    assert (await admin.get(f"/api/meta/objects/{obj['id']}")).status_code == 404
+
+    # Setting the tags: the admin's view changes, the user's private tag stays.
+    await user.put(f"/api/meta/objects/{obj['id']}/nodes", json={"node_ids": [mine["id"], t["support"]["id"]]})
+    r = await admin.put(f"/api/meta/objects/{obj['id']}/nodes", json={"node_ids": [t["drift"]["id"]]})
+    assert [n["label"] for n in r.json()["nodes"]] == ["Drift"]
+    assert {n["label"] for n in (await user.get(f"/api/meta/objects/{obj['id']}")).json()["nodes"]} == {"Drift", "Hemmeligt"}
+
+    # Removing the last tags deletes the object.
+    await user.delete(f"/api/meta/objects/{obj['id']}/nodes/{t['drift']['id']}")
+    r = await user.delete(f"/api/meta/objects/{obj['id']}/nodes/{mine['id']}")
+    assert r.json() == {"id": obj["id"], "deleted": True}
+    assert owner_conn.execute("select count(*) from meta_objects").fetchone()[0] == 0
+
+    # A node with tags is not deleted by accident; with force its orphaned objects go too.
+    o2 = (await user.post("/api/meta/objects", json={"kind": "entity", "ref": "clip:1", "title": "K", "node_ids": [t["support"]["id"]]})).json()
+    r = await admin.delete(f"/api/admin/meta/nodes/{t['support']['id']}")
+    assert r.status_code == 409 and "tags" in r.json()["detail"]
+    assert (await admin.delete(f"/api/admin/meta/nodes/{t['support']['id']}?force=true")).status_code == 200
+    assert owner_conn.execute("select count(*) from meta_objects where id = %s", (o2["id"],)).fetchone()[0] == 0
+
+
+async def test_objects_in_private_tree_are_exported_and_erased(make_client, owner_conn):
+    admin, user = await _admin_and_user(make_client)
+    t = await _org(admin)
+    mine = (await user.post("/api/meta/nodes", json={"dimension": "~", "label": "Mit"})).json()
+    await user.post("/api/meta/objects", json={"kind": "note", "title": "Privat", "node_ids": [mine["id"]]})
+    await user.post("/api/meta/objects", json={"kind": "url", "ref": "https://example.com", "title": "Delt", "node_ids": [t["drift"]["id"]]})
+    r = await user.get("/api/me/export")
+    data = json.loads(zipfile.ZipFile(io.BytesIO(r.content)).read("data.json"))
+    assert {o["title"] for o in data["meta_objects_created"]} == {"Privat", "Delt"}
+    assert len(data["meta_tags_set"]) == 2
+    assert (await user.post("/api/me/delete", json={"confirm_phone": "22222222"})).status_code == 200
+    rows = owner_conn.execute("select title, created_by from meta_objects").fetchall()
+    assert rows == [("Delt", None)]

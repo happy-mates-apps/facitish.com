@@ -133,6 +133,8 @@ def out(row: dict, p: Principal, *, dims: dict[int, dict] | None = None, has_chi
         "dimension": row.get("dimension_slug") or (dim["slug"] if dim else PRIVATE),
         "private": row["owner_id"] is not None, "archived": row["archived_at"] is not None,
     }
+    if "objects" in row:
+        o["objects"] = row["objects"]
     if has_children is not None:
         o["has_children"] = has_children
     if trail is not None:
@@ -176,7 +178,8 @@ async def tree(conn, p: Principal, *, dim_slug: str | None, root_id: int | None,
     rows = await db.fetch_all(conn, f"""
         select {NODE_COLUMNS},
                exists (select 1 from meta_nodes c where c.parent_id = n.id and {visible_sql("c")}
-                       {"" if include_archived else "and c.archived_at is null"}) as has_children
+                       {"" if include_archived else "and c.archived_at is null"}) as has_children,
+               (select count(*) from meta_assignments a where a.node_id = n.id) as objects
         from meta_nodes n
         where n.path like %(prefix)s and n.depth <= %(max)s and {visible_sql()} {archived}
         order by n.depth, {CHILD_ORDER} limit %(limit)s""", params)
@@ -372,14 +375,26 @@ async def delete_node(conn, p: Principal, node_id: int, *, admin: bool, force: b
         raise HTTPException(403, "Du kan ikke slette denne node")
     below = (await db.fetch_one(conn, "select count(*) as n from meta_nodes where path like %s",
                                 (like_prefix(cur["path"]),)))["n"]
-    if below and not force:
-        raise HTTPException(409, f"Noden har {below} noder under sig. Slet eller flyt dem først.")
+    tags = (await db.fetch_one(conn, """select count(*) as n from meta_assignments a join meta_nodes n on n.id = a.node_id
+                                       where n.id = %s or n.path like %s""", (node_id, like_prefix(cur["path"]))))["n"]
+    if (below or tags) and not force:
+        what = " og ".join(x for x in (f"{below} noder under sig" if below else "", f"{tags} tags på objekter" if tags else "") if x)
+        raise HTTPException(409, f"Noden har {what}. Arkivér den, eller slet med det hele.")
     await conn.execute("delete from meta_nodes where id = %s", (node_id,))
+    orphans = await delete_orphan_objects(conn) if tags else []
     await audit(conn, "delete", actor_id=p.user_id, meta=p.meta, table="meta_nodes", row_id=node_id,
-                before={"path": cur["path"], "label": cur["label"]}, descendants=below)
+                before={"path": cur["path"], "label": cur["label"]}, descendants=below, tags=tags,
+                objects_removed=orphans)
     if not private:
         await webhooks.emit(conn, "meta.node.deleted", {"node_id": node_id, "descendants": below})
     return {"ok": True, "deleted": below + 1}
+
+
+async def delete_orphan_objects(conn) -> list[int]:
+    """Objects whose last tag went with a deleted node (or an erased user's private tree) go too. Returns their ids."""
+    rows = await db.fetch_all(conn, """delete from meta_objects o
+        where not exists (select 1 from meta_assignments a where a.object_id = o.id) returning id""")
+    return [r["id"] for r in rows]
 
 
 async def count_event(kind: str, node_id: int) -> None:

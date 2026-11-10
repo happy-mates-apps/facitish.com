@@ -7,6 +7,7 @@ import { metaApi, pathString, PRIVATE, type MetaDimension, type MetaNode } from 
 import { TreeSelect } from "../tree/TreeSelect";
 import { TreeView } from "../tree/TreeView";
 import { useTree, type TreeState } from "../tree/useTree";
+import TreesTagging from "./TreesTagging";
 
 type View = "tree" | "cols" | "drill" | "path";
 const VIEWS: { id: View; name: string; use: string }[] = [
@@ -175,7 +176,7 @@ export default function Trees() {
         <div className="eyebrow">Udvikling · web/src/tree/</div>
         <h1>Træstrukturer</h1>
         <p className="muted">
-          Eksempler på træer i brugerfladen, mod de rigtige data i <code>/api/meta</code>. Komponenterne <code>TreeView</code> og{" "}
+          Eksempler på træer og tagging i brugerfladen, mod de rigtige data i <code>/api/meta</code>. Komponenterne <code>TreeView</code> og{" "}
           <code>TreeSelect</code> kan bruges både her og i <code>/admin</code>. Værdier gemmes som node-id'er.
         </p>
       </div>
@@ -211,7 +212,8 @@ export default function Trees() {
           <span className="small muted">{VIEWS.find((v) => v.id === view)?.use}</span>
         </div>
         <div className="card" key={dim}>
-          {view === "tree" && <TreeView tree={tree} label={current?.label ?? "Træ"} selectedId={selected} onSelect={(n) => setSelected(n.id)} />}
+          {view === "tree" && <TreeView tree={tree} label={current?.label ?? "Træ"} selectedId={selected} onSelect={(n) => setSelected(n.id)}
+            aside={(n) => (n.objects ? <span className="tr-hint" title="Objekter tagget direkte her">{n.objects}</span> : null)} />}
           {view === "cols" && <Columns tree={tree} selected={selected} onSelect={(n) => setSelected(n.id)} />}
           {view === "drill" && <Drill tree={tree} selected={selected} onSelect={(n) => setSelected(n.id)} />}
           {view === "path" && <PathView tree={tree} selected={selected} onSelect={(n) => setSelected(n.id)} />}
@@ -254,6 +256,8 @@ export default function Trees() {
           {one && tree.byId.get(one) && <p className="small muted">Valgt afdeling: {[current?.label, ...ancestors(tree, one).map((n) => n.label)].join(" › ")}</p>}
         </section>
       )}
+
+      {dim && <TreesTagging selected={selected} onSelect={setSelected} />}
 
       <p className="small muted">
         Design og krav: lærredet „Træstrukturer i Gær“. Tilbage til <Link to="/develop">Udvikling</Link>.

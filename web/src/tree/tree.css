@@ -123,3 +123,20 @@
 @media (max-width: 640px) {
   .tr-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* TagEditor, TagChips, objects */
+.tr-tags { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.tr-dot { flex: none; width: 8px; height: 8px; border-radius: 4px; }
+.tr-objects { display: flex; flex-direction: column; gap: 8px; }
+.tr-object { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: #f6f7f9; min-width: 0; }
+.tr-object-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tr-kind { flex: none; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; color: #2d323c; background: #e3e6ec; }
+.tr-ref { font-family: var(--hm-font-mono, monospace); font-size: 12px; color: var(--hm-muted-foreground, #64748b); word-break: break-all; }
+.tr-bucket { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid #eef0f4; }
+.tr-bucket-title { display: flex; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2d323c; }
+.tr-bucket-title span { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--hm-muted-foreground, #64748b); }
+.tr-link {
+  min-height: 32px; padding: 3px 9px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font: inherit; font-size: 13px;
+  color: #1d4ed8; cursor: pointer; text-align: left;
+}
+.tr-link:hover { background: var(--hm-muted, #f1f5f9); }

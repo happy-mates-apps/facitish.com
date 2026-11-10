@@ -2,7 +2,7 @@
 // level and may lock a dimension; users add nodes below (app/meta.py). Every change is audited on the server.
 import { useEffect, useState } from "react";
 import { api, errorText } from "../../api";
-import { metaApi, type MetaNode } from "../../tree/api";
+import { metaApi, type MetaNode, type MetaObject } from "../../tree/api";
 import { TreeSelect } from "../../tree/TreeSelect";
 import { TreeView } from "../../tree/TreeView";
 import { useTree } from "../../tree/useTree";
@@ -148,7 +148,11 @@ function NodeEditor({ node, dim, run, onGone }: { node: MetaNode; dim: Dim; run:
   const [label, setLabel] = useState(node.label);
   const [slug, setSlug] = useState(node.slug);
   const [parent, setParent] = useState<number | null>(node.parent_id);
+  const [objects, setObjects] = useState<MetaObject[] | null>(null);
   useEffect(() => setParent(node.parent_id), [node.parent_id]);
+  useEffect(() => {
+    metaApi.objects(node.id, { subtree: true, limit: 21 }).then(setObjects, () => setObjects(null));
+  }, [node.id]);
   const patch = (body: Record<string, unknown>, text: string) => run(() => api.patch(`/api/admin/meta/nodes/${node.id}`, body), text);
   const moved = parent !== node.parent_id || slug !== node.slug;
 
@@ -169,9 +173,17 @@ function NodeEditor({ node, dim, run, onGone }: { node: MetaNode; dim: Dim; run:
           {node.archived ? "Tag frem igen" : "Arkivér"}
         </button>
         <button className="btn btn-danger" onClick={async () => {
-          if (await run(() => api.del(`/api/admin/meta/nodes/${node.id}?force=true`), "Noden er slettet.", `Slet „${node.label}“ og alt under den? Arkivér i stedet, hvis data peger på den.`)) onGone();
+          if (await run(() => api.del(`/api/admin/meta/nodes/${node.id}?force=true`), "Noden er slettet.",
+            `Slet „${node.label}“ og alt under den${objects?.length ? `, også tags på ${objects.length > 20 ? "over 20" : objects.length} objekter` : ""}? Arkivér i stedet, hvis data peger på den.`)) onGone();
         }}>Slet</button>
       </div>
+      <span className="eyebrow">Tagget her og under · {objects ? (objects.length > 20 ? "over 20" : objects.length) : "…"}</span>
+      {objects?.slice(0, 20).map((o) => (
+        <div key={o.id} className="small" style={{ display: "flex", gap: 8, minWidth: 0 }}>
+          <Pill tone="gray">{o.kind}</Pill>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.ref}>{o.title}</span>
+        </div>
+      ))}
     </div>
   );
 }
