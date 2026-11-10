@@ -57,6 +57,7 @@ services:
     environment:
       DATABASE_URL: postgresql://gaer:gaer@postgres:5432/gaer
       S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000  # the browser uploads straight to MinIO
       ORIGIN: http://localhost:8000
       NATS_URL: nats://nats:4222
       NATS_MONITOR_URL: http://nats:8222

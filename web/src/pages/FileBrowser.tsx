@@ -6,6 +6,7 @@ import { useSearchParams } from "react-router-dom";
 import { api, errorText } from "../api";
 import { useAuth } from "../auth";
 import { Alert, download, fmtBytes, fmtDate, Loading } from "../ui";
+import { isZip, pct, uploadFile, waitForUnzip, zipStem } from "../upload";
 
 type Entry = { name: string; path: string; label: string; files: number; bytes: number };
 export type TreeFile = {
@@ -43,6 +44,9 @@ export function FileBrowser({ compact = false, camera = false }: { compact?: boo
   const [selected, setSelected] = useState<string | null>(null);
   const [newFolder, setNewFolder] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [zipAsk, setZipAsk] = useState<File[] | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const cam = useRef<HTMLInputElement>(null);
 
@@ -75,15 +79,44 @@ export function FileBrowser({ compact = false, camera = false }: { compact?: boo
     }
   };
 
-  const upload = (list: FileList | null) => listing && list?.length && act("Uploader …", async () => {
-    for (const f of Array.from(list)) {
-      const form = new FormData();
-      form.append("file", f);
-      await api.post(`/api/files?path=${encodeURIComponent(listing.path)}`, form);
-    }
+  const clearPickers = () => {
     if (picker.current) picker.current.value = "";
     if (cam.current) cam.current.value = "";
-    await load();
+  };
+
+  // Zip files: ask first whether to keep them as they are or unpack them (ZipDialog).
+  const upload = (list: FileList | null) => {
+    const files = Array.from(list ?? []);
+    if (!listing || !files.length) return;
+    if (files.some(isZip)) setZipAsk(files);
+    else send(files, null);
+  };
+
+  const send = (files: File[], zip: { unzip: boolean; intoFolder: boolean } | null) => listing && act("Uploader …", async () => {
+    setZipAsk(null);
+    setNotice(null);
+    const notes: string[] = [];
+    try {
+      for (const [i, f] of files.entries()) {
+        const unzip = !!zip?.unzip && isZip(f);
+        const label = files.length > 1 ? `${f.name} (${i + 1} af ${files.length})` : f.name;
+        const r = await uploadFile(f, {
+          base: "/api/files", path: listing.path, unzip, intoFolder: unzip && zip?.intoFolder,
+          onProgress: (sent, total) => setProgress(`Uploader ${label} – ${pct(sent, total)}`),
+        });
+        if (unzip && "status" in r && r.status === "unpacking") {
+          setProgress(`Pakker ${f.name} ud …`);
+          const done = await waitForUnzip("/api/files", r.id, (n, total) => setProgress(`Pakker ${f.name} ud – ${n}${total ? ` af ${total}` : ""} filer`));
+          const skipped = done.result?.skipped?.length ?? 0;
+          notes.push(`${f.name} er pakket ud: ${done.result?.files ?? 0} filer${skipped ? `, ${skipped} sprunget over (${done.result!.skipped!.slice(0, 3).map((x) => `${x.name}: ${x.reason}`).join("; ")}${skipped > 3 ? " …" : ""})` : ""}.`);
+        }
+      }
+    } finally {
+      setProgress(null);
+      clearPickers();
+      await load();
+    }
+    if (notes.length) setNotice(notes.join(" "));
   });
 
   const onDrop = (e: DragEvent) => {
@@ -156,6 +189,9 @@ export function FileBrowser({ compact = false, camera = false }: { compact?: boo
       )}
 
       <Alert>{error}</Alert>
+      {progress && <p className="muted small" role="status" aria-live="polite" style={{ margin: 0 }}>{progress}</p>}
+      <Alert kind="success">{notice}</Alert>
+      {zipAsk && <ZipDialog files={zipAsk} onCancel={() => { setZipAsk(null); clearPickers(); }} onChoose={(choice) => send(zipAsk, choice)} />}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
         <div className="table-wrap" style={{ flex: "999 1 480px", minWidth: 0, outline: dragging ? "2px dashed var(--hm-primary)" : undefined, outlineOffset: -4 }}
@@ -194,6 +230,46 @@ export function FileBrowser({ compact = false, camera = false }: { compact?: boo
           )}
         </div>
         {selected && <FilePreview id={selected} me={me} onClose={() => setSelected(null)} onChanged={async () => { setSelected(null); await load(); }} />}
+      </div>
+    </div>
+  );
+}
+
+/** Asked before zip files are uploaded: keep them as they are, or unpack them and upload the files one by one. */
+function ZipDialog({ files, onCancel, onChoose }: {
+  files: File[]; onCancel: () => void; onChoose: (choice: { unzip: boolean; intoFolder: boolean }) => void;
+}) {
+  const zips = files.filter(isZip);
+  const [intoFolder, setIntoFolder] = useState(true);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  const others = files.length - zips.length;
+  const folderName = zips.length === 1 ? `${zipStem(zips[0].name)}/` : "en mappe pr. zip-fil";
+  return (
+    <div className="dialog-backdrop" role="presentation" onClick={onCancel}>
+      <div className="card dialog" role="dialog" aria-modal="true" aria-labelledby="zip-title" onClick={(e) => e.stopPropagation()}>
+        <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
+          <div className="eyebrow">Zip-fil</div>
+          <h3 id="zip-title">{zips.length === 1 ? `${zips[0].name} er en zip-fil` : `${zips.length} zip-filer`}</h3>
+          <p className="muted small">
+            Skal {zips.length === 1 ? "zip-filen" : "zip-filerne"} uploades, som {zips.length === 1 ? "den" : "de"} er, eller skal indholdet
+            pakkes ud og uploades som enkelte filer? Mapperne i zip-filen bevares.
+            {others > 0 && ` De ${others} andre filer uploades som de er.`}
+          </p>
+          <p className="muted tiny">{zips.map((z) => `${z.name} · ${fmtBytes(z.size)}`).join(" — ")}</p>
+        </div>
+        <label className="row small" style={{ "--gap": "8px" } as React.CSSProperties}>
+          <input type="checkbox" checked={intoFolder} onChange={(e) => setIntoFolder(e.target.checked)} />
+          Pak ud i en ny mappe ({folderName})
+        </label>
+        <div className="stack" style={{ "--gap": "8px" } as React.CSSProperties}>
+          <button className="btn btn-primary" autoFocus onClick={() => onChoose({ unzip: true, intoFolder })}>Pak ud og upload filerne</button>
+          <button className="btn btn-outline" onClick={() => onChoose({ unzip: false, intoFolder: false })}>Upload zip-filen som den er</button>
+          <button className="btn btn-ghost btn-sm" onClick={onCancel}>Annullér</button>
+        </div>
       </div>
     </div>
   );

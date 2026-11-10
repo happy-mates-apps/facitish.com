@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, webhooks
+from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, webhooks
+from app import uploads  # noqa: F401  (registers the files.unzip, files.uploads_cleanup and storage.cors jobs)
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
 from app.mcp import oauth as mcp_oauth
@@ -42,6 +43,10 @@ EXTENSION_HOSTS = "chrome-extension: moz-extension: safari-web-extension:"
 EMBEDDABLE = route_manifest.EMBEDDABLE  # routes with "embeddable": true in web/src/routes.json
 
 
+# Uploads go from the browser straight to Object Storage (app/uploads.py), so the bucket's origin may be fetched.
+UPLOAD_ORIGIN = f" {storage.public_origin()}" if storage.public_origin() else ""
+
+
 def csp_for(path: str) -> str:
     ancestors = "'self'"
     scripts = "'self'"
@@ -51,7 +56,7 @@ def csp_for(path: str) -> str:
         scripts = "'self' https://appsforoffice.microsoft.com"
     return (f"default-src 'self'; script-src {scripts}; img-src 'self' data: blob: https:; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
-            f"connect-src 'self'; frame-src 'self' https://*.officeapps.live.com https://*.office.com; "
+            f"connect-src 'self'{UPLOAD_ORIGIN}; frame-src 'self' https://*.officeapps.live.com https://*.office.com; "
             f"frame-ancestors {ancestors}; base-uri 'self'; form-action 'self'; object-src 'none'")
 
 
@@ -80,6 +85,10 @@ async def lifespan(app: FastAPI):
         log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
     await db.open_pools()
     workers = jobs.start() if retention.enabled() else None
+    if workers and storage.public_origin():
+        # The browser uploads straight to the bucket: make sure its CORS lets ORIGIN do that (once per start).
+        async with db.connection() as conn:
+            await jobs.enqueue(conn, "storage.cors", dedupe_key="storage.cors", max_attempts=3)
     event_loops = events.start(maintenance=retention.enabled())
     async with mcp_sessions(app):
         yield

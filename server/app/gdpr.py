@@ -11,7 +11,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from app import db, jobs, retention, webhooks
+from app import db, jobs, retention, uploads, webhooks
 from app.logs import RequestMeta, audit
 from app.storage import get_storage
 
@@ -46,6 +46,9 @@ async def build_user_export(conn, user_id: int) -> dict:
         "shared_files": await rows("""select id, '/shared' || folder || filename as path, content_type, size_bytes,
                                              created_at from files
                                       where space = 'shared' and uploaded_by = %s order by created_at""", user_id),
+        # Uploads straight to Object Storage and zip files unpacked (the files themselves are under "files").
+        "file_uploads": await rows("""select id, path, filename, size_bytes, status, unzip, created_at, finished_at
+                                      from file_uploads where user_id = %s order by created_at""", user_id),
         "clips": await rows("""select id, source, title, body, url, created_at, updated_at from clips
                                where user_id = %s order by created_at""", user_id),
         # Mit område: who you have given access to your area, and whose areas you have access to.
@@ -212,13 +215,17 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
     cascade; their mailbox rows cascade and the mailbox itself is removed in Stalwart by the job mail.principal.delete;
     review screenshots and audio are files; feature usage is purged with the logs; their files in Object Storage (their
     whole home and folders cascade; files they put in /shared stay, with the uploader link set to null); the contact
-    details on their GDPR requests, and
+    details on their GDPR requests, their unfinished uploads (rows cascade, objects removed), and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)
         if user["super_admin"] and actor_id != user_id:
             raise HTTPException(409, "Superadministratoren kan kun slette sin egen konto")
         files = await db.fetch_all(conn, "delete from files where user_id = %s returning storage_key", (user_id,))
+        # Uploads that never finished (or a zip still being unpacked): their objects go too; the rows cascade.
+        open_uploads = await db.fetch_all(conn, """select id, storage_key, multipart_id, status from file_uploads
+                                                   where user_id = %s and status in ('uploading', 'unpacking')""",
+                                          (user_id,))
         await conn.execute("""update gdpr_requests set contact = 'slettet', message = '',
                               status = case when status in ('received', 'in_progress') and kind = 'erasure'
                                             then 'completed' else status end,
@@ -244,6 +251,8 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
             await get_storage().delete(f["storage_key"])
         except Exception:
             pass  # the row is gone; an orphaned object is found by the storage overview
+    for u in open_uploads:
+        await uploads.discard(u)
     counts = await retention.purge_user(user_id, logs=list(retention.LOGS),
                                         actor_id=actor_id if actor_id != user_id else None, meta=meta,
                                         reason=reason, contacts=[user["email"], user["phone"]])

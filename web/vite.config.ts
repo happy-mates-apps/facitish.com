@@ -5,8 +5,8 @@ import react from "@vitejs/plugin-react";
 const SRC = decodeURIComponent(new URL("./src/", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 const ADMIN = `${SRC}admin-app/`;
 // The only code the admin app and the app on / share: API client, login, the extension wire protocol and the
-// deep-link plumbing (MCP links focus an element in either app).
-const SHARED = [`${SRC}api.ts`, `${SRC}auth.tsx`, `${SRC}bridge/`, `${SRC}deeplink.tsx`, `${SRC}routes.json`];
+// deep-link plumbing (MCP links focus an element in either app) and direct upload to Object Storage.
+const SHARED = [`${SRC}api.ts`, `${SRC}auth.tsx`, `${SRC}bridge/`, `${SRC}deeplink.tsx`, `${SRC}routes.json`, `${SRC}upload.ts`];
 
 const isShared = (file: string) => SHARED.some((s) => (s.endsWith("/") ? file.startsWith(s) : file === s));
 const side = (file: string) => (isShared(file) ? "shared" : file.startsWith(ADMIN) ? "admin" : "app");
@@ -28,7 +28,7 @@ function appBoundary(): Plugin {
         const rel = (f: string) => f.slice(SRC.length);
         this.error(
           `${rel(importer)} imports ${rel(target)}: the ${from === "admin" ? "admin app (/admin)" : from === "shared" ? "shared code" : "app on /"} ` +
-            `may not import from the ${to === "admin" ? "admin app" : "app on /"}. Shared: api.ts, auth.tsx, bridge/, deeplink.tsx, routes.json.`,
+            `may not import from the ${to === "admin" ? "admin app" : "app on /"}. Shared: api.ts, auth.tsx, bridge/, deeplink.tsx, routes.json, upload.ts.`,
         );
       }
       return resolved;
