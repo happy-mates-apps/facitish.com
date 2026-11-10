@@ -11,6 +11,18 @@ Code: `server/app/storage.py`, `server/app/routes/files.py`, `server/app/filetre
   tests use `STORAGE_BACKEND=memory`.
 - **Upload goes through the server**: `save_upload(conn, upload, owner_id=..., actor=..., prefix=...)` checks the
   size (`MAX_UPLOAD_MB`), stores the object under `<prefix>/<uuid>`, inserts a `files` row and audits `file.upload`.
+- **Direct upload to the bucket** (`server/app/uploads.py`, client `web/src/upload.ts`): the file tree's uploads in
+  /filer, /m/filer and /admin/files go from the browser straight to Object Storage on presigned PUT links (multipart
+  in 32 MB+ parts above 64 MB), so Cloudflare's 100 MB request limit does not apply (`MAX_DIRECT_UPLOAD_MB`, default
+  5120). Start → PUT → complete; only on complete does the file get its `files` row (`filetree.register`, audited as
+  `file.upload` with `via: "direct"`). Rows in `file_uploads`; unfinished ones are aborted by `files.uploads_cleanup`.
+  The bucket needs CORS for `ORIGIN` (PUT, `ExposeHeaders: ETag`) — the job `storage.cors` sets it at start-up;
+  `S3_PUBLIC_ENDPOINT` when the browser uses another address; `DIRECT_UPLOAD=0` turns it off. If the bucket cannot be
+  reached the client falls back to the server upload (≤ `MAX_UPLOAD_MB`).
+- **Zip files**: the app asks whether a zip is uploaded as it is or unpacked. Unpacked, the zip lands on a temporary
+  key and the job `files.unzip` puts each file into the folder (or a new folder named after the zip), keeping its
+  folders, in batches; bad names, `..`, encrypted entries and `__MACOSX`/`.DS_Store` are skipped and listed; limits
+  `UNZIP_MAX_FILES` and `UNZIP_MAX_MB`; audited per file (`via: "unzip"`) and as `file.unzip`.
 - **Download via short-lived presigned links** (`DOWNLOAD_LINK_SECONDS`, default 300) from
   `GET /api/files/{id}/link`, after an ownership check. Never make the bucket public.
 - **Delete** with `delete_file(...)` — removes the object and the row and audits `file.delete`.

@@ -3,11 +3,11 @@
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from app import config, db, filetree
+from app import config, db, filetree, uploads
 from app.logs import audit
 from app.sessions import Principal, current_user
 from app.storage import MemoryStorage, get_storage
@@ -115,11 +115,50 @@ async def delete_folder(path: str, p: Principal = Depends(current_user)):
 
 
 @router.post("")
-async def upload_file(file: UploadFile, path: str = "~/", overwrite: bool = False, p: Principal = Depends(current_user)):
-    """Upload to a folder in your home (default) or in /shared."""
+async def upload_file(file: UploadFile, path: str = "~/", overwrite: bool = False, unzip: bool = False,
+                      into_folder: bool = False, p: Principal = Depends(current_user)):
+    """Upload through the server (up to MAX_UPLOAD_MB) to a folder in your home (default) or in /shared. The app
+    uploads straight to Object Storage (/api/files/uploads) and only falls back to this. unzip=true: a zip is
+    unpacked into the folder by a job — the answer is then the upload ({id, status}), not a file."""
     async with db.connection() as conn:
-        row = await filetree.upload(conn, filetree.parse(path, me=p.user_id), file, p, admin=False, overwrite=overwrite)
+        loc = filetree.parse(path, me=p.user_id)
+        if unzip:
+            return {"upload": await uploads.unzip_via_server(conn, loc, file, p, admin=False, overwrite=overwrite,
+                                                             into_folder=into_folder)}
+        row = await filetree.upload(conn, loc, file, p, admin=False, overwrite=overwrite)
     return filetree.out(row)
+
+
+# ── Direct upload to Object Storage (app/uploads.py) ────────────────────────
+
+@router.post("/uploads")
+async def upload_start(body: uploads.StartIn, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return await uploads.start(conn, body, p, admin=False)
+
+
+@router.post("/uploads/{upload_id}/parts")
+async def upload_parts(upload_id: uuid.UUID, body: uploads.PartsIn, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return await uploads.part_links(conn, upload_id, body, p, admin=False)
+
+
+@router.post("/uploads/{upload_id}/complete")
+async def upload_complete(upload_id: uuid.UUID, body: uploads.CompleteIn, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return await uploads.complete(conn, upload_id, body, p, admin=False)
+
+
+@router.get("/uploads/{upload_id}")
+async def upload_status(upload_id: uuid.UUID, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return await uploads.status(conn, upload_id, p, admin=False)
+
+
+@router.delete("/uploads/{upload_id}")
+async def upload_abort(upload_id: uuid.UUID, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return await uploads.abort(conn, upload_id, p, admin=False)
 
 
 @router.put("/text")
@@ -195,3 +234,21 @@ async def memory_download(key: str):
         raise HTTPException(404)
     data, content_type = storage.objects[key]
     return Response(data, media_type=content_type)
+
+
+@memory_router.put("/api/_memory-storage/{key:path}")
+async def memory_upload(key: str, request: Request, upload_id: str | None = None, part: int | None = None,
+                        content_type: str | None = None):
+    """What a presigned PUT link does, for the memory backend (tests)."""
+    storage = get_storage()
+    if not isinstance(storage, MemoryStorage):
+        raise HTTPException(404)
+    data = await request.body()
+    if upload_id:
+        try:
+            etag = storage.put_part(key, upload_id, part or 0, data)
+        except KeyError:
+            raise HTTPException(404)
+        return Response(status_code=200, headers={"ETag": etag})
+    await storage.put(key, data, content_type or request.headers.get("content-type") or "application/octet-stream")
+    return Response(status_code=200)

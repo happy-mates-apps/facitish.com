@@ -96,6 +96,16 @@ class Settings:
     s3_access_key: str | None = field(default_factory=lambda: _env("S3_ACCESS_KEY"))
     s3_secret_key: str | None = field(default_factory=lambda: _env("S3_SECRET_KEY"))
     max_upload_mb: int = field(default_factory=lambda: _int("MAX_UPLOAD_MB", 25))
+    # Direct upload: the browser sends the bytes straight to Object Storage on short-lived presigned links (one PUT,
+    # or multipart for big files), so Cloudflare's request limit (100 MB) and the server are not in the way.
+    # S3_PUBLIC_ENDPOINT is the address the browser uses, when it is not S3_ENDPOINT (MinIO in docker compose).
+    direct_upload: bool = field(default_factory=lambda: _env("DIRECT_UPLOAD", "1") == "1")
+    s3_public_endpoint: str | None = field(default_factory=lambda: _env("S3_PUBLIC_ENDPOINT"))
+    max_direct_upload_mb: int = field(default_factory=lambda: _int("MAX_DIRECT_UPLOAD_MB", 5120))
+    upload_link_seconds: int = field(default_factory=lambda: _int("UPLOAD_LINK_SECONDS", 3600))
+    # Unpacking a zip into the file tree (a job): at most this many files and this many MB unpacked.
+    unzip_max_files: int = field(default_factory=lambda: _int("UNZIP_MAX_FILES", 5000))
+    unzip_max_mb: int = field(default_factory=lambda: _int("UNZIP_MAX_MB", 10240))
     download_link_seconds: int = field(default_factory=lambda: _int("DOWNLOAD_LINK_SECONDS", 300))
 
     # Set to 1 when running behind the proxy in deploy/ (cloudflared), so client IPs come from X-Forwarded-For.

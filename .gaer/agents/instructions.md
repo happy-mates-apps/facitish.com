@@ -32,6 +32,7 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `require_admin_stepup` / `any_session` |
 | `server/app/mfa.py`, `totp.py` | second-factor rules (who needs what, changing factors), authenticator apps (TOTP) |
 | `server/app/filetree.py` | file tree over `files`: a home per user under `/users/<id>/` (`~/` = your own) and `/shared/` for project files; folders (`file_folders`), access rules, upload/write/move/delete with audit — used by `/api/files`, `/api/admin/files`, the AI chat and both MCP servers |
+| `server/app/uploads.py` | Direct upload to Object Storage: the browser PUTs to presigned links (multipart for big files) past Cloudflare's 100 MB limit, then completes (`/api/files/uploads`, `/api/admin/files/uploads`; client `web/src/upload.ts`). A zip is kept as it is or unpacked into the tree by the job `files.unzip` (folders kept, limits `UNZIP_MAX_*`); jobs `files.uploads_cleanup`, `storage.cors` (bucket CORS for `ORIGIN`) |
 | `server/app/mailbox/` | Mail, calendar and contacts (`specs/mail/`): `backend.py` Stalwart client (or in memory, `MAILBOX_BACKEND`), `service.py` rules (provisioning, shared-mailbox and collection roles, identities, app passwords, 30-day retention), `dns.py` domain records + live check, `tasks.py` jobs `mail.*` and the `lettermint` incoming-webhook handler |
 | `server/app/delegation.py` | Mit område (`/user`): sharing your area with another user as reader or author (`/user/<id>`), access checks, the activity list; delegates' changes are audited with `on_behalf_of` |
 | `server/app/db.py` | connection pools: `db.connection()`, `db.purge_connection()`, `fetch_one`, `fetch_all` |
@@ -189,7 +190,7 @@ Rules for routes:
 - The server reads the manifest (`app/route_manifest.py`): `EMBEDDABLE` (CSP frame-ancestors for the extension and
   Office hosts) and which HTML file answers. The app on / reads `chrome: "own"` for pages without the top bar.
   Mark a route `embeddable` only if it really must run inside them.
-- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx` and `routes.json` with the
+- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx`, `routes.json` and `upload.ts` with the
   rest of `web/src/`. Neither side imports the other; `npm run build` fails if one does (`appBoundary()` in
   `web/vite.config.ts`).
 - Anything the public may see without login lives under `/w/`, `/login`, `/privatliv` or `/api/public/…`.

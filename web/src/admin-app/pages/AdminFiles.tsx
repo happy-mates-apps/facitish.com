@@ -3,8 +3,9 @@
 // Deep links: /admin/files?folder=/shared/projekt/ (from /mcp/admin).
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronRight, Download, File as FileIcon, FileText, Folder, FolderPlus, Home, Image as ImageIcon, Pencil, Trash2, Upload, Users } from "lucide-react";
+import { ChevronRight, Download, File as FileIcon, FileArchive, FileText, Folder, FolderPlus, Home, Image as ImageIcon, Pencil, Trash2, Upload, Users } from "lucide-react";
 import { api, errorText } from "../../api";
+import { isZip, pct, uploadFile, waitForUnzip, zipStem } from "../../upload";
 import { card, MONO } from "../theme";
 import { Btn, CloseBtn, Empty, ErrorBox, fmtBytes, fmtDate, fmtNumber, Modal, PageTitle, Pill, download, useLoad, useToast } from "../ui";
 
@@ -50,6 +51,8 @@ export default function AdminFiles() {
   const [busy, setBusy] = useState<string | null>(null);
   const [newFolder, setNewFolder] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [zipAsk, setZipAsk] = useState<File[] | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const say = useToast();
   const data = listing.data;
@@ -70,16 +73,38 @@ export default function AdminFiles() {
     }
   };
 
-  const upload = (files: FileList | File[] | null) => act("Uploader …", async () => {
+  // Straight to Object Storage (web/src/upload.ts); zip files: ask first whether to keep or unpack them.
+  const upload = (files: FileList | File[] | null) => {
     const list = Array.from(files ?? []);
-    for (const f of list) {
-      const form = new FormData();
-      form.append("file", f);
-      await api.post(`${BASE}/upload?path=${encodeURIComponent(path)}`, form);
+    if (!list.length) return;
+    if (list.some(isZip)) setZipAsk(list);
+    else send(list, null);
+  };
+
+  const send = (list: File[], zip: { unzip: boolean; intoFolder: boolean } | null) => act("Uploader …", async () => {
+    setZipAsk(null);
+    const unpacked: string[] = [];
+    try {
+      for (const [i, f] of list.entries()) {
+        const unzip = !!zip?.unzip && isZip(f);
+        const label = list.length > 1 ? `${f.name} (${i + 1} af ${list.length})` : f.name;
+        const r = await uploadFile(f, {
+          base: BASE, path, unzip, intoFolder: unzip && zip?.intoFolder,
+          onProgress: (sent, total) => setProgress(`Uploader ${label} – ${pct(sent, total)}`),
+        });
+        if (unzip && "status" in r && r.status === "unpacking") {
+          const done = await waitForUnzip(BASE, r.id, (n, total) => setProgress(`Pakker ${f.name} ud – ${n}${total ? ` af ${total}` : ""} filer`));
+          const skipped = done.result?.skipped?.length ?? 0;
+          unpacked.push(`${f.name}: ${done.result?.files ?? 0} filer${skipped ? `, ${skipped} sprunget over` : ""}`);
+        }
+      }
+    } finally {
+      setProgress(null);
+      if (input.current) input.current.value = "";
+      await listing.reload();
     }
-    if (input.current) input.current.value = "";
-    await listing.reload();
-    if (list.length) say(list.length === 1 ? `${list[0].name} er uploadet` : `${list.length} filer er uploadet`);
+    if (unpacked.length) say(`Pakket ud – ${unpacked.join(" · ")}`);
+    else say(list.length === 1 ? `${list[0].name} er uploadet` : `${list.length} filer er uploadet`);
   });
 
   const onDrop = (e: DragEvent) => {
@@ -167,8 +192,12 @@ export default function AdminFiles() {
           </div>
 
           {data?.can_write && (
-            <p style={{ margin: "10px 14px 0", fontSize: 12, color: "#64748b" }}>Træk filer hertil for at uploade til {data.path}</p>
+            <p role="status" aria-live="polite" style={{ margin: "10px 14px 0", fontSize: 12, color: progress ? "#020817" : "#64748b" }}>
+              {progress ?? `Træk filer hertil for at uploade til ${data.path}`}
+            </p>
           )}
+          {zipAsk && <ZipModal files={zipAsk} onCancel={() => { setZipAsk(null); if (input.current) input.current.value = ""; }}
+            onChoose={(choice) => send(zipAsk, choice)} />}
 
           {listing.loading && !data ? <Empty>Henter …</Empty> : data && (
             <div style={{ overflowX: "auto", padding: "6px 4px 10px" }}>
@@ -337,5 +366,37 @@ function Preview({ id, onClose, onChanged }: { id: string; onClose: () => void; 
         </Modal>
       )}
     </aside>
+  );
+}
+
+/** Asked before zip files are uploaded: keep them as they are, or unpack them and upload the files one by one. */
+function ZipModal({ files, onCancel, onChoose }: {
+  files: File[]; onCancel: () => void; onChoose: (choice: { unzip: boolean; intoFolder: boolean }) => void;
+}) {
+  const zips = files.filter(isZip);
+  const [intoFolder, setIntoFolder] = useState(true);
+  const others = files.length - zips.length;
+  return (
+    <Modal width={460} onClose={onCancel}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <FileArchive size={20} strokeWidth={2} color="#2563eb" aria-hidden="true" />
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, flex: 1 }}>{zips.length === 1 ? `${zips[0].name} er en zip-fil` : `${zips.length} zip-filer`}</h2>
+        <CloseBtn onClick={onCancel} />
+      </div>
+      <p style={{ margin: 0, fontSize: 14, color: "#475569" }}>
+        Skal {zips.length === 1 ? "zip-filen" : "zip-filerne"} uploades, som {zips.length === 1 ? "den" : "de"} er, eller skal indholdet pakkes ud
+        og uploades som enkelte filer? Mapperne i zip-filen bevares.{others > 0 && ` De ${others} andre filer uploades som de er.`}
+      </p>
+      <p style={{ margin: 0, fontSize: 12, color: "#64748b", fontFamily: MONO }}>{zips.map((z) => `${z.name} · ${fmtBytes(z.size)}`).join(" — ")}</p>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <input type="checkbox" checked={intoFolder} onChange={(e) => setIntoFolder(e.target.checked)} />
+        Pak ud i en ny mappe ({zips.length === 1 ? `${zipStem(zips[0].name)}/` : "en mappe pr. zip-fil"})
+      </label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
+        <Btn onClick={onCancel}>Annullér</Btn>
+        <Btn onClick={() => onChoose({ unzip: false, intoFolder: false })}>Upload zip-filen som den er</Btn>
+        <Btn kind="primary" icon={FileArchive} onClick={() => onChoose({ unzip: true, intoFolder })}>Pak ud og upload filerne</Btn>
+      </div>
+    </Modal>
   );
 }

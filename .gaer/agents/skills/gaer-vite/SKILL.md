@@ -27,7 +27,7 @@ tokens (`--hm-*`) and a few components (`.card`, `.btn`, `.pill`, `.eyebrow`, `.
 
 ## Two apps, one build
 `/` (`index.html`) and `/admin` (`admin.html`) are separate Vite entries with separate bundles. They share
-only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx` and `routes.json` (and the login cookie). Everything else stays on its own side:
+only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx`, `routes.json` and `upload.ts` (and the login cookie). Everything else stays on its own side:
 `admin-app/` may not import the rest of `src/`, the rest of `src/` may not import `admin-app/`, and the shared
 modules only import each other. `appBoundary()` in `web/vite.config.ts` fails `npm run dev` and
 `npm run build` on a forbidden import — copy what you need instead of importing across.
