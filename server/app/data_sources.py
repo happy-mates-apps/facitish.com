@@ -61,7 +61,12 @@ class SpecError(ValueError):
 
 
 class FetchError(RuntimeError):
-    """A call to the API failed. The message is Danish and shown to the admin."""
+    """A call to the API failed. `message` is a fixed Danish text written here (never a traceback or the provider's
+    body) and is what the routes show the admin."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
 
 
 # ── The description ─────────────────────────────────────────────────────────
@@ -403,7 +408,7 @@ async def _oauth_token(spec: dict, client_secret: str) -> str:
     try:
         body = await http_post_form(auth["token_url"], data, spec["limits"]["timeout"])
     except FetchError as e:
-        status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", str(e))) else 0
+        status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", e.message)) else 0
         await integrations.record_source_call(spec["key"], "POST", "token", (time.monotonic() - start) * 1000, status)
         raise
     await integrations.record_source_call(spec["key"], "POST", "token", (time.monotonic() - start) * 1000, 200)
@@ -483,7 +488,7 @@ async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None =
         try:
             payload = await http_get_json(url, headers, spec["limits"]["timeout"])
         except FetchError as e:
-            status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", str(e))) else 0
+            status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", e.message)) else 0
             await integrations.record_source_call(spec["key"], "GET", ds["path"], (time.monotonic() - start) * 1000, status)
             raise
         ms, cached = round((time.monotonic() - start) * 1000), False

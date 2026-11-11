@@ -421,7 +421,7 @@ async def _query_api(d: dict, fields: list[dict], body: QueryIn, sort_field: str
         result = await sources_mod.fetch(spec, ds, api_params, page=body.offset // body.limit + 1 if paged else None,
                                          size=body.limit, secrets=secrets)
     except FetchError as e:
-        raise HTTPException(502, str(e))
+        raise HTTPException(502, e.message)
     rows = [r for r in result["rows"] if all(_local_match(r.get(f.field), f.op, f.value) for f in local)]
     if sort_field:
         rows.sort(key=lambda r: (r.get(sort_field) is None, str(r.get(sort_field) or "")), reverse=desc)
@@ -495,8 +495,8 @@ async def test_source(body: TestIn, admin: Principal = Depends(require_admin)):
                                for f in ds["fields"]]}
         checks.append({"ok": True, "text": f"Testkald til {ds['name']} gav {len(result['rows'])} rækker"})
     except FetchError as e:
-        error = str(e)
-        checks.append({"ok": False, "text": f"Testkald til {ds['name']}: {e}"})
+        error = e.message
+        checks.append({"ok": False, "text": f"Testkald til {ds['name']}: {e.message}"})
     return {"source": {"key": spec["key"], "name": spec["name"], "host": spec["host"], "hosts": spec["hosts"],
                        "auth": spec["auth"]["type"]},
             "secrets": [_secret_status_out(st) for st in secret_status],
