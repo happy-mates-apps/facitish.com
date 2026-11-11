@@ -5,9 +5,10 @@ member changes need a recent second factor and A and R of those secrets are told
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app import db, groups, secret_store
+from app.security import InvalidEmail, normalize_email
 from app.logs import audit, changed
 from app.sessions import Principal, current_user, require_admin, require_admin_stepup
 
@@ -15,17 +16,37 @@ router = APIRouter(prefix="/api/admin/groups", tags=["admin"], dependencies=[Dep
 me_router = APIRouter(prefix="/api/me/groups", tags=["me"])
 
 
+def _notify_email(value: str | None) -> str | None:
+    """Empty = no address. Checked by security.normalize_email (no regex, so no ReDoS) and lower-cased."""
+    if value is None or not value.strip():
+        return None
+    try:
+        return normalize_email(value)
+    except InvalidEmail:
+        raise ValueError("Ugyldig e-mailadresse")
+
+
 class GroupIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     slug: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     description: str = Field(default="", max_length=500)
-    notify_email: str | None = Field(default=None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    notify_email: str | None = Field(default=None, max_length=254)
+
+    @field_validator("notify_email")
+    @classmethod
+    def _email(cls, v):
+        return _notify_email(v)
 
 
 class GroupPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     description: str | None = Field(default=None, max_length=500)
-    notify_email: str | None = Field(default=None, max_length=254, pattern=r"^([^@\s]+@[^@\s]+\.[^@\s]+)?$")
+    notify_email: str | None = Field(default=None, max_length=254)
+
+    @field_validator("notify_email")
+    @classmethod
+    def _email(cls, v):
+        return _notify_email(v)
 
 
 class MemberIn(BaseModel):
@@ -52,7 +73,7 @@ async def create_group(body: GroupIn, admin: Principal = Depends(require_admin))
         row = await db.fetch_one(conn, """
             insert into groups (slug, name, description, notify_email, created_by) values (%s, %s, %s, %s, %s)
             returning id, slug, name, description, notify_email, created_at, updated_at""",
-            (slug, body.name.strip(), body.description.strip(), (body.notify_email or "").lower() or None, admin.user_id))
+            (slug, body.name.strip(), body.description.strip(), body.notify_email, admin.user_id))
         await audit(conn, "create", actor_id=admin.user_id, meta=admin.meta, table="groups", row_id=row["id"],
                     after={"slug": slug, "name": row["name"]})
     return row
@@ -72,8 +93,6 @@ async def get_group(group_id: int):
 @router.patch("/{group_id}")
 async def update_group(group_id: int, body: GroupPatch, admin: Principal = Depends(require_admin)):
     fields = body.model_dump(exclude_unset=True)
-    if "notify_email" in fields:
-        fields["notify_email"] = (fields["notify_email"] or "").lower() or None
     async with db.connection() as conn:
         before = await groups.get(conn, group_id)
         if not fields:
