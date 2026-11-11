@@ -56,6 +56,7 @@ NATS is not part of the Kubernetes stack, so events go straight to Postgres (see
 - `cluster/namespace.yaml`: what the console creates per fork (namespace, quota, limits, network policy, deployer account and token).
 - `cluster/kubeconfig-for.sh`: prints the deployer kubeconfig for a namespace.
 - `cluster/cloudflared.yaml`: one tunnel for the whole cluster.
+- `CUSTOM-DOMAINS.md`: the customer's own domains (`smeden.dk`, `www.smeden.dk`, `app.smeden.dk`). Covers ownership by TXT, CNAME/ALIAS, the primary domain and redirects.
 
 ## A cluster from scratch
 
