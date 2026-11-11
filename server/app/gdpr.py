@@ -11,7 +11,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from app import db, jobs, retention, uploads, webhooks
+from app import db, jobs, retention, secret_store, uploads, webhooks
 from app import meta as meta_tree
 from app.logs import RequestMeta, audit
 from app.security import phone_hash
@@ -97,6 +97,24 @@ async def build_user_export(conn, user_id: int) -> dict:
                                                 where s.user_id = %s order by c.name""", user_id),
         "mail_availability": await rows("""select publish, working_hours, timezone, updated_at from mail_availability
                                            where user_id = %s""", user_id),
+        "groups": await rows("""select g.name, g.slug, m.role, m.added_at from group_members m join groups g on g.id = m.group_id
+                                where m.user_id = %s order by g.name""", user_id),
+        # The secret manager ("vault_*", so no export ever contains the word of the TOTP check): roles and access, never a value.
+        "vault_roles": await rows("""select s.name, s.environment, g.name as "group", r.role, r.added_at from secret_raci r
+                                      join secrets s on s.id = r.secret_id join groups g on g.id = s.group_id
+                                      where r.user_id = %s order by s.name, r.role""", user_id),
+        "vault_access_requests": await rows("""select s.name as item, q.level, q.days, q.reason, q.status, q.created_at,
+                                                       q.decided_at from secret_access_requests q
+                                                join secrets s on s.id = q.secret_id
+                                                where q.requester_id = %s or q.grantee_user_id = %s
+                                                order by q.created_at""", user_id, user_id),
+        "vault_approvals": await rows("""select s.name as item, a.roles, a.decision, a.note, a.decided_at
+                                          from secret_approvals a join secret_access_requests q on q.id = a.request_id
+                                          join secrets s on s.id = q.secret_id where a.approver_id = %s
+                                          order by q.created_at""", user_id),
+        "vault_grants": await rows("""select s.name as item, gr.level, gr.granted_at, gr.expires_at, gr.ended_at,
+                                              gr.ended_reason from secret_grants gr join secrets s on s.id = gr.secret_id
+                                       where gr.user_id = %s order by gr.granted_at""", user_id),
         "mail_app_passwords": await rows("""select name, created_at, last_used_at, revoked_at from mail_app_passwords
                                             where user_id = %s order by created_at""", user_id),
         # Mail the app sent to you (login codes, GDPR and access links): status only, recipient as a hash.
@@ -252,7 +270,8 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
                      gdpr_request: int | None = None) -> dict:
     """The right to be forgotten. Deletes the user (passkeys, authenticator apps, sessions, clips, domain consents, AI usage,
     AI budgets and their alerts, one-time codes, feature level, review sessions and notes, their private tree (meta_nodes with owner_id; shared nodes they made keep created_by = null), their test accounts, access to
-    and from their area (/user), adoption visits, nudges and journey roles, Viden conversations and agent memberships
+    and from their area (/user), adoption visits, nudges and journey roles, group memberships and their roles, requests, approvals and grants
+    for secrets (secrets where they were A are marked as without accountable person), Viden conversations and agent memberships
     cascade; their mailbox rows cascade and the mailbox itself is removed in Stalwart by the job mail.principal.delete;
     review screenshots and audio are files; feature usage is purged with the logs; their files in Object Storage (their
     whole home and folders cascade; files they put in /shared stay, with the uploader link set to null); the contact
@@ -284,6 +303,9 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
                                (user["email"],))
             # Outbound mail rows follow the user (cascade); those recorded before the account existed match the hash.
             await conn.execute("delete from outbound_mail where recipient_hash = %s", (phone_hash(user["email"]),))
+        # Secrets where they were A lose their accountable person: R and C are told (their RACI rows, requests,
+        # approvals, grants, memberships and queued notifications cascade with the user).
+        await secret_store.before_user_erased(conn, user_id, meta)
         # Beskeder: their inbox, threads, preferences and SMS rows cascade; answers they wrote as an admin stay in the
         # other user's thread without their name (author_id is set null by the foreign key).
         await conn.execute("update conversation_messages set author_name = null where author_id = %s and from_admin",
