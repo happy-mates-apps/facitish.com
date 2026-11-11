@@ -1,0 +1,53 @@
+name: sync-upstream
+# For forks made from gaer-base (vars.UPSTREAM_REPO, set by the Gær Fleet console): merges the upstream main into the
+# branch upstream-sync and opens a pull request. Merging it runs deploy.yml like any other push to main.
+#
+# Pushing changes to .github/workflows needs a token with the workflow scope; set the organisation or repository
+# secret SYNC_TOKEN for that (GITHUB_TOKEN is used otherwise, and then upstream workflow changes are refused).
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    if: vars.UPSTREAM_REPO != '' && vars.UPSTREAM_REPO != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Merge upstream
+        id: merge
+        env:
+          UPSTREAM: ${{ vars.UPSTREAM_REPO }}
+          BRANCH: ${{ vars.UPSTREAM_BRANCH || 'main' }}
+        run: |
+          git config user.name "gaer-sync[bot]"
+          git config user.email "gaer-sync@users.noreply.github.com"
+          git remote add upstream "https://github.com/$UPSTREAM.git"
+          git fetch upstream "$BRANCH"
+          behind=$(git rev-list --count HEAD..upstream/$BRANCH)
+          echo "behind=$behind" >> "$GITHUB_OUTPUT"
+          [ "$behind" -gt 0 ] || { echo "Up to date with $UPSTREAM"; exit 0; }
+          git checkout -B upstream-sync
+          # Template repos share no history with gaer-base; the first sync has to allow that.
+          git merge --no-edit --allow-unrelated-histories "upstream/$BRANCH" \
+            || { echo "::error::Merge conflict with $UPSTREAM — merge by hand"; exit 1; }
+          git push --force-with-lease origin upstream-sync
+      - name: Open pull request
+        if: steps.merge.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+          UPSTREAM: ${{ vars.UPSTREAM_REPO }}
+        run: |
+          gh pr view upstream-sync --json state -q .state 2>/dev/null | grep -q OPEN \
+            || gh pr create --head upstream-sync --base "${{ github.event.repository.default_branch }}" \
+                 --title "Sync with $UPSTREAM" \
+                 --body "${{ steps.merge.outputs.behind }} commits from $UPSTREAM. Merging deploys them."

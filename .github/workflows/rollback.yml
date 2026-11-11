@@ -1,0 +1,49 @@
+name: rollback
+# Goes back to the previous version on whatever DEPLOY_TARGET says: the previous ReplicaSet on Kubernetes, or the
+# previous image on the compose server (deploy/deploy.sh rollback).
+
+on:
+  workflow_dispatch:
+
+concurrency: deploy-main
+
+permissions:
+  contents: read
+
+jobs:
+  target:
+    uses: ./.github/workflows/target.yml
+
+  k8s:
+    needs: target
+    if: needs.target.outputs.k8s == 'true'
+    uses: ./.github/workflows/deploy-k8s.yml
+    secrets: inherit
+    with:
+      action: rollback
+      namespace: ${{ needs.target.outputs.namespace }}
+      hostname: ${{ needs.target.outputs.hostname }}
+
+  compose:
+    needs: target
+    if: needs.target.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Roll back over SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          REMOTE: deploy@${{ secrets.HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy "$REMOTE" "./gaer/deploy.sh rollback"
+
+  none:
+    needs: target
+    if: needs.target.outputs.target == 'none'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "DEPLOY_TARGET=none — nothing is deployed, so there is nothing to roll back."

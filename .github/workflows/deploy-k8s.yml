@@ -1,0 +1,66 @@
+name: deploy-k8s
+# Rolls an image out to the fork's namespace with deploy/k8s/deploy.sh. Called by deploy.yml and rollback.yml.
+#
+# Repository secrets (written by the Gær Fleet console):
+#   KUBE_CONFIG      kubeconfig for the namespace's deployer account (may only touch that namespace)
+#   APP_ENV          KEY=value lines for the app (app.env), e.g. BOOTSTRAP_ADMIN_EMAIL, MAIL_*, S3_*, LICENSE_KEY
+#   GHCR_PULL_TOKEN  optional; read:packages token, only if the console did not create ghcr-pull itself
+# Repository variables (optional): K8S_INGRESS_CLASS, K8S_STORAGE_CLASS, K8S_DB_STORAGE
+
+on:
+  workflow_call:
+    inputs:
+      action: { description: "release | rollback", required: false, type: string, default: release }
+      image: { description: "<image>:<tag> (release only)", required: false, type: string, default: "" }
+      namespace: { required: true, type: string }
+      hostname: { required: true, type: string }
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ inputs.hostname }}
+    concurrency: k8s-${{ inputs.namespace }}
+    steps:
+      - name: Validate secrets
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [ -n "$KUBE_CONFIG" ] || { echo "::error::Missing repository secret KUBE_CONFIG"; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      - name: Kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          install -m 700 -d ~/.kube
+          # Accept the file as is or base64-encoded.
+          if printf '%s' "$KUBE_CONFIG" | grep -q 'apiVersion'; then
+            printf '%s\n' "$KUBE_CONFIG" > ~/.kube/config
+          else
+            printf '%s' "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+          fi
+          chmod 600 ~/.kube/config
+          kubectl -n "${{ inputs.namespace }}" auth can-i update deployments >/dev/null \
+            || { echo "::error::KUBE_CONFIG cannot update deployments in ${{ inputs.namespace }}"; exit 1; }
+      - name: ${{ inputs.action == 'rollback' && 'Roll back' || 'Release' }}
+        env:
+          NAMESPACE: ${{ inputs.namespace }}
+          APP_HOSTNAME: ${{ inputs.hostname }}
+          INGRESS_CLASS: ${{ vars.K8S_INGRESS_CLASS }}
+          STORAGE_CLASS: ${{ vars.K8S_STORAGE_CLASS }}
+          DB_STORAGE: ${{ vars.K8S_DB_STORAGE }}
+          APP_ENV: ${{ secrets.APP_ENV }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          if [ "${{ inputs.action }}" = rollback ]; then
+            deploy/k8s/deploy.sh rollback
+          else
+            deploy/k8s/deploy.sh release "${{ inputs.image }}"
+          fi
+      - name: Smoke test
+        run: curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "https://${{ inputs.hostname }}/health"

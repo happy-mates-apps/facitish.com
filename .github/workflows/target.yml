@@ -1,0 +1,69 @@
+name: target
+# The one place that reads the repository variable DEPLOY_TARGET. Every workflow that builds, deploys or rolls back
+# calls this first and tests its outputs, so a fork can switch target without touching the workflows.
+#
+#   DEPLOY_TARGET   k8s      build to GHCR, deploy to the namespace in K8S_NAMESPACE   (forks made by Gær Fleet)
+#                   compose  build in CI, ship over SSH, deploy/deploy.sh              (the default when unset)
+#                   none     build and push to GHCR only
+#
+# Other variables read here (set by the Gær Fleet console for forks): IMAGE_NAME, K8S_NAMESPACE, APP_HOSTNAME.
+
+on:
+  workflow_call:
+    outputs:
+      target: { description: "k8s | compose | none", value: "${{ jobs.target.outputs.target }}" }
+      k8s: { description: "'true' when deploying to Kubernetes", value: "${{ jobs.target.outputs.k8s }}" }
+      compose: { description: "'true' when deploying with deploy/deploy.sh over SSH", value: "${{ jobs.target.outputs.compose }}" }
+      push_image: { description: "'true' when the image goes to GHCR", value: "${{ jobs.target.outputs.push_image }}" }
+      image: { description: "Image name without tag, e.g. ghcr.io/toergaer/gaer-00001", value: "${{ jobs.target.outputs.image }}" }
+      namespace: { description: "Kubernetes namespace (k8s only)", value: "${{ jobs.target.outputs.namespace }}" }
+      hostname: { description: "Public hostname of the instance", value: "${{ jobs.target.outputs.hostname }}" }
+
+permissions:
+  contents: read
+
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.t.outputs.target }}
+      k8s: ${{ steps.t.outputs.k8s }}
+      compose: ${{ steps.t.outputs.compose }}
+      push_image: ${{ steps.t.outputs.push_image }}
+      image: ${{ steps.t.outputs.image }}
+      namespace: ${{ steps.t.outputs.namespace }}
+      hostname: ${{ steps.t.outputs.hostname }}
+    steps:
+      - id: t
+        env:
+          DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
+          IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          APP_HOSTNAME: ${{ vars.APP_HOSTNAME || vars.DOMAIN }}
+          REPO: ${{ github.repository }}
+        run: |
+          target=$(echo "${DEPLOY_TARGET:-compose}" | tr '[:upper:]' '[:lower:]' | xargs)
+          case "$target" in
+            k8s|compose|none) ;;
+            *) echo "::error::DEPLOY_TARGET must be k8s, compose or none (got '$DEPLOY_TARGET')"; exit 1 ;;
+          esac
+          image=${IMAGE_NAME:-ghcr.io/${REPO,,}}
+          if [ "$target" = k8s ]; then
+            missing=0
+            for name in K8S_NAMESPACE APP_HOSTNAME; do
+              [ -n "${!name}" ] || { echo "::error::DEPLOY_TARGET=k8s needs the repository variable $name"; missing=1; }
+            done
+            [ "$missing" = 0 ] || exit 1
+          fi
+          {
+            echo "target=$target"
+            echo "k8s=$([ "$target" = k8s ] && echo true || echo false)"
+            echo "compose=$([ "$target" = compose ] && echo true || echo false)"
+            echo "push_image=$([ "$target" != compose ] && echo true || echo false)"
+            echo "image=${image,,}"
+            echo "namespace=$K8S_NAMESPACE"
+            echo "hostname=$APP_HOSTNAME"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Deploy target: \`$target\`" >> "$GITHUB_STEP_SUMMARY"
+          [ "$target" = compose ] || echo "Image: \`${image,,}\`" >> "$GITHUB_STEP_SUMMARY"
+          [ "$target" != k8s ] || echo "Namespace \`$K8S_NAMESPACE\` → https://$APP_HOSTNAME" >> "$GITHUB_STEP_SUMMARY"

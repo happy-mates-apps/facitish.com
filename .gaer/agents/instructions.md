@@ -58,8 +58,8 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
 | `web/src/` | `pages/` app · `admin-app/` the standalone /admin app (own entry `web/admin.html`, spec in `specs/admin-app/`) · `features.tsx` FeatureGate · `mobile/` /m · `extension/` /extension · `office/` /office-addin · `bridge/` postMessage clients |
 | `extension/` | MV3 browser extension (side panel) |
-| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` · `mail/` the Stalwart mail server on UpCloud (Terraform, `config.toml`, runbook) |
-| `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod) |
+| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` · `k8s/` the same app on Kubernetes, one namespace per fork made by the Gær Fleet console in Surdej (`README.md`, `app.yaml`, `deploy.sh`, `cluster/`) · `mail/` the Stalwart mail server on UpCloud (Terraform, `config.toml`, runbook) |
+| `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod), `target.yml` (the only reader of the variable `DEPLOY_TARGET` = `compose` (default) / `k8s` / `none`; every deploy workflow tests its outputs), `build-image.yml` (GHCR), `deploy-k8s.yml`, `rollback.yml`, `sync-upstream.yml` (forks pull gaer-base) |
 | `mobile/` | Expo app (iOS + Android): native login, then `/m` in a WebView — spec in `specs/mobile/` |
 | `server/app/mcp/` | MCP servers: `/mcp` (appen, as the user) and `/mcp/admin` (admin, drafts) — spec in `specs/mcp/` |
 | `server/app/access.py`, `mcp/toolmap.py` | the endpoint → tool map (Code and Data tools) governed from /admin/data, internal/external users, MCP access requests with approval from a list or an e-mail link — `specs/mcp/ACCESS.md` |
