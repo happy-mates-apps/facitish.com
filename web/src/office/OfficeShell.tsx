@@ -76,7 +76,8 @@ export default function OfficeShell() {
         return;
       }
       if (msg.kind !== "exec") return;
-      const handler = HANDLERS[infoRef.current.app]?.[msg.type];
+      const handlers = HANDLERS[infoRef.current.app];
+      const handler = handlers && Object.hasOwn(handlers, msg.type) ? handlers[msg.type] : undefined;
       if (!handler) {
         reply({ id: msg.id, ok: false, error: `Ukendt kommando: ${msg.type}` });
         return;

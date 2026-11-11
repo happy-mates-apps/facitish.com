@@ -57,14 +57,24 @@ function GracePills({ left }: { left: number }) {
   );
 }
 
+/** A path on this origin, or null: "//host" and "/\host" resolve elsewhere and must not be followed. */
+function sameOriginPath(value: string | null): string | null {
+  if (!value || !value.startsWith("/")) return null;
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Login({ home = "/", embedded = false }: { home?: string; embedded?: boolean }) {
   const { user, scope, refresh, config } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   // Where to go after login: state from RequireUser, or ?next= (same-site paths only) from /admin and MCP.
   const next = new URLSearchParams(location.search).get("next");
-  const from = (location.state as { from?: string } | null)?.from
-    ?? (next && next.startsWith("/") && !next.startsWith("//") ? next : home);
+  const from = (location.state as { from?: string } | null)?.from ?? sameOriginPath(next) ?? home;
   // /admin is a separate app, so it needs a full page load.
   const goFrom = () => (from === "/admin" || from.startsWith("/admin/") ? window.location.assign(from) : navigate(from, { replace: true }));
   const [step, setStep] = useState<Step>({ kind: "phone" });

@@ -283,7 +283,7 @@ async def stream_chat(body: ChatIn, user_id: int, app_name: str, who: SignedIn |
                             slot["name"] += fn.get("name") or ""
                             slot["arguments"] += fn.get("arguments") or ""
     except httpx.HTTPError as e:
-        yield sse("error", {"message": "AI-tjenesten kunne ikke nås", "detail": str(e)[:200]})
+        yield sse("error", {"message": "AI-tjenesten kunne ikke nås", "detail": type(e).__name__})
         return
 
     if calls:
