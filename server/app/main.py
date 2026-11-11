@@ -26,6 +26,8 @@ from app.routes import (admin, admin_files, admin_ops, adoption, ai, app_store, 
 from app.routes import admin_mail
 from app.routes import admin_secrets
 from app.routes import groups as group_routes
+from app.routes import admin_messages
+from app.routes import messages as messages_routes
 from app.routes import admin_meta
 from app.routes import meta as meta_routes
 from app.routes import mail as mail_routes
@@ -190,6 +192,7 @@ def create_app() -> FastAPI:
               user_area.router, mail_routes.router, admin_mail.router, adoption.router, adoption.admin_router,
               knowledge.router, knowledge_admin.router, group_routes.router, group_routes.me_router, admin_secrets.router,
               meta_routes.router, admin_meta.router,
+              messages_routes.router, admin_messages.router,
               web.router, files.memory_router):
         app.include_router(r)
 

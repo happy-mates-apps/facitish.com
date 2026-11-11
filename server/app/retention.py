@@ -135,6 +135,11 @@ CLEANUP_SQL = {
                                  delete from secret_access_requests q using d
                                  where q.status <> 'pending' and q.decided_at < d.t""",
     "secret_notifications": "delete from secret_notifications where sent_at < now() - make_interval(days => %s)",
+    "message_deliveries": """delete from message_deliveries where channel <> 'app'
+                             and created_at < now() - make_interval(days => %s)""",
+    "sms_messages": "delete from sms_messages where created_at < now() - make_interval(days => %s)",
+    "message_reports": """delete from message_reports where status <> 'pending'
+                          and reviewed_at < now() - make_interval(days => %s)""",
     "review_orphans": """delete from review_sessions s where ended_at < now() - make_interval(days => %s)
                          and jsonb_array_length(pages) = 0
                          and not exists (select 1 from review_feedback r where r.session_id = s.id)""",

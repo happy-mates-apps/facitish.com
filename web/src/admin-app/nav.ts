@@ -1,10 +1,10 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, BookOpen, LockKeyhole, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Network, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
+  Activity, Archive, ShieldAlert, BookOpen, LockKeyhole, MessageSquare, Reply, Send, SlidersHorizontal, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Network, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
   Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
-export type NavBadge = "impersonation" | "features" | "mcp";
+export type NavBadge = "impersonation" | "features" | "mcp" | "replies" | "reports";
 export type NavItem = { path: string; label: string; icon: LucideIcon; badge?: NavBadge };
 export type NavGroup = { label: string; items: NavItem[] };
 
@@ -36,6 +36,17 @@ export const NAV: NavGroup[] = [
       { path: "/groups", label: "Grupper", icon: UsersRound },
       { path: "/impersonation", label: "Efterligning", icon: VenetianMask, badge: "impersonation" },
       { path: "/logs/auth", label: "Auth-log", icon: LogIn },
+    ],
+  },
+  {
+    label: "Beskeder",
+    items: [
+      { path: "/messages", label: "Beskeder", icon: MessageSquare },
+      { path: "/messages/send", label: "Send besked", icon: Send },
+      { path: "/messages/replies", label: "Svar", icon: Reply, badge: "replies" },
+      { path: "/messages/moderation", label: "Moderering", icon: ShieldAlert, badge: "reports" },
+      { path: "/messages/delivery", label: "Levering", icon: Activity },
+      { path: "/messages/settings", label: "Kanaler og regler", icon: SlidersHorizontal },
     ],
   },
   {

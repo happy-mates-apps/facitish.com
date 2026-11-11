@@ -23,6 +23,8 @@ CATALOG: tuple[CatalogFeature, ...] = (
     CatalogFeature("extension", "Browserudvidelse", "Sidepanel i Chrome og Edge, gem siden som klip", "integration"),
     CatalogFeature("office", "Office-tilføjelser", "Word, Excel, PowerPoint og Outlook i én router", "integration"),
     CatalogFeature("mail", "Mail", "Postkasse, kalendere og kontakter i Stalwart på /user/mail; udgående mail via Lettermint", "bruger"),
+    CatalogFeature("beskeder", "Beskeder", "Beskeder fra administrationen i appen, på SMS og e-mail; svar til administrationen", "bruger"),
+    CatalogFeature("samtaler", "Samtaler", "Fællessamtalen og direkte beskeder mellem brugere, med anmeld og bloker", "bruger"),
     CatalogFeature("knowledge", "Viden", "Vidensrum med indekserede dokumenter og agenter på /extension/agent", "bruger"),
     CatalogFeature("website", "Website /w", "Offentlige Markdown-sider på dansk og engelsk", "platform"),
     CatalogFeature("heatmaps", "Heatmaps", "Klik- og scroll-heatmaps pr. side", "admin"),
