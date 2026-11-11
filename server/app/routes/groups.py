@@ -78,10 +78,12 @@ async def update_group(group_id: int, body: GroupPatch, admin: Principal = Depen
         before = await groups.get(conn, group_id)
         if not fields:
             return before
-        sets = ", ".join(f"{k} = %s" for k in fields)
+        # Column names come from this fixed tuple, never from the request.
+        cols = [c for c in ("name", "description", "notify_email") if c in fields]
+        sets = ", ".join(f"{c} = %s" for c in cols)
         row = await db.fetch_one(conn, f"""update groups set {sets}, updated_at = now() where id = %s
                                            returning id, slug, name, description, notify_email, created_at, updated_at""",
-                                 (*fields.values(), group_id))
+                                 (*(fields[c] for c in cols), group_id))
         b, a = changed(before, fields)
         await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="groups", row_id=group_id, before=b, after=a)
     return row

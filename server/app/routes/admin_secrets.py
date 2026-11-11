@@ -171,11 +171,17 @@ async def meta(admin: Principal = Depends(require_admin)):
 
 @router.get("/requests")
 async def list_requests(scope: str = "waiting", admin: Principal = Depends(require_admin)):
-    if scope not in ("waiting", "mine", "open", "all"):
+    if scope == "waiting":
+        where = """q.status = 'pending' and exists (select 1 from secret_approvals a where a.request_id = q.id
+                   and a.approver_id = %(me)s and a.decision = 'pending')"""
+    elif scope == "mine":
+        where = "q.requester_id = %(me)s"
+    elif scope == "open":
+        where = "q.status = 'pending'"
+    elif scope == "all":
+        where = "true"
+    else:
         raise HTTPException(400, "Ukendt filter")
-    where = {"waiting": """q.status = 'pending' and exists (select 1 from secret_approvals a where a.request_id = q.id
-                            and a.approver_id = %(me)s and a.decision = 'pending')""",
-             "mine": "q.requester_id = %(me)s", "open": "q.status = 'pending'", "all": "true"}[scope]
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""select q.*, s.name as secret_name, s.environment, g.name as group_name
                                             from secret_access_requests q join secrets s on s.id = q.secret_id
@@ -302,8 +308,12 @@ async def update_secret(secret_id: int, body: SecretPatch, admin: Principal = De
             raise HTTPException(403, "Kun A kan ændre, hvem der skal godkende adgang")
         if not fields:
             return {"ok": True}
-        sets = ", ".join(f"{k} = %s" for k in fields)
-        await conn.execute(f"update secrets set {sets}, updated_at = now() where id = %s", (*fields.values(), secret_id))
+        # Column names come from this fixed tuple, never from the request.
+        cols = [c for c in ("name", "environment", "description", "tags", "approval_rule", "rotation_days", "expires_at")
+                if c in fields]
+        sets = ", ".join(f"{c} = %s" for c in cols)
+        await conn.execute(f"update secrets set {sets}, updated_at = now() where id = %s",
+                           (*(fields[c] for c in cols), secret_id))
         b, a = changed(secret, fields)
         await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="secrets", row_id=secret_id, before=b, after=a)
     return {"ok": True}
