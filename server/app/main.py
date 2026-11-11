@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
 from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, webhooks
+from app import license as gaer_license
 from app import uploads  # noqa: F401  (registers the files.unzip, files.uploads_cleanup and storage.cors jobs)
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
@@ -87,6 +88,8 @@ async def lifespan(app: FastAPI):
         log.warning("e-mail is not configured, login codes cannot be sent: missing %s", ", ".join(missing))
     if config.settings.is_production and not captcha.enabled():
         log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
+    if not (lic := gaer_license.current()).valid:
+        log.warning("license: %s (%s) — /w pages say this installation is unlicensed", lic.status, lic.reason)
     await db.open_pools()
     workers = jobs.start() if retention.enabled() else None
     if workers and storage.public_origin():
@@ -170,11 +173,14 @@ def create_app() -> FastAPI:
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
+    # The license statement in the <head> of every /w page (app.license); outermost, after the guard.
+    app.add_middleware(gaer_license.LicenseHeadMiddleware)
+
     @app.get("/health")
     async def health():
         async with db.connection() as conn:
             await conn.execute("select 1")
-        return {"ok": True, "version": config.settings.version}
+        return {"ok": True, "version": config.settings.version, "license": gaer_license.current().public()}
 
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router,
               admin_files.router, admin.router,  # admin_files first: /files/folders before /files/{file_id}
