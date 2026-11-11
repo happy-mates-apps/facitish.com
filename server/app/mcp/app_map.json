@@ -206,6 +206,10 @@
         "mcp-drafts"
       ]
     },
+    "/admin/meta": {
+      "title": "Træstrukturer",
+      "anchors": []
+    },
     "/admin/nats": {
       "title": "NATS",
       "anchors": [
@@ -280,6 +284,10 @@
         "prompt-{x}"
       ]
     },
+    "/develop/trae": {
+      "title": "Træstrukturer",
+      "anchors": []
+    },
     "/extension": {
       "title": "Aktuel side",
       "anchors": []
@@ -306,6 +314,10 @@
     },
     "/extension/login": {
       "title": "Log ind i udvidelsen",
+      "anchors": []
+    },
+    "/extension/meta": {
+      "title": "Tags",
       "anchors": []
     },
     "/extension/tools": {

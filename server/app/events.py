@@ -50,6 +50,7 @@ KINDS: dict[str, str] = {
     "auth.otp_failed": "Forkerte engangskoder",
     "ai.tokens": "AI-tokens pr. svar (værdi = tokens)",
     "job.failed": "Baggrundsjob der fejlede (ref = type)",
+    "meta.node_created": "Noder oprettet i træstrukturer (ref = node-id)",
 }
 
 _nc = None          # nats.aio.client.Client once connected
