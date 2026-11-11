@@ -39,6 +39,9 @@ import Nats from "./pages/Nats";
 import Resources from "./pages/Resources";
 import MailAdmin from "./pages/mail/MailAdmin";
 import MailUser from "./pages/mail/MailUser";
+import Secrets from "./pages/secrets/Secrets";
+import SecretDetail from "./pages/secrets/SecretDetail";
+import Groups from "./pages/Groups";
 import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
@@ -128,6 +131,9 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="resources" element={<Resources />} />
                   <Route path="mail" element={<MailAdmin />} />
                   <Route path="mail/users/:id" element={<MailUser />} />
+                  <Route path="secrets" element={legacy(<Secrets />)} />
+                  <Route path="secrets/:id" element={legacy(<SecretDetail />)} />
+                  <Route path="groups" element={legacy(<Groups />)} />
                   <Route path="data" element={<DataCatalog />} />
                   <Route path="data/explore" element={<DataExplore />} />
                   <Route path="data/connect" element={<DataConnect />} />

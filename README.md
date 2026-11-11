@@ -109,6 +109,9 @@ herfra ind i sin fork.
 | `/admin/resources` | admin-appen | admin | Ressourcer |
 | `/admin/mail` | admin-appen | admin | Mail |
 | `/admin/mail/users/:id` | admin-appen | admin | Brugerens mail |
+| `/admin/secrets` | admin-appen | admin | Hemmeligheder |
+| `/admin/secrets/:id` | admin-appen | admin | Hemmelighed |
+| `/admin/groups` | admin-appen | admin | Grupper |
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
