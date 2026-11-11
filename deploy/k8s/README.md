@@ -36,6 +36,7 @@ gaer-base itself has no `DEPLOY_TARGET`, so it keeps deploying with compose as b
 | variable | `IMAGE_NAME` | `ghcr.io/<org>/gaer-00001` |
 | variable | `UPSTREAM_REPO` | `surdej-v2/gaer-base` (used by `sync-upstream.yml`) |
 | variable | `K8S_INGRESS_CLASS`, `K8S_STORAGE_CLASS` | from the cluster's settings in the console |
+| variable | `DEPLOY_RUNNER` (optional, set by hand) | runner label for `deploy-k8s.yml`. Use it when the API server is private and a self-hosted runner runs in the cluster. |
 | secret | `KUBE_CONFIG` | kubeconfig for the `deployer` account. It can change only its own namespace. |
 | secret | `APP_ENV` | `KEY=value` lines for the app: the console's shared lines plus the fork's own lines. See `deploy/app.env.example`. |
 

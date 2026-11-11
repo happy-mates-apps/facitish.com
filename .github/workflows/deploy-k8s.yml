@@ -5,7 +5,9 @@ name: deploy-k8s
 #   KUBE_CONFIG      kubeconfig for the namespace's deployer account (may only touch that namespace)
 #   APP_ENV          KEY=value lines for the app (app.env), e.g. BOOTSTRAP_ADMIN_EMAIL, MAIL_*, S3_*, LICENSE_KEY
 #   GHCR_PULL_TOKEN  optional; read:packages token, only if the console did not create ghcr-pull itself
-# Repository variables (optional): K8S_INGRESS_CLASS, K8S_STORAGE_CLASS, K8S_DB_STORAGE
+# Repository variables (optional): K8S_INGRESS_CLASS, K8S_STORAGE_CLASS, K8S_DB_STORAGE, and DEPLOY_RUNNER: the runner
+# label to deploy from. A cluster whose API server is private needs a self-hosted runner inside it; GitHub-hosted
+# runners (the default, ubuntu-latest) only reach a public API address.
 
 on:
   workflow_call:
@@ -20,7 +22,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     environment:
       name: production
       url: https://${{ inputs.hostname }}
