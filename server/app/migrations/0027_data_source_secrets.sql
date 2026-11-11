@@ -9,7 +9,7 @@
 alter table secret_access_requests add column grantee_source_id bigint references data_sources (id) on delete cascade;
 alter table secret_grants add column source_id bigint references data_sources (id) on delete cascade;
 
--- The unnamed checks from 0023 (one grantee; level read/write) are replaced by ones that know about sources.
+-- The unnamed checks from 0026 (one grantee; level read/write) are replaced by ones that know about sources.
 do $$
 declare c record;
 begin

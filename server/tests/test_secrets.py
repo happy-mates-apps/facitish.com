@@ -56,10 +56,14 @@ async def test_groups_are_a_general_feature(make_client, owner_conn):
     assert (await boss.get("/api/me/groups")).json() == []
     r = await boss.patch(f"/api/admin/groups/{gid}", json={"notify_email": "Drift@Example.com"})
     assert r.json()["notify_email"] == "drift@example.com"
+    assert (await boss.patch(f"/api/admin/groups/{gid}", json={"notify_email": "ikke en adresse"})).status_code == 422
+    assert (await boss.patch(f"/api/admin/groups/{gid}", json={"notify_email": "a@" + "b." * 2000})).status_code == 422
+    assert (await boss.patch(f"/api/admin/groups/{gid}", json={"notify_email": ""})).json()["notify_email"] is None
+    assert (await boss.patch(f"/api/admin/groups/{gid}", json={"notify_email": "drift@example.com"})).status_code == 200
     assert (await boss.delete(f"/api/admin/groups/{gid}/members/{ids[1]}")).status_code == 200
     actions = [r[0] for r in owner_conn.execute(
         "select action from audit_log where table_name = 'groups' and row_id = %s order by id", (str(gid),))]
-    assert actions == ["create", "group.member_added", "update", "group.member_removed"]
+    assert actions == ["create", "group.member_added", "update", "update", "update", "group.member_removed"]
     assert (await boss.delete(f"/api/admin/groups/{gid}")).status_code == 200
 
 

@@ -390,7 +390,12 @@ async def _oauth_token(spec: dict, client_secret: str) -> str:
     hit = _tokens.get(fingerprint)
     if hit and hit[0] > time.monotonic():
         return hit[1]
-    await check_host(urlsplit(auth["token_url"]).hostname)
+    # The same guard as the GET: https, a host pinned to the source, and a public address (parse_spec checked the
+    # first two when the description was saved; they are checked again here, at the call).
+    parts = urlsplit(auth["token_url"])
+    if parts.scheme != "https" or not parts.hostname or parts.hostname not in spec["hosts"]:
+        raise FetchError("Token-adressen peger uden for kildens værter")
+    await check_host(parts.hostname)
     data = {"grant_type": "client_credentials", "client_id": auth["client_id"], "client_secret": client_secret}
     if auth["scope"]:
         data["scope"] = auth["scope"]
