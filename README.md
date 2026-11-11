@@ -279,3 +279,16 @@ gælder inde i udvidelsen/Office.
 Alle indstillinger er miljøvariabler — se `.env.example` (lokalt), `deploy/app.env.example` og `deploy/.env.example`
 (produktion: appens indstillinger og stakkens hemmeligheder) og
 `server/app/config.py`. Navn, logo, SMS-afsender, GDPR-mail, cookie-tekster og opbevaringsperioder sættes i /admin.
+
+## Licens
+
+Copyright © 2026 Foreningen Happy Mates (CVR 46371771). Alle rettigheder forbeholdes.
+
+Gær er **ikke** open source. Koden må kun bruges af den, der har en skriftlig aftale med Foreningen Happy Mates,
+og kun til egen intern brug inden for aftalen. Den må ikke overdrages, videresælges, videregives, genbruges i andre
+produkter eller bruges til at bygge noget konkurrerende. Se [LICENSE](LICENSE).
+
+Hver installation får en **licensnøgle** fra happymates.ai (`LICENSE_KEY`, en JWT signeret med Ed25519). Nøglen
+indeholder licens-id, licenstager, en liste over de domæner installationen må køre på (`domains`) og den licenserklæring,
+der skal stå i `<head>` på alle sider under `/w`. Serveren tjekker nøglen (`server/app/license.py`) og sætter erklæringen
+ind; uden gyldig nøgle står der, at installationen er ulicenseret. Status ses på `/health`.
