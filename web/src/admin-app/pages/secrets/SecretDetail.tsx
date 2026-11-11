@@ -13,7 +13,9 @@ type Detail = {
   can_edit_raci: boolean; can_manage: boolean; group_role: string | null;
   raci: (Person & { roles: Role[] })[];
   versions: { version: number; current: boolean; hint: string; length: number | null; created_at: string; superseded_at: string | null; created_by: Person | null }[];
-  grants: { id: number; level: string; level_label: string; granted_at: string; expires_at: string; user: Person | null; group: { id: number; name: string } | null }[];
+  grants: { id: number; level: string; level_label: string; granted_at: string; expires_at: string; user: Person | null; group: { id: number; name: string } | null;
+    source: { id: number; key: string; name: string; hosts: string[] } | null }[];
+  used_by: { id: number; key: string; name: string; hosts: string[]; used_as: string[] }[];
   requests: AccessRequest[];
   activity: { ts: string; action: string; actor: Person | null; detail: Record<string, unknown> }[];
 };
@@ -290,7 +292,8 @@ export default function SecretDetail() {
                   <tbody>
                     {s.grants.map((g) => (
                       <tr key={g.id}>
-                        <td>{g.group ? `Gruppe: ${g.group.name}` : g.user?.name}</td>
+                        <td>{g.source ? <>API-kilde: <Link to={`/data/connect?source=${g.source.id}`}>{g.source.name}</Link>
+                          <div className="small muted">sendes kun til {g.source.hosts.join(", ")}</div></> : g.group ? `Gruppe: ${g.group.name}` : g.user?.name}</td>
                         <td>{g.level_label}</td>
                         <td>{fmtDay(g.granted_at)}</td>
                         <td>{fmtDay(g.expires_at)}</td>
@@ -305,6 +308,31 @@ export default function SecretDetail() {
               </div>
             )}
           </div>
+
+          {s.used_by.length > 0 && (
+            <div className="card">
+              <h3>Bruges af API-kilder</h3>
+              <p className="small muted">Kilderne nævner hemmeligheden i deres beskrivelse. En kilde kan kun bruge værdien med en godkendt adgang „Brug i kilde“, og ingen person kan se den gennem den.</p>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Kilde</th><th>Bruges som</th><th>Værter</th><th>Adgang</th></tr></thead>
+                  <tbody>
+                    {s.used_by.map((u) => {
+                      const g = s.grants.find((x) => x.source?.id === u.id);
+                      return (
+                        <tr key={u.id}>
+                          <td><Link to={`/data/connect?source=${u.id}`}>{u.name}</Link> <span className="muted small">{u.key}</span></td>
+                          <td className="small">{u.used_as.map((x) => (x === "auth" ? "Godkendelse" : x.replace("header:", "Header "))).join(", ")}</td>
+                          <td className="small">{u.hosts.join(", ")}</td>
+                          <td>{g ? <span className="pill green">Til {fmtDay(g.expires_at)}</span> : <span className="pill">Ingen</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {s.requests.length > 0 && (
             <div className="stack" style={{ "--gap": "12px" } as CSSProperties}>

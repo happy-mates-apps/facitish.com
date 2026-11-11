@@ -3,12 +3,19 @@
 Rules (specs/admin-app/DATA.md):
 - Only the server calls an API, and only over https to the hosts named in the description. Hosts that resolve to
   private, loopback or link-local addresses are refused, and redirects are not followed.
-- The description never holds a secret. `auth.hemmelighed` names an environment variable, and only names that start
-  with DATA_SECRET_ are allowed, so a description cannot send DATABASE_URL or SECRET_KEY to another host.
+- The description never holds a secret. `auth.hemmelighed` (and `headers.<navn>.hemmelighed`) names a secret in
+  Hemmeligheder as "gruppe/navn" or "gruppe/navn@miljø", which the source may only use while it holds an approved grant
+  "Brug i kilde" (app/source_secrets.py), or an environment variable starting with DATA_SECRET_ (the older way). A
+  description can therefore never send DATABASE_URL or SECRET_KEY to another host.
+- Sign-in: ingen, bearer, header, basic (brugernavn + hemmelighed) or oauth2 (client credentials: token_url,
+  client_id, hemmelighed = client secret, scope). The token host is checked like the API host and is one of the
+  source's hosts. Tokens are kept in memory until shortly before they expire.
 - Every call has a timeout, a size limit, a per-source limit per minute and a short in-memory cache.
 """
 
 import asyncio
+import base64
+import hashlib
 import ipaddress
 import json
 import re
@@ -20,7 +27,7 @@ from urllib.parse import urlencode, urlsplit
 import httpx
 import yaml
 
-from app import config
+from app import config, integrations
 
 CLASSIFICATION = {"hvid": "white", "grøn": "green", "groen": "green", "gul": "yellow", "rød": "red", "roed": "red",
                   "white": "white", "green": "green", "yellow": "yellow", "red": "red"}
@@ -31,6 +38,14 @@ FIELD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 PATH_RE = re.compile(r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$")
 ROWS_RE = re.compile(r"^\$(\.[A-Za-z0-9_]+)*(\[\*\])?$")
 SECRET_NAME_RE = re.compile(r"^DATA_SECRET_[A-Z0-9_]{1,60}$")
+# gruppe/navn or gruppe/navn@miljø: the group's slug, the secret's name (no / or @) and its optional environment.
+SECRET_REF_RE = re.compile(r"^(?P<group>[a-z0-9][a-z0-9-]{0,62})/(?P<name>[^/@\s][^/@\n]{0,118}[^/@\s]|[^/@\s])"
+                           r"(?:@(?P<env>[^/@\s]{1,40}))?$")
+HEADER_RE = re.compile(r"^[A-Za-z0-9-]{1,60}$")
+FORBIDDEN_HEADERS = {"host", "cookie", "content-length", "transfer-encoding", "connection"}
+AUTH_TYPES = ("ingen", "bearer", "header", "basic", "oauth2")
+MAX_HEADERS = 5
+TOKEN_MARGIN_S = 60
 SECRET_KEYS = {"token", "key", "api_key", "apikey", "password", "adgangskode", "secret", "bearer"}
 
 MAX_SPEC_BYTES = 64_000
@@ -80,8 +95,8 @@ def _no_secrets(node, where: str = "", names: bool = False) -> None:
         for k, v in node.items():
             name = str(k).strip().lower()
             if not names and name in SECRET_KEYS and v not in (None, ""):
-                raise SpecError(f"{where}{k}: læg aldrig en nøgle i beskrivelsen. Brug auth.hemmelighed med navnet "
-                                "på en miljøvariabel (DATA_SECRET_…)")
+                raise SpecError(f"{where}{k}: læg aldrig en nøgle i beskrivelsen. Brug hemmelighed: gruppe/navn "
+                                "fra Hemmeligheder")
             _no_secrets(v, f"{where}{k}.", names=not names and name in ("felter", "parametre"))
     elif isinstance(node, list):
         for item in node:
@@ -115,23 +130,7 @@ def parse_spec(text: str) -> dict:
         raise SpecError("base_url skal være en https-adresse uden brugernavn, ? eller #")
     host = parts.hostname.lower()
 
-    auth_raw = raw.get("auth") or {}
-    if not isinstance(auth_raw, dict):
-        raise SpecError("auth skal være et objekt")
-    auth_type = _str(auth_raw.get("type", "ingen"), "auth.type").lower()
-    if auth_type not in ("ingen", "bearer", "header"):
-        raise SpecError("auth.type skal være ingen, bearer eller header")
-    auth = {"type": auth_type, "secret": None, "header": None}
-    if auth_type != "ingen":
-        secret = _str(auth_raw.get("hemmelighed"), "auth.hemmelighed")
-        if not SECRET_NAME_RE.match(secret):
-            raise SpecError("auth.hemmelighed skal være navnet på en miljøvariabel, der starter med DATA_SECRET_")
-        auth["secret"] = secret
-        if auth_type == "header":
-            header = _str(auth_raw.get("header"), "auth.header", max_len=60)
-            if not re.match(r"^[A-Za-z0-9-]+$", header) or header.lower() in ("host", "cookie", "content-length"):
-                raise SpecError("auth.header er ikke et gyldigt headernavn")
-            auth["header"] = header
+    auth, auth_hosts = _parse_auth(raw.get("auth") or {})
 
     limits_raw = raw.get("grænser") or raw.get("graenser") or {}
     if not isinstance(limits_raw, dict):
@@ -152,8 +151,72 @@ def parse_spec(text: str) -> dict:
     datasets, seen = [], set()
     for i, d in enumerate(sets_raw, 1):
         datasets.append(_parse_dataset(d, i, default_class, seen))
+    secrets = ([{"ref": auth["secret"], "used_as": "auth"}] if auth["secret"] else []) \
+        + [{"ref": h["secret"], "used_as": f"header:{h['name']}"} for h in auth["headers"]]
+    hosts = [host] + [h for h in auth_hosts if h != host]
     return {"key": key, "name": _str(raw.get("navn"), "navn", max_len=120), "kind": kind, "base_url": base_url,
-            "host": host, "auth": auth, "limits": limits, "datasets": datasets}
+            "host": host, "hosts": hosts, "auth": auth, "secrets": secrets, "limits": limits, "datasets": datasets}
+
+
+def parse_secret_ref(value: str, what: str) -> str:
+    """A secret's name in a description: gruppe/navn[@miljø] (Hemmeligheder) or DATA_SECRET_… (environment)."""
+    ref = _str(value, what, max_len=200)
+    if SECRET_NAME_RE.match(ref) or SECRET_REF_RE.match(ref):
+        return ref
+    raise SpecError(f"{what} skal være en hemmelighed som gruppe/navn (eller gruppe/navn@miljø) fra Hemmeligheder, "
+                    "eller en miljøvariabel, der starter med DATA_SECRET_")
+
+
+def is_env_ref(ref: str) -> bool:
+    return bool(SECRET_NAME_RE.match(ref))
+
+
+def _secret_of(node, what: str) -> str:
+    if isinstance(node, dict):
+        return parse_secret_ref(node.get("hemmelighed"), f"{what}.hemmelighed")
+    return parse_secret_ref(node, what)
+
+
+def _parse_auth(auth_raw) -> tuple[dict, list[str]]:
+    if not isinstance(auth_raw, dict):
+        raise SpecError("auth skal være et objekt")
+    auth_type = _str(auth_raw.get("type", "ingen"), "auth.type").lower()
+    if auth_type not in AUTH_TYPES:
+        raise SpecError("auth.type skal være ingen, bearer, header, basic eller oauth2")
+    auth = {"type": auth_type, "secret": None, "header": None, "username": None, "token_url": None, "client_id": None,
+            "scope": None, "headers": []}
+    hosts: list[str] = []
+    if auth_type != "ingen":
+        auth["secret"] = parse_secret_ref(auth_raw.get("hemmelighed"), "auth.hemmelighed")
+    if auth_type == "header":
+        header = _str(auth_raw.get("header"), "auth.header", max_len=60)
+        if not HEADER_RE.match(header) or header.lower() in FORBIDDEN_HEADERS:
+            raise SpecError("auth.header er ikke et gyldigt headernavn")
+        auth["header"] = header
+    elif auth_type == "basic":
+        auth["username"] = _str(auth_raw.get("brugernavn"), "auth.brugernavn", max_len=120)
+    elif auth_type == "oauth2":
+        token_url = _str(auth_raw.get("token_url"), "auth.token_url", max_len=300)
+        parts = urlsplit(token_url)
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.fragment:
+            raise SpecError("auth.token_url skal være en https-adresse uden brugernavn eller #")
+        auth["token_url"] = token_url
+        auth["client_id"] = _str(auth_raw.get("client_id"), "auth.client_id", max_len=200)
+        auth["scope"] = _str(auth_raw.get("scope"), "auth.scope", required=False, max_len=300) or None
+        hosts.append(parts.hostname.lower())
+    headers_raw = auth_raw.get("headers") or {}
+    if not isinstance(headers_raw, dict):
+        raise SpecError("auth.headers skal være et objekt med headernavn: { hemmelighed: gruppe/navn }")
+    if len(headers_raw) > MAX_HEADERS:
+        raise SpecError(f"Højst {MAX_HEADERS} ekstra headers")
+    taken = {"authorization", (auth["header"] or "").lower()}
+    for name, node in headers_raw.items():
+        name = str(name).strip()
+        if not HEADER_RE.match(name) or name.lower() in FORBIDDEN_HEADERS or name.lower() in taken:
+            raise SpecError(f"auth.headers: {name} er ikke et gyldigt headernavn her")
+        taken.add(name.lower())
+        auth["headers"].append({"name": name, "secret": _secret_of(node, f"auth.headers.{name}")})
+    return auth, hosts
 
 
 def _parse_dataset(d, i: int, default_class: str, seen: set) -> dict:
@@ -265,6 +328,28 @@ def _rate_limit(key: str, per_minute: int) -> None:
     q.append(now)
 
 
+async def http_post_form(url: str, data: dict, timeout: float) -> dict:
+    """The OAuth 2 token call: one POST without redirects. Returns the parsed JSON. Replaced in tests."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            r = await client.post(url, data=data, headers={"Accept": "application/json", "User-Agent": "Gaer-data/1"})
+    except httpx.TimeoutException:
+        raise FetchError(f"Token-adressen svarede ikke inden for {timeout:g} sekunder")
+    except httpx.HTTPError:
+        raise FetchError("Kunne ikke forbinde til token-adressen")
+    if r.status_code >= 300:
+        raise FetchError(f"Token-adressen svarede {r.status_code}. Tjek client_id, hemmeligheden og scope")
+    if len(r.content) > 100_000:
+        raise FetchError("Svaret fra token-adressen er for stort")
+    try:
+        body = r.json()
+    except ValueError:
+        raise FetchError("Svaret fra token-adressen er ikke JSON")
+    if not isinstance(body, dict) or not isinstance(body.get("access_token"), str):
+        raise FetchError("Svaret fra token-adressen har intet access_token")
+    return body
+
+
 async def http_get_json(url: str, headers: dict, timeout: float):
     """One GET without redirects. Returns the parsed JSON. Replaced in tests."""
     try:
@@ -287,18 +372,66 @@ async def http_get_json(url: str, headers: dict, timeout: float):
         raise FetchError("Svaret er ikke JSON")
 
 
-def _headers(spec: dict) -> dict:
+_tokens: dict[str, tuple[float, str]] = {}
+
+
+def _value(secrets: dict[str, str], ref: str) -> str:
+    value = secrets.get(ref) or (config.data_secret(ref) if is_env_ref(ref) else None)
+    if not value:
+        if is_env_ref(ref):
+            raise FetchError(f"Miljøvariablen {ref} er ikke sat på instansen")
+        raise FetchError(f"Kilden har ikke adgang til hemmeligheden {ref}. Anmod om Brug i kilde under Forbind API")
+    return value
+
+
+async def _oauth_token(spec: dict, client_secret: str) -> str:
+    auth = spec["auth"]
+    fingerprint = hashlib.sha256(f"{auth['token_url']}|{auth['client_id']}|{client_secret}".encode()).hexdigest()
+    hit = _tokens.get(fingerprint)
+    if hit and hit[0] > time.monotonic():
+        return hit[1]
+    # The same guard as the GET: https, a host pinned to the source, and a public address (parse_spec checked the
+    # first two when the description was saved; they are checked again here, at the call).
+    parts = urlsplit(auth["token_url"])
+    if parts.scheme != "https" or not parts.hostname or parts.hostname not in spec["hosts"]:
+        raise FetchError("Token-adressen peger uden for kildens værter")
+    await check_host(parts.hostname)
+    data = {"grant_type": "client_credentials", "client_id": auth["client_id"], "client_secret": client_secret}
+    if auth["scope"]:
+        data["scope"] = auth["scope"]
+    start = time.monotonic()
+    try:
+        body = await http_post_form(auth["token_url"], data, spec["limits"]["timeout"])
+    except FetchError as e:
+        status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", str(e))) else 0
+        await integrations.record_source_call(spec["key"], "POST", "token", (time.monotonic() - start) * 1000, status)
+        raise
+    await integrations.record_source_call(spec["key"], "POST", "token", (time.monotonic() - start) * 1000, 200)
+    try:
+        lifetime = max(0, int(body.get("expires_in") or 300) - TOKEN_MARGIN_S)
+    except (TypeError, ValueError):
+        lifetime = 240
+    if lifetime:
+        _tokens[fingerprint] = (time.monotonic() + lifetime, body["access_token"])
+    return body["access_token"]
+
+
+async def build_headers(spec: dict, secrets: dict[str, str]) -> dict:
+    """The request headers with the secrets filled in. `secrets` maps each name in spec["secrets"] to its value
+    (app/source_secrets.py resolves them); a missing one stops the call with a Danish message."""
     headers = {"Accept": "application/json", "User-Agent": "Gaer-data/1"}
     auth = spec["auth"]
-    if auth["type"] == "ingen":
-        return headers
-    value = config.data_secret(auth["secret"])
-    if not value:
-        raise FetchError(f"Miljøvariablen {auth['secret']} er ikke sat på instansen")
+    extra = {h["name"]: _value(secrets, h["secret"]) for h in auth["headers"]}  # all present before any call
     if auth["type"] == "bearer":
-        headers["Authorization"] = f"Bearer {value}"
-    else:
-        headers[auth["header"]] = value
+        headers["Authorization"] = f"Bearer {_value(secrets, auth['secret'])}"
+    elif auth["type"] == "header":
+        headers[auth["header"]] = _value(secrets, auth["secret"])
+    elif auth["type"] == "basic":
+        pair = f"{auth['username']}:{_value(secrets, auth['secret'])}".encode()
+        headers["Authorization"] = "Basic " + base64.b64encode(pair).decode()
+    elif auth["type"] == "oauth2":
+        headers["Authorization"] = f"Bearer {await _oauth_token(spec, _value(secrets, auth['secret']))}"
+    headers.update(extra)
     return headers
 
 
@@ -327,8 +460,10 @@ def pick(row, path: str):
     return node
 
 
-async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None = None, size: int | None = None) -> dict:
-    """Calls the dataset's endpoint and returns {"url", "rows" (by field name), "raw", "ms", "cached"}."""
+async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None = None, size: int | None = None,
+                secrets: dict[str, str] | None = None) -> dict:
+    """Calls the dataset's endpoint and returns {"url", "rows" (by field name), "raw", "ms", "cached"}. The secrets are
+    checked before the cache, so a source that loses its access stops answering at once."""
     query = {k: v for k, v in params.items() if k in ds["params"] and v not in (None, "")}
     if ds["paging"] and page is not None:
         query[ds["paging"]["param"]] = str(page)
@@ -337,16 +472,22 @@ async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None =
     if urlsplit(url).hostname != spec["host"]:
         raise FetchError("Adressen peger uden for kildens vært")
 
+    headers = await build_headers(spec, secrets or {})
     hit = _cache.get(url)
     if hit and hit[0] > time.monotonic():
         payload, cached, ms = hit[1], True, 0
     else:
-        headers = _headers(spec)
         await check_host(spec["host"])
         _rate_limit(spec["key"], spec["limits"]["per_minute"])
         start = time.monotonic()
-        payload = await http_get_json(url, headers, spec["limits"]["timeout"])
+        try:
+            payload = await http_get_json(url, headers, spec["limits"]["timeout"])
+        except FetchError as e:
+            status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", str(e))) else 0
+            await integrations.record_source_call(spec["key"], "GET", ds["path"], (time.monotonic() - start) * 1000, status)
+            raise
         ms, cached = round((time.monotonic() - start) * 1000), False
+        await integrations.record_source_call(spec["key"], "GET", ds["path"], ms, 200)
         if spec["limits"]["cache_min"]:
             if len(_cache) >= CACHE_ENTRIES:
                 _cache.pop(next(iter(_cache)))
@@ -359,3 +500,4 @@ async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None =
 def clear_cache() -> None:
     _cache.clear()
     _calls.clear()
+    _tokens.clear()

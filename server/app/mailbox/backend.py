@@ -30,7 +30,7 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
-from app import config
+from app import config, integrations
 
 CALENDAR, ADDRESS_BOOK = "calendar", "address_book"
 DAV_ROOT = {CALENDAR: "cal", ADDRESS_BOOK: "card"}
@@ -291,7 +291,8 @@ class StalwartBackend:
 
     def _client(self, auth: httpx.Auth | None = None, headers: dict | None = None) -> httpx.AsyncClient:
         return httpx.AsyncClient(base_url=self.base, timeout=config.settings.stalwart_timeout, auth=auth,
-                                 headers=headers, transport=self.transport)
+                                 headers=headers, transport=self.transport,
+                                 event_hooks=integrations.hooks("stalwart"))
 
     def _admin(self) -> httpx.AsyncClient:
         """STALWART_API_KEY is "<principal>:<secret>" (an admin principal or API key, HTTP Basic) or a bearer token."""

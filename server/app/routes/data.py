@@ -11,6 +11,7 @@
 """
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,7 +19,7 @@ from psycopg import sql
 from pydantic import BaseModel, Field
 
 from app import data_sources as sources_mod
-from app import db
+from app import db, integrations, secret_store, source_secrets
 from app.data_sources import FetchError, SpecError
 from app.logs import audit, changed
 from app.mcp.db_tools import SECRET_COLUMN
@@ -36,7 +37,10 @@ OWN_SOURCE = {"id": None, "key": "gaer", "name": "Tørgær (egen database)", "ki
 # (phone/e-mail hashes), settings, the migration list and the catalog itself.
 HIDDEN_TABLES = {"otp_codes", "webauthn_challenges", "sessions", "mcp_tokens", "mcp_clients", "totp_factors", "auth_log",
                  "settings", "schema_migrations", "data_sources", "datasets", "dataset_fields",
-                 "mcp_access_links", "mcp_tools", "mcp_tool_endpoints"}
+                 "mcp_access_links", "mcp_tools", "mcp_tool_endpoints",
+                 # Hemmeligheder: values, who may approve and who has access are never explored from here.
+                 "secrets", "secret_versions", "secret_raci", "secret_access_requests", "secret_approvals", "secret_grants",
+                 "secret_notifications", "group_notify_rules", "data_source_secrets"}
 TABLE_NAMES = {"users": "Brugere", "clips": "Klip", "files": "Filer", "audit_log": "Audit-log", "web_pages": "Website-sider",
                "features": "Features", "feature_rings": "Feature-niveauer", "feature_usage": "Feature-brug",
                "consents": "Samtykker", "bridge_consents": "Samtykker til udvidelsen", "gdpr_requests": "GDPR-forespørgsler",
@@ -306,7 +310,7 @@ async def query(dataset_id: int, body: QueryIn, admin: Principal = Depends(requi
     if d["source_id"] is None:
         result = await _query_table(d["key"], fields, body, sort_field, desc)
     else:
-        result = await _query_api(d, fields, body, sort_field, desc)
+        result = await _query_api(d, fields, body, sort_field, desc, admin)
 
     rows = [{k: (MASK if k in masked and v is not None else _plain(v)) for k, v in r.items()} for r in result["rows"]]
     columns = [{"name": f["name"], "label": f["label"] or f["name"], "data_type": f["data_type"],
@@ -395,12 +399,15 @@ def _local_match(value, op: str, target: str) -> bool:
     return {"gt": a > b, "gte": a >= b, "lt": a < b, "lte": a <= b}[op]
 
 
-async def _query_api(d: dict, fields: list[dict], body: QueryIn, sort_field: str | None, desc: bool) -> dict:
+async def _query_api(d: dict, fields: list[dict], body: QueryIn, sort_field: str | None, desc: bool,
+                     admin: Principal) -> dict:
     try:
         spec = sources_mod.parse_spec(d["spec_yaml"])
         ds = sources_mod.dataset_spec(spec, d["key"])
     except SpecError as e:
         raise HTTPException(409, f"Kildebeskrivelsen kan ikke bruges: {e}")
+    async with db.connection() as conn:
+        secrets, _ = await source_secrets.resolve(conn, spec, source_id=d["source_id"], meta=admin.meta)
     api_params, local, how = {}, [], []
     for flt in body.filters:
         if flt.field in ds["params"] and flt.op == "eq" and flt.field not in api_params:
@@ -412,7 +419,7 @@ async def _query_api(d: dict, fields: list[dict], body: QueryIn, sort_field: str
     paged = ds["paging"] is not None
     try:
         result = await sources_mod.fetch(spec, ds, api_params, page=body.offset // body.limit + 1 if paged else None,
-                                         size=body.limit)
+                                         size=body.limit, secrets=secrets)
     except FetchError as e:
         raise HTTPException(502, str(e))
     rows = [r for r in result["rows"] if all(_local_match(r.get(f.field), f.op, f.value) for f in local)]
@@ -447,18 +454,25 @@ def _parse(text: str) -> dict:
         raise HTTPException(422, str(e))
 
 
+@router.post("/sources/parse")
+async def parse_source(body: SpecIn):
+    """The description as the server reads it (for the form in Forbind API). Names of secrets only, never values."""
+    return _parse(body.spec_yaml)
+
+
 @router.post("/sources/test")
-async def test_source(body: TestIn):
-    """Validates a kildebeskrivelse and calls one dataset. Changes nothing."""
+async def test_source(body: TestIn, admin: Principal = Depends(require_admin)):
+    """Validates a kildebeskrivelse and calls one dataset. Changes nothing but the audit log (a secret used through
+    the tester's own access is audited on the secret)."""
     spec = _parse(body.spec_yaml)
-    checks = [{"ok": True, "text": f"Værten {spec['host']} kommer på listen over tilladte værter"},
-              {"ok": True, "text": "Ingen nøgler i beskrivelsen"}]
-    if spec["auth"]["secret"]:
-        from app.config import data_secret
-        is_set = bool(data_secret(spec["auth"]["secret"]))
-        checks.append({"ok": is_set, "text": f"Miljøvariablen {spec['auth']['secret']} er "
-                                             + ("sat" if is_set else "ikke sat på instansen")})
+    checks = [{"ok": True, "text": f"{'Værterne' if len(spec['hosts']) > 1 else 'Værten'} {', '.join(spec['hosts'])} "
+                                   "kommer på listen over tilladte værter"},
+              {"ok": True, "text": "Ingen nøgler i beskrivelsen — kun navne på hemmeligheder"}]
     async with db.connection() as conn:
+        tester = await secret_store.user_row(conn, admin.user_id)
+        secrets, secret_status = await source_secrets.resolve(conn, spec, source_id=body.source_id, tester=tester,
+                                                              meta=admin.meta)
+        checks += [{"ok": st["ok"], "text": st["text"]} for st in secret_status]
         clash = await db.fetch_one(conn, "select id from data_sources where key = %s", (spec["key"],))
     if clash and clash["id"] != body.source_id:
         checks.append({"ok": False, "text": f"Der findes allerede en kilde med navnet {spec['key']}"})
@@ -473,7 +487,7 @@ async def test_source(body: TestIn):
     ds = sources_mod.dataset_spec(spec, body.dataset) if body.dataset else spec["datasets"][0]
     preview, error = None, None
     try:
-        result = await sources_mod.fetch(spec, ds, {}, page=1 if ds["paging"] else None, size=5)
+        result = await sources_mod.fetch(spec, ds, {}, page=1 if ds["paging"] else None, size=5, secrets=secrets)
         rows = [{k: (MASK if v is not None and f["classification"] in MASKED else _plain(v))
                  for f in ds["fields"] for k, v in [(f["name"], r.get(f["name"]))]} for r in result["rows"][:5]]
         preview = {"dataset": ds["key"], "url": result["url"], "ms": result["ms"], "rows": rows,
@@ -483,7 +497,9 @@ async def test_source(body: TestIn):
     except FetchError as e:
         error = str(e)
         checks.append({"ok": False, "text": f"Testkald til {ds['name']}: {e}"})
-    return {"source": {"key": spec["key"], "name": spec["name"], "host": spec["host"]},
+    return {"source": {"key": spec["key"], "name": spec["name"], "host": spec["host"], "hosts": spec["hosts"],
+                       "auth": spec["auth"]["type"]},
+            "secrets": [_secret_status_out(st) for st in secret_status],
             "datasets": [{"key": d["key"], "name": d["name"], "call": f"{d['method']} {d['path']}", "fields": len(d["fields"]),
                           "paged": d["paging"] is not None} for d in spec["datasets"]],
             "preview": preview, "error": error, "checks": checks}
@@ -518,6 +534,7 @@ async def _sync(conn, source_id: int, spec: dict) -> dict:
                     label = case when excluded.label <> '' then excluded.label else dataset_fields.label end""",
                 (dataset_id, f["name"], f["path"], f["label"], f["description"], f["data_type"], f["classification"],
                  f["position"]))
+    await source_secrets.sync(conn, source_id, spec)
     return {"added": added, "removed": removed}
 
 
@@ -529,6 +546,12 @@ async def source(source_id: int):
             raise HTTPException(404, "Kilden findes ikke")
         s["datasets"] = await db.fetch_all(conn, "select id, key, name from datasets where source_id = %s order by name",
                                            (source_id,))
+        try:
+            spec = sources_mod.parse_spec(s["spec_yaml"])
+        except SpecError:
+            spec = {"key": s["key"], "secrets": []}
+        _, status = await source_secrets.resolve(conn, spec, source_id=source_id, values_wanted=False)
+        s["secrets"] = [_secret_status_out(st) for st in status]
     return s
 
 
@@ -540,10 +563,11 @@ async def create_source(body: SpecIn, admin: Principal = Depends(require_admin))
             raise HTTPException(409, f"Der findes allerede en kilde med navnet {spec['key']}")
         row = await db.fetch_one(conn, """
             insert into data_sources (key, name, kind, spec_yaml, hosts) values (%s, %s, %s, %s, %s) returning id""",
-            (spec["key"], spec["name"], spec["kind"], body.spec_yaml, [spec["host"]]))
+            (spec["key"], spec["name"], spec["kind"], body.spec_yaml, spec["hosts"]))
         result = await _sync(conn, row["id"], spec)
         await audit(conn, "create", actor_id=admin.user_id, meta=admin.meta, table="data_sources", row_id=row["id"],
-                    after={"key": spec["key"], "name": spec["name"], "hosts": [spec["host"]]}, datasets=result["added"])
+                    after={"key": spec["key"], "name": spec["name"], "hosts": spec["hosts"], "auth": spec["auth"]["type"],
+                           "secrets": [x["ref"] for x in spec["secrets"]]}, datasets=result["added"])
     return {"id": row["id"], **result}
 
 
@@ -558,10 +582,12 @@ async def update_source(source_id: int, body: SpecIn, admin: Principal = Depends
             raise HTTPException(422, f"kilde kan ikke ændres. Den hedder {s['key']}")
         await conn.execute("""
             update data_sources set name = %s, spec_yaml = %s, hosts = %s, updated_at = now() where id = %s""",
-            (spec["name"], body.spec_yaml, [spec["host"]], source_id))
+            (spec["name"], body.spec_yaml, spec["hosts"], source_id))
+        old_refs = [x["ref"] for x in _refs(s["spec_yaml"])]
         result = await _sync(conn, source_id, spec)
-        before, after = changed({"name": s["name"], "hosts": s["hosts"], "spec_bytes": len(s["spec_yaml"])},
-                                {"name": spec["name"], "hosts": [spec["host"]], "spec_bytes": len(body.spec_yaml)})
+        before, after = changed({"name": s["name"], "hosts": s["hosts"], "spec_bytes": len(s["spec_yaml"]), "secrets": old_refs},
+                                {"name": spec["name"], "hosts": spec["hosts"], "spec_bytes": len(body.spec_yaml),
+                                 "secrets": [x["ref"] for x in spec["secrets"]]})
         await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="data_sources", row_id=source_id,
                     before=before, after=after, **result)
     sources_mod.clear_cache()
@@ -580,3 +606,160 @@ async def delete_source(source_id: int, admin: Principal = Depends(require_admin
                     before={"key": s["key"], "name": s["name"], "hosts": s["hosts"]}, datasets=keys)
     sources_mod.clear_cache()
     return {"ok": True}
+
+
+def _refs(spec_yaml: str) -> list[dict]:
+    try:
+        return sources_mod.parse_spec(spec_yaml)["secrets"]
+    except SpecError:
+        return []
+
+
+def _secret_status_out(st: dict) -> dict:
+    out = {k: st.get(k) for k in ("ref", "used_as", "kind", "ok", "how", "text", "secret_id", "grant_expires_at")}
+    p = st.get("pending")
+    out["pending"] = {"id": p["id"], "approved": p["approved"], "total": p["total"], "expires_at": p["expires_at"]} if p else None
+    return out
+
+
+# ── Secrets for sources (Hemmeligheder) ─────────────────────────────────────
+
+@router.get("/secrets")
+async def secrets_for_sources(source_id: int | None = None, admin: Principal = Depends(require_admin)):
+    """The secrets a source can name, for the picker in Forbind API: names, owner, RACI rule and approvers, the
+    source's access and the admin's own. Never a value or a hint of one."""
+    async with db.connection() as conn:
+        me = await secret_store.user_row(conn, admin.user_id)
+        rows = await db.fetch_all(conn, f"""
+            select {secret_store.SECRET_COLUMNS}, g.slug as group_slug from secrets s join groups g on g.id = s.group_id
+            where s.archived_at is null order by lower(g.name), lower(s.name), s.environment""")
+        out = []
+        for sec in rows:
+            raci = await secret_store.raci_map(conn, sec["id"])
+            users = await secret_store.users_by_id(conn, raci)
+            a_user = next((users.get(u) for u, rs in raci.items() if "A" in rs), None)
+            approvers = secret_store.approvers_for(sec["approval_rule"], raci, {admin.user_id}, users)
+            grant = await source_secrets.source_grant(conn, sec["id"], source_id)
+            pending = await source_secrets.pending_request(conn, sec["id"], source_id)
+            out.append({
+                "id": sec["id"], "ref": source_secrets.ref_of(sec), "name": sec["name"], "environment": sec["environment"],
+                "description": sec["description"], "group": {"id": sec["group_id"], "name": sec["group_name"],
+                                                              "slug": sec["group_slug"]},
+                "version": sec["current_version"], "value_changed_at": sec["value_changed_at"],
+                "rotation_days": sec["rotation_days"], "expires_at": sec["expires_at"],
+                "status": secret_store.status_of(sec, has_a=bool(a_user and secret_store.eligible(a_user)), pending=0),
+                "rule": sec["approval_rule"], "rule_label": secret_store.RULES[sec["approval_rule"]],
+                "accountable": secret_store.person(a_user),
+                "approvers": [{**secret_store.person(users[u]), "roles": rs} for u, rs in approvers.items()],
+                "my_roles": raci.get(admin.user_id, []),
+                "my_level": await secret_store.access_level(conn, sec, me),
+                "source_grant": {"id": grant["id"], "expires_at": grant["expires_at"]} if grant else None,
+                "source_request": {"id": pending["id"], "approved": pending["approved"], "total": pending["total"],
+                                   "expires_at": pending["expires_at"]} if pending else None,
+            })
+    return {"items": out}
+
+
+class UseRequestIn(BaseModel):
+    secret_id: int
+    days: int = Field(ge=1, le=secret_store.MAX_GRANT_DAYS)
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+@router.post("/sources/{source_id}/secret-requests", status_code=201)
+async def request_secret_use(source_id: int, body: UseRequestIn, admin: Principal = Depends(require_admin)):
+    """Asks the secret's A, R and C to let this source use it ("Brug i kilde"). The saved description must name the
+    secret, so the approvers see exactly which hosts the value will be sent to."""
+    async with db.connection() as conn:
+        src = await db.fetch_one(conn, "select id, key, hosts from data_sources where id = %s", (source_id,))
+        if not src:
+            raise HTTPException(404, "Kilden findes ikke")
+        if not await db.fetch_one(conn, "select 1 from data_source_secrets where source_id = %s and secret_id = %s",
+                                  (source_id, body.secret_id)):
+            raise HTTPException(409, "Kilden nævner ikke hemmeligheden. Skriv den i beskrivelsen og gem kilden først")
+        secret = await secret_store.get(conn, body.secret_id, lock=True)
+        if await source_secrets.source_grant(conn, secret["id"], source_id):
+            raise HTTPException(409, "Kilden har allerede adgang")
+        reason = f"{body.reason.strip()}\n\nKilde {src['key']} sender værdien til {', '.join(src['hosts'])}."
+        row = await secret_store.create_request(conn, secret, requester_id=admin.user_id, grantee_user_id=None,
+                                                grantee_group_id=None, grantee_source_id=source_id, level="use",
+                                                days=body.days, reason=reason[:1000], meta=admin.meta)
+        await audit(conn, "secret_use_requested", actor_id=admin.user_id, meta=admin.meta, table="data_sources",
+                    row_id=source_id, secret_id=secret["id"], request_id=row["id"], days=body.days)
+    return {"id": row["id"], "status": row["status"]}
+
+
+# ── Connections: APIs called from code and API sources (Udforsk → Forbindelser) ──
+
+def _endpoint_out(method: str | None, path: str, label: str, called_from: str, row: dict | None) -> dict:
+    return {"method": method, "path": path, "label": label, "called_from": called_from,
+            "calls": row["calls"] if row else 0, "errors": row["errors"] if row else 0,
+            "p95_ms": round(row["p95_ms"]) if row and row["p95_ms"] is not None else None,
+            "last_at": row["last_at"] if row else None, "last_error_at": row["last_error_at"] if row else None}
+
+
+def _host(url: str | None) -> str | None:
+    try:
+        return urlsplit(url).hostname if url else None
+    except ValueError:
+        return None
+
+
+@router.get("/connections")
+async def connections(hours: int = 24):
+    """Every outside API the instance talks to: the ones called from code (app/integrations.py) and the API sources
+    made in Forbind API, with keys (names and whether they are set, never values), endpoints and calls in the last
+    `hours` from the events `api.call`."""
+    hours = max(1, min(hours, 168))
+    async with db.connection() as conn:
+        code_stats = await integrations.stats(conn, "", hours)
+        code = []
+        for it in integrations.REGISTRY:
+            mine = {ref: r for ref, r in code_stats.items() if ref.startswith(f"{it.key}:")}
+            endpoints = []
+            for e in it.endpoints:
+                rows = [r for ref, r in mine.items() if ref.split(":", 1)[1].endswith(f" {e.path}")
+                        and (e.method is None or ref.split(":", 1)[1].startswith(f"{e.method} "))]
+                endpoints.append(_endpoint_out(e.method, e.path, e.label, e.called_from,
+                                               integrations.summarize(rows) if rows else None))
+            other = [r for ref, r in mine.items() if ref.endswith("(andet)")]
+            if other:
+                endpoints.append(_endpoint_out(None, "(andet)", "Kald, der ikke passer på et kendt endpoint", "—",
+                                               integrations.summarize(other)))
+            base = it.base()
+            code.append({
+                "key": it.key, "kind": "code", "name": it.name, "purpose": it.purpose, "files": list(it.files),
+                "host": _host(base), "base_url": base if base and base.startswith("https://") else None,
+                "active": it.active(), "counted": it.counted, "link": it.link,
+                "secrets": [{"name": n, "set": integrations.secret_is_set(n), "where": "env"} for n in it.secrets],
+                "settings": [{"name": n, "set": integrations.secret_is_set(n)} for n in it.settings],
+                "endpoints": endpoints, **integrations.summarize(list(mine.values())),
+            })
+        sources = []
+        for s in await db.fetch_all(conn, "select id, key, name, hosts, spec_yaml from data_sources order by name"):
+            try:
+                spec = sources_mod.parse_spec(s["spec_yaml"])
+            except SpecError:
+                spec = None
+            stats = await integrations.stats(conn, f"source:{s['key']}:", hours)
+            _, secret_status = await source_secrets.resolve(conn, spec, source_id=s["id"], values_wanted=False) \
+                if spec else ({}, [])
+            datasets = {r["key"]: r for r in await db.fetch_all(
+                conn, "select id, key, name from datasets where source_id = %s", (s["id"],))}
+            endpoints = []
+            for d in (spec or {}).get("datasets", []):
+                row = stats.get(f"source:{s['key']}:GET {d['path']}")
+                ds = datasets.get(d["key"])
+                endpoints.append({**_endpoint_out("GET", d["path"], d["name"], "Forbind API", row),
+                                  "dataset_id": ds["id"] if ds else None})
+            token = stats.get(f"source:{s['key']}:POST token")
+            if spec and spec["auth"]["type"] == "oauth2":
+                endpoints.insert(0, {**_endpoint_out("POST", spec["auth"]["token_url"], "OAuth 2-token", "Forbind API",
+                                                     token), "dataset_id": None})
+            sources.append({
+                "id": s["id"], "key": s["key"], "kind": "source", "name": s["name"], "host": s["hosts"][0] if s["hosts"] else None,
+                "hosts": s["hosts"], "auth": spec["auth"]["type"] if spec else None, "valid": spec is not None,
+                "active": True, "counted": True, "secrets": [_secret_status_out(x) for x in secret_status],
+                "endpoints": endpoints, **integrations.summarize(list(stats.values())),
+            })
+    return {"hours": hours, "code": code, "sources": sources}

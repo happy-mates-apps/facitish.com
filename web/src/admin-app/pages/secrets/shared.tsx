@@ -23,7 +23,8 @@ export type Approval = { approver: Person | null; roles: string[]; decision: "pe
 export type AccessRequest = {
   id: number; secret_id: number; secret_name?: string; environment?: string; group_name?: string;
   requester: Person | null; grantee: Person | null; grantee_group: { id: number; name: string } | null;
-  level: "read" | "write"; level_label: string; days: number; reason: string; status: string; rule_label: string; fallback: boolean;
+  grantee_source?: { id: number; key: string; name: string; hosts: string[] } | null;
+  level: "read" | "write" | "use"; level_label: string; days: number; reason: string; status: string; rule_label: string; fallback: boolean;
   created_at: string; expires_at: string; decided_at: string | null; approvals: Approval[]; approved: number; total: number;
   can_decide: boolean; own: boolean;
 };
@@ -185,7 +186,8 @@ export function RequestCard({ r, onChange, showSecret }: { r: AccessRequest; onC
       setError(errorText(e));
     }
   };
-  const who = r.grantee_group ? `gruppen ${r.grantee_group.name}` : r.grantee?.name ?? "—";
+  const who = r.grantee_source ? `API-kilden ${r.grantee_source.name} (${r.grantee_source.hosts.join(", ")})`
+    : r.grantee_group ? `gruppen ${r.grantee_group.name}` : r.grantee?.name ?? "—";
   const [label, tone] = REQ_STATUS[r.status] ?? [r.status, ""];
   return (
     <div className="card">

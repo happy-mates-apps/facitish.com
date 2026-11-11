@@ -15,7 +15,7 @@ import logging
 
 import httpx
 
-from app import config
+from app import config, integrations
 
 log = logging.getLogger("gaer.mail")
 
@@ -110,7 +110,8 @@ async def send_mail(to: str, subject: str, text: str, html_body: str, sender_nam
     if missing:
         raise MailError(f"mail is not configured ({', '.join(missing)})")
     send = SENDERS[s.mail_provider]
-    async with httpx.AsyncClient(timeout=10) as client:
+    hooks = integrations.hooks(s.mail_provider) if s.mail_provider in integrations.BY_KEY else None
+    async with httpx.AsyncClient(timeout=10, event_hooks=hooks) as client:
         return await send(client, s, {"email": s.mail_from, "name": s.mail_from_name or sender_name}, to, subject, text,
                           html_body)
 
