@@ -20,7 +20,7 @@ import { useDeepLinkFocus } from "../deeplink";
 
 export default function AdminShell() {
   const { user, config } = useAuth();
-  const { impersonating, refreshImpersonation, missingFeatures, pendingDrafts, range, setRange, health } = useAdmin();
+  const { impersonating, refreshImpersonation, missingFeatures, pendingDrafts, range, setRange, health, openReplies, openReports } = useAdmin();
   const { pathname } = useLocation();
   const say = useToast();
   const instance = config?.app_name ?? window.location.hostname;
@@ -34,6 +34,8 @@ export default function AdminShell() {
     if (b === "impersonation" && impersonating) return { text: "Aktiv", amber: true };
     if (b === "features" && missingFeatures) return { text: String(missingFeatures), amber: true };
     if (b === "mcp" && pendingDrafts) return { text: String(pendingDrafts), amber: true };
+    if (b === "replies" && openReplies) return { text: String(openReplies), amber: true };
+    if (b === "reports" && openReports) return { text: String(openReports), amber: true };
     return null;
   };
 
@@ -64,7 +66,7 @@ export default function AdminShell() {
               {g.items.map((n) => {
                 const b = badge(n.badge);
                 return (
-                  <NavLink key={n.path} to={n.path} end={n.path === "/" || n.path === "/data" || n.path === "/adoption"} style={{ textDecoration: "none" }}>
+                  <NavLink key={n.path} to={n.path} end={n.path === "/" || n.path === "/data" || n.path === "/adoption" || n.path === "/messages"} style={{ textDecoration: "none" }}>
                     {({ isActive }) => (
                       <span className={isActive ? undefined : "tg-nav"} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, width: "100%",
                         boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, font: `${isActive ? 600 : 400} 13px ${SANS}`,

@@ -32,6 +32,9 @@ class Settings:
     rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Tørgær"))
     origin: str = field(default_factory=lambda: _env("ORIGIN", "http://localhost:5173"))
 
+    # License key from happymates.ai (a JWT, checked in app.license). Its statement goes into every /w page.
+    license_key: str | None = field(default_factory=lambda: _env("LICENSE_KEY"))
+
     # Optional: the only e-mail address (or, with SMS login, phone number) that may become the first admin.
     # Without them, whoever logs in first on a new instance becomes super admin. Set one in production.
     bootstrap_admin_email: str | None = field(default_factory=lambda: _env("BOOTSTRAP_ADMIN_EMAIL"))

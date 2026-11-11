@@ -158,7 +158,7 @@ const serverText = JSON.stringify({ generated_by: "npm run app-map --prefix web 
   groups: manifest.groups, routes: manifest.routes }, null, 1) + "\n";
 
 // ── Route tables in the docs ────────────────────────────────────────────────
-const cell = (s) => String(s).replace(/\|/g, "\\|");
+const cell = (s) => String(s).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 const code = (s) => (s.includes("`") ? s : `\`${s}\``);
 const docsPath = (g) => (g.docs_path.includes("`") ? g.docs_path : code(g.docs_path)).replace(/(?<!\\)\|/g, (m, off, str) =>
   str.slice(0, off).split("`").length % 2 === 0 ? "\\|" : m);
@@ -196,7 +196,8 @@ const routeFor = (section) => {
 };
 // A {placeholder} on either side stands for one or more anchor characters: the catalog's analytics-{by} matches the
 // literal analytics-pages, and the page's feature-ring-{x} matches a concrete feature-ring-ai.
-const pattern = (s) => new RegExp(`^${s.split(/\{\w+\}/).map((p) => p.replace(/[-]/g, "\\-")).join("[a-z0-9_{}-]+")}$`);
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const pattern = (s) => new RegExp(`^${s.split(/\{\w+\}/).map(escapeRegExp).join("[a-z0-9_{}-]+")}$`);
 const anchorMatches = (anchor, focus) => pattern(focus).test(anchor) || pattern(anchor).test(focus);
 for (const t of catalog.tools) {
   if (!t.link) continue;
