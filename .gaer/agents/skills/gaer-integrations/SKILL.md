@@ -16,6 +16,7 @@ page, a mail or a selection, inserted into Word/Outlook.
   `OPEN_OPTIONS`; push `TAB_CHANGED`. The panel only answers its endpoint's origin. Page content is read on
   demand with `chrome.scripting` — never a permanent content script.
 - **Per-domain consent**: the app checks `/api/bridge-consent/check` before reading a page and asks the user.
+- **Tags tab** (`/extension/meta`, `extension/ExtensionMeta.tsx`): `/api/meta/resolve-url` for the current tab, tag the page / a folder pattern / the domain, browse a tag's context. The tab's address is sent automatically only on allowed domains (same consent); elsewhere only on „Slå siden op“.
 - New verb: add a handler in `sidepanel.js` and a typed method in `bridge/extension.ts`.
 
 ## /office-addin — Office router

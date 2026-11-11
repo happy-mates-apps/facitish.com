@@ -19,10 +19,12 @@ import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/User
 import UserMail, { UserMailById } from "./pages/Mail";
 import Approve from "./pages/Approve";
 import Develop from "./pages/Develop";
+import Trees from "./pages/Trees";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
 import ExtensionChat from "./extension/ExtensionChat";
+import ExtensionMeta from "./extension/ExtensionMeta";
 import { Chat } from "./ai";
 import ClipsPage, { ClipsList, useClips } from "./clips";
 import OfficeShell from "./office/OfficeShell";
@@ -142,6 +144,7 @@ export default function App() {
         <Route path="/klip/:id" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/go" element={<GoPage />} />
         <Route path="/develop" element={<RequireUser><Develop /></RequireUser>} />
+        <Route path="/develop/trae" element={<RequireUser><Trees /></RequireUser>} />
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>
@@ -155,6 +158,7 @@ export default function App() {
           <Route index element={<ExtensionPage />} />
           <Route path="chat" element={<ExtensionChat />} />
           <Route path="klip" element={<ExtensionClips />} />
+          <Route path="meta" element={<ExtensionMeta />} />
           <Route path="konto" element={<ExtensionAccount />} />
         </Route>
         <Route path="/office-addin" element={<OfficeShell />} />

@@ -21,6 +21,7 @@ export default function ExtensionLayout() {
         <NavLink to="/extension" end>Side</NavLink>
         {ai?.enabled && <NavLink to="/extension/chat">AI</NavLink>}
         <NavLink to="/extension/klip">Klip</NavLink>
+        <NavLink to="/extension/meta">Tags</NavLink>
         <NavLink to="/extension/konto">Konto</NavLink>
       </nav>
     </div>

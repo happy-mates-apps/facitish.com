@@ -39,17 +39,17 @@ herfra ind i sin fork.
 | `/user`, `/user/<id>` | logget ind (`/user/<id>`: dem ejeren har givet adgang) | **Mit område**: overblik (tal, seneste aktivitet, områder delt med dig), indstillinger og deling. Giv en anden bruger adgang som **læser** eller **forfatter** (kan oprette og redigere, aldrig slette), evt. med udløb. De åbner det på `/user/<id>`. |
 | `/user/mail`, `/admin/mail` | logget ind (`/admin/mail`: admin, Drift) | **Mail, kalender og kontakter**: personlig postkasse i Stalwart, fælles postkasser, kalendere og adressebøger med deling, udgående mail via Lettermint, mail slettes efter højst 30 dage. `/user/mail` til brugeren, `/admin/mail` til drift. |
 | `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
-| `/develop` | logget ind | **Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. |
+| `/develop` | logget ind | **Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne. |
 | `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
 | `/m/…` | logget ind | Mobil-app (PWA) med bundmenu, AI, klip, filer og profil. |
-| `/extension/…` | i browserudvidelsen | Sidepanelet: aktuel side, klip og AI med siden som kontekst. |
+| `/extension/…` | i browserudvidelsen | Sidepanelet: aktuel side, klip, tags for siden og AI med siden som kontekst. |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | Office (offentlig skal) | Router for Word, Excel, PowerPoint og Outlook → værktøjerne under `/extension/tools/…`. |
 | `/extension/tools/word\|outlook\|document` | logget ind, i Office | Office-værktøjer: indsæt/gem klip og AI med dokumentet eller mailen som kontekst. |
 | `/api/…` | pr. endpoint | JSON-API. Ændringer kræver headeren `X-Gaer: 1` (CSRF). |
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (85)</summary>
+<details><summary>Alle ruter (88)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -74,6 +74,7 @@ herfra ind i sin fork.
 | `/godkend` | appen | logget ind | Godkend adgang |
 | `/go` | appen | alle | Deep link |
 | `/develop` | appen | logget ind | Udvikling |
+| `/develop/trae` | appen | logget ind | Træstrukturer |
 | `/admin` | admin-appen | admin | Statistik |
 | `/admin/go` | admin-appen | admin | Deep link |
 | `/admin/users` | admin-appen | admin | Brugere og roller |
@@ -97,6 +98,7 @@ herfra ind i sin fork.
 | `/admin/knowledge` | admin-appen | admin | Viden |
 | `/admin/knowledge/spaces/:id` | admin-appen | admin | Vidensrum |
 | `/admin/knowledge/agents/:id` | admin-appen | admin | Agent |
+| `/admin/meta` | admin-appen | admin | Træstrukturer |
 | `/admin/ai` | admin-appen | admin | AI |
 | `/admin/consumption` | admin-appen | admin | AI-forbrug |
 | `/admin/integrations` | admin-appen | admin | Udvidelse og Office |
@@ -125,6 +127,7 @@ herfra ind i sin fork.
 | `/extension` | appen | logget ind | Aktuel side · eget layout · kan indlejres |
 | `/extension/chat` | appen | logget ind | AI · eget layout · kan indlejres |
 | `/extension/klip` | appen | logget ind | Klip · eget layout · kan indlejres |
+| `/extension/meta` | appen | logget ind | Tags · eget layout · kan indlejres |
 | `/extension/konto` | appen | logget ind | Konto · eget layout · kan indlejres |
 | `/extension/agent` | appen | logget ind | Agenter (feature `knowledge`) · eget layout · kan indlejres |
 | `/extension/agent/:slug` | appen | logget ind | Agent (feature `knowledge`) · eget layout · kan indlejres |
