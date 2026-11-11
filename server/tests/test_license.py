@@ -144,3 +144,22 @@ def test_cli_issue_and_verify(tmp_path, monkeypatch, capsys):
     result = lic.verify(jwt, host="www.kunde.dk")
     assert result.valid and result.domains == ("app.kunde.dk", "www.kunde.dk")
     assert lic.main(["verify", jwt, "--host", "evil.dk"]) == 1
+
+
+async def test_no_hard_break_when_the_check_itself_fails(client, licensed, monkeypatch):
+    """No enforcement: a bug in the license code serves /w as rendered and /health still answers ok."""
+    licensed(token())
+
+    def broken(*_a, **_kw):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(lic, "inject", broken)
+    r = await client.get("/w/", headers={"host": "app.kunde.dk"})
+    assert r.status_code == 200 and "<head>" in r.text and 'name="license"' not in r.text
+    assert int(r.headers["content-length"]) == len(r.content) and "gaer-license" not in r.headers
+
+    monkeypatch.setattr(lic, "verify", broken)
+    monkeypatch.setattr(lic, "_cache", None)
+    health = await client.get("/health")
+    assert health.status_code == 200 and health.json()["ok"] is True
+    assert health.json()["license"]["status"] == "invalid"

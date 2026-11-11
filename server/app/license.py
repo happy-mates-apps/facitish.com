@@ -8,7 +8,8 @@ and come with updates from gaer-base; they are not configuration, so a fork cann
 
 Every HTML page under /w carries the statement in its <head> (LicenseHeadMiddleware in main.py): a comment,
 <meta name="license"> and <link rel="license">. Without a valid key the statement says so. Nothing else stops
-working: the check is about attribution and audit, the LICENSE file is what binds.
+working, on purpose: no hard enforcement. The check is about attribution and audit, the LICENSE file is what
+binds. Any error in this module fails open: the page is served as rendered.
 
 happymates.ai issues and checks keys with the same module (on its own machine, private key never in a repo):
 
@@ -23,6 +24,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import logging
 import sys
 import time
 import uuid
@@ -162,7 +164,12 @@ def current() -> License:
     token = config.settings.license_key or ""
     now = time.time()
     if _cache is None or _cache[1] != token or now - _cache[0] > CHECK_EVERY_SECONDS:
-        _cache = (now, token, verify(token, now=now))
+        try:
+            result = verify(token, now=now)
+        except Exception:  # a bug in the check must never break the site; report it as invalid
+            logging.getLogger("gaer").exception("license: the check failed")
+            result = License("invalid", "Licenstjekket fejlede")
+        _cache = (now, token, result)
     return _cache[2]
 
 
@@ -234,13 +241,19 @@ class LicenseHeadMiddleware:
             chunks.append(message.get("body", b""))
             if message.get("more_body"):
                 return
-            lic = current()
-            host = next((v.decode("latin-1") for k, v in scope.get("headers", []) if k == b"host"), "")
-            if host and lic.status in ("valid", "wrong_host"):
-                lic = for_host(replace(lic, status="valid", reason=""), host) if lic.domains else lic
-            body = inject(b"".join(chunks), lic)
+            original = b"".join(chunks)
+            try:
+                lic = current()
+                host = next((v.decode("latin-1") for k, v in scope.get("headers", []) if k == b"host"), "")
+                if host and lic.status in ("valid", "wrong_host"):
+                    lic = for_host(replace(lic, status="valid", reason=""), host) if lic.domains else lic
+                body = inject(original, lic)
+                extra = [(b"gaer-license", header_value(lic).encode())]
+            except Exception:  # never let the license statement take a page down: serve it as rendered
+                logging.getLogger("gaer").exception("license: could not add the statement to %s", path)
+                body, extra = original, []
             headers = [(k, v) for k, v in headers if k.lower() != b"content-length"]
-            headers += [(b"content-length", str(len(body)).encode()), (b"gaer-license", header_value(lic).encode())]
+            headers += [(b"content-length", str(len(body)).encode()), *extra]
             await send({**start, "headers": headers})
             await send({"type": "http.response.body", "body": body})
 
