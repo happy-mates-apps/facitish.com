@@ -73,6 +73,7 @@ export function MobileHome() {
         <Link to="/m/klip" className="card"><span className="eyebrow">Nyt</span><strong>Skriv et klip</strong></Link>
         <Link to="/m/filer" className="card"><span className="eyebrow">Kamera</span><strong>Tag et billede</strong></Link>
         <Link to="/m/beskeder" className="card"><span className="eyebrow">Fra administrationen</span><strong>Beskeder</strong></Link>
+        <Link to="/m/samtaler" className="card"><span className="eyebrow">Med de andre</span><strong>Samtaler</strong></Link>
       </div>
       <div className="card">
         <span className="eyebrow">Seneste klip</span>

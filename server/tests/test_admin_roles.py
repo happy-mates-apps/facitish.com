@@ -30,7 +30,7 @@ async def test_new_admins_get_full_access_and_the_menu_follows_the_roles(make_cl
 
     me = (await other.get("/api/auth/me")).json()["user"]
     assert me["admin_sections"] == ["/", "/users", "/impersonation", "/logs/auth", "/messages", "/messages/send",
-                                    "/messages/replies"]
+                                    "/messages/replies", "/messages/moderation"]
     assert (await other.get("/api/admin/analytics")).status_code == 200      # Statistik: every admin
     assert (await other.get("/api/admin/users")).status_code == 200
     assert (await other.get("/api/admin/logs/auth")).status_code == 200

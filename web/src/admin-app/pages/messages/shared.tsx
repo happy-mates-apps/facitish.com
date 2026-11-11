@@ -24,6 +24,7 @@ export type Broadcast = {
 export type MessageSettings = {
   sms_enabled: boolean; mail_enabled: boolean; sms_price_minor: number; quiet_start: string; quiet_end: string;
   time_zone: string; sms_max_per_hour: number; duplicate_seconds: number; inactive_days: number; sms_provider: string;
+  blocked_words: string[];
   sms_sender?: string;
 };
 

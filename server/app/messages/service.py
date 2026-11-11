@@ -37,6 +37,7 @@ DEFAULTS: dict = {
     "sms_max_per_hour": 500,        # more than this in an hour is recorded as throttled
     "duplicate_seconds": 60,        # the same text to the same number within this is a duplicate
     "inactive_days": 30,            # the "Ikke logget ind" audience chip
+    "blocked_words": [],            # phase 2: the word filter for conversations, replies and broadcasts (* = anything)
 }
 
 

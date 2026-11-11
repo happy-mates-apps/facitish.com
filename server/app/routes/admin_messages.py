@@ -1,6 +1,9 @@
 """/api/admin/messages — Beskeder in /admin (specs/beskeder). Each sub-path belongs to its own /admin section, so the
 admin roles can split the work: Beskeder, Send besked and Svar (Support), Levering and Kanaler og regler (Drift).
 
+Moderering (Support, Privatliv) decides reports on messages in conversations between users: dismiss, or remove the
+message. The three messages before a reported one are shown only while a report is open, and each look is audited.
+
 Reads are logged by require_admin (admin.read). A broadcast is sent in two steps: the first call returns the estimate
 and a confirmation token, the second (with the token) sends; a token sends once (409). A broadcast to everyone needs
 a fresh second factor.
@@ -13,9 +16,9 @@ import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app import config, db, mfa, settings_store
+from app import config, db, events, mfa, settings_store, webhooks
 from app.logs import audit, changed
-from app.messages import service
+from app.messages import chat, service
 from app.messages.service import who
 from app.messages import tasks as _tasks  # noqa: F401  (registers the messages.* jobs)
 from app.security import mask_contact, mask_phone
@@ -130,7 +133,9 @@ async def overview():
                    (select count(*) from sms_messages
                      where status = 'failed' and created_at > now() - interval '24 hours') as sms_failed,
                    (select count(*) from message_deliveries where status = 'held') as held,
-                   (select count(*) from conversations where closed_at is null and not last_from_admin) as open_replies""")
+                   (select count(*) from conversations where kind = 'reply' and closed_at is null
+                     and not last_from_admin) as open_replies,
+                   (select count(distinct message_id) from message_reports where status = 'pending') as pending_reports""")
         split = await db.fetch_one(conn, """
             select count(*) filter (where channel = 'sms') as sms, count(*) filter (where channel = 'mail') as mail,
                    count(*) filter (where channel = 'push') as push,
@@ -165,6 +170,7 @@ async def broadcast(body: BroadcastIn, admin: Principal = Depends(require_admin)
     fields = body.fields()
     dig = service.digest(fields)
     async with db.connection() as conn:
+        await chat.check_text(conn, f"{body.title}\n{body.body}")
         est = await service.estimate(conn, fields["audience"], fields["channels"], body.title, body.body)
         if est["total"] == 0:
             raise HTTPException(400, "Ingen modtagere i den gruppe")
@@ -398,6 +404,17 @@ class SettingsIn(BaseModel):
     sms_max_per_hour: int | None = Field(default=None, ge=1, le=100000)
     duplicate_seconds: int | None = Field(default=None, ge=0, le=3600)
     inactive_days: int | None = Field(default=None, ge=1, le=3650)
+    blocked_words: list[str] | None = Field(default=None, max_length=500)
+
+    @field_validator("blocked_words")
+    @classmethod
+    def _words(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        words = sorted({w.strip().lower() for w in v if w.strip()})
+        if any(len(w) > 80 for w in words):
+            raise ValueError("Højst 80 tegn pr. ord eller mønster")
+        return words
 
 
 @router.put("/settings")
@@ -415,7 +432,53 @@ async def put_settings(body: SettingsIn, admin: Principal = Depends(require_admi
         await settings_store.set_many(conn, {"messages": {**stored, **values}})
         b, a = changed(before, values)
         if a:
+            # The word list is logged as counts: the words themselves are often offensive.
+            if "blocked_words" in a:
+                b["blocked_words"] = len(b.get("blocked_words") or [])
+                a["blocked_words"] = len(a["blocked_words"])
             await audit(conn, "messages.settings", actor_id=admin.user_id, meta=admin.meta, table="settings",
                         row_id="messages", before=b, after=a)
         s = await service.get_settings(conn)
     return _public_settings(s)
+
+
+# ── Moderering (phase 2) ────────────────────────────────────────────────────
+
+@router.get("/moderation/reports")
+async def reports(status: Literal["pending", "dismissed", "removed", "all"] = "pending", limit: int = Query(100, ge=1, le=500)):
+    async with db.connection() as conn:
+        items = await chat.pending_reports(conn, status, limit)
+        pending = (await db.fetch_one(conn, "select count(distinct message_id) as n from message_reports where status = 'pending'"))["n"]
+    return {"items": items, "pending": pending}
+
+
+@router.get("/moderation/reports/{message_id}/context")
+async def report_context(message_id: int, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        items = await chat.context(conn, message_id)
+        await audit(conn, "messages.report.context", actor_id=admin.user_id, meta=admin.meta,
+                    table="conversation_messages", row_id=message_id, shown=[m["id"] for m in items])
+    return {"items": items}
+
+
+class ReviewIn(BaseModel):
+    action: Literal["dismiss", "remove"]
+
+
+@router.post("/moderation/reports/{message_id}")
+async def review(message_id: int, body: ReviewIn, admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        n = await chat.review(conn, message_id, body.action, admin.user_id)
+        if n == 0:
+            raise HTTPException(409, "Der er ingen åbne anmeldelser af beskeden")
+        await audit(conn, f"messages.report.{body.action}", actor_id=admin.user_id, meta=admin.meta,
+                    table="conversation_messages", row_id=message_id, reports=n)
+        await webhooks.emit(conn, "message.report.reviewed", {"message_id": message_id, "action": body.action})
+    await events.emit("messages.moderated", ref=body.action)
+    return {"ok": True, "reports": n}
+
+
+@router.get("/moderation/blocks")
+async def block_summary():
+    async with db.connection() as conn:
+        return {"items": await chat.block_summary(conn)}

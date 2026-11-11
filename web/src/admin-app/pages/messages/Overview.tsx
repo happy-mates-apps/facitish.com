@@ -2,7 +2,7 @@
 // what needs attention (unanswered replies, failed SMS, SMS held in quiet hours).
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { MessageSquare, Reply, Send, Smartphone, Timer } from "lucide-react";
+import { MessageSquare, Reply, Send, ShieldAlert, Smartphone, Timer } from "lucide-react";
 import { api } from "../../../api";
 import { card } from "../../theme";
 import { Btn, Empty, ErrorBox, PageTitle, Pill, useLoad } from "../../ui";
@@ -10,7 +10,7 @@ import { grid, kr, muted, split, Stat, when, type Broadcast } from "./shared";
 
 type Overview = {
   broadcasts: number; scheduled: number; reached: number; sms_segments: number; sms_failed: number; held: number;
-  open_replies: number; sms_cost_minor: number; split: { push: number; sms: number; mail: number; app_only: number };
+  open_replies: number; pending_reports: number; sms_cost_minor: number; split: { push: number; sms: number; mail: number; app_only: number };
   recent: Broadcast[];
 };
 
@@ -96,6 +96,8 @@ export default function MessagesOverview() {
               </div>
               <Todo to="/messages/replies" icon={<Reply size={16} />} tone="blue" title={`${data.open_replies} svar venter på jer`}
                 note="Brugere, der har svaret på en udsendelse" />
+              <Todo to="/messages/moderation" icon={<ShieldAlert size={16} />} tone="orange" title={`${data.pending_reports} anmeldte beskeder`}
+                note="I Fællessamtalen og direkte samtaler" />
               <Todo to="/messages/delivery?status=failed" icon={<Smartphone size={16} />} tone="red" title={`${data.sms_failed} SMS fejlede`}
                 note="Seneste døgn" />
               <Todo to="/messages/delivery?status=held" icon={<Timer size={16} />} tone="gray" title={`${data.held} SMS holdes`}
@@ -108,7 +110,7 @@ export default function MessagesOverview() {
   );
 }
 
-const TONES = { blue: ["rgba(37,99,235,0.1)", "#1d4ed8"], red: ["rgba(220,38,38,0.1)", "#b91c1c"], gray: ["#f1f5f9", "#475569"] } as const;
+const TONES = { orange: ["rgba(249,115,22,0.12)", "#9a3412"], blue: ["rgba(37,99,235,0.1)", "#1d4ed8"], red: ["rgba(220,38,38,0.1)", "#b91c1c"], gray: ["#f1f5f9", "#475569"] } as const;
 
 function Todo({ to, icon, tone, title, note, last }: { to: string; icon: ReactNode; tone: keyof typeof TONES; title: string; note: string; last?: boolean }) {
   return (

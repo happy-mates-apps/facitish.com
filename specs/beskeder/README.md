@@ -26,7 +26,7 @@ becomes admin roles and owner checks, Prisma becomes raw SQL, and NATS `notify.s
 | Phase | What | Status |
 | --- | --- | --- |
 | 1 | Broadcasts with estimate and two-step confirmation; channels in-app, SMS, e-mail; quiet hours for SMS; SMS duplicates and hourly cap; in-app inbox on `/beskeder` and `/m/beskeder`; replies; delivery log; settings | built |
-| 2 | Conversations between users (the instance conversation, direct), report and block, word filter, /admin → Moderering | to do |
+| 2 | Conversations between users (Fællessamtalen, direct), report and block, word filter, /admin → Moderering | built |
 | 3 | Web push with VAPID on `/` and `/m`, 404/410 turns a subscription off and falls back to SMS | to do |
 
 ## Model (phase 1, `server/app/migrations/0024_messages.sql`)
@@ -92,11 +92,41 @@ preferences, SMS sent to them. Erased with the user (cascade): deliveries, prefe
 Admin replies keep the text with `author_id = null` once the admin is erased; broadcasts keep `actor_id = null`.
 Retention (`retention_policies`): `message_deliveries` 90 days, `sms_messages` 90 days.
 
-## Phase 2 and 3 (not built)
+## Phase 2: conversations between users (`0025_conversations.sql`, `server/app/messages/chat.py`)
 
-- `conversations` gains kinds `instance` and `direct` (pair key), `conversation_members` (last_read_at,
-  active_until), `message_reports`, `user_blocks`; word filter in settings; /admin → Moderering with dismiss and
-  remove; webhooks `message.report.created` / `.reviewed`.
+```
+conversations         + kinds 'instance' (one row, "Fællessamtalen") and 'direct' (pair_key = the two ids sorted)
+conversation_members  read state: last_read_at (every active user is implicitly in the instance conversation)
+conversation_messages + removed_at, removed_by (the text stays for the audit trail; users see "fjernet")
+message_reports       message, reporter, reason (harassment | hate | sexual | spam | other), details,
+                      status pending | dismissed | removed; one per reporter and message
+user_blocks           blocker → blocked
+```
+
+- **Who reads what.** Every active user reads and writes in Fællessamtalen; a direct conversation only its two
+  members. Reply threads are never reachable as conversations. Unread = messages after my last read, not mine, not
+  removed, not by someone I blocked.
+- **Blocks** are the user's own: the blocked user's messages are hidden from the blocker, the direct conversation
+  disappears for both, and neither can start a new one. /admin sees only how many have blocked a user.
+- **Word filter** (`messages.blocked_words` in Kanaler og regler): whole words, case-insensitive, `*` matches
+  anything. It rejects a conversation message, a reply or a broadcast before it is stored. The audit log records the
+  number of words, never the words.
+- **Reports and moderation.** A user reports a message (not their own); the author is not told who. In /admin →
+  Moderering (Support, Privatliv) a moderator sees the message and every report on it, can show the three messages
+  before it while a report is open (`messages.report.context`, audited with the ids shown), and either dismisses the
+  reports or removes the message. One decision covers every open report on the message.
+- **No SMS or e-mail for conversation messages**: unread counts in the app only, until push (phase 3).
+- API: `/api/messages/conversations` (list, `/unread`, `/direct`, `/{id}/messages`, `/{id}/read`), `/members`
+  (search by name only, never contact details), `/reports`, `/blocks`; `/api/admin/messages/moderation/reports`
+  (`?status=`), `/reports/{message_id}/context`, `POST /reports/{message_id}` `{action}`, `/moderation/blocks`.
+- Audit: `messages.post`, `messages.conversation.start`, `messages.report`, `messages.report.context`,
+  `messages.report.dismiss|remove`, `messages.block`, `messages.unblock`. Webhooks `message.report.created`,
+  `message.report.reviewed`. Events `messages.chat`, `messages.report`, `messages.filtered`, `messages.moderated`.
+- GDPR: exported — memberships, messages written, reports made, blocks made. Erased — their messages in Fællessamtalen,
+  their direct conversations as a whole, their reports and blocks. Decided reports go after 365 days.
+
+## Phase 3 (not built)
+
 - `push_subscriptions` (endpoint, keys, device, status, last_seen_at), `notification_prefs.push` and quiet hours per
   user, VAPID keys from `WEB_PUSH_VAPID_*`, service workers in `web/public/` and `web/public/m/`, jobs
   `messages.push`, `messages.release_held`, `messages.expire_push`; SMS delivery receipts as an incoming webhook

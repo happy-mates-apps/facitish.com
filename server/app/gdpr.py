@@ -117,6 +117,15 @@ async def build_user_export(conn, user_id: int) -> dict:
                                                    where author_id = %s and from_admin order by created_at""", user_id),
         "messages_broadcasts_sent": await rows("""select id, title, body, audience_label, total, created_at
                                                   from message_broadcasts where actor_id = %s order by created_at""", user_id),
+        "conversations": await rows("""select c.id, c.kind, m.joined_at, m.last_read_at from conversation_members m
+                                       join conversations c on c.id = m.conversation_id where m.user_id = %s""", user_id),
+        "conversation_messages": await rows("""select x.conversation_id, c.kind, x.body, x.created_at, x.removed_at
+                                               from conversation_messages x join conversations c on c.id = x.conversation_id
+                                               where x.author_id = %s and c.kind in ('instance', 'direct')
+                                               order by x.created_at""", user_id),
+        "message_reports": await rows("""select message_id, reason, details, status, created_at, reviewed_at
+                                         from message_reports where reporter_id = %s order by created_at""", user_id),
+        "user_blocks": await rows("""select blocked_id, created_at from user_blocks where blocker_id = %s""", user_id),
         "notification_prefs": await rows("""select sms, sms_consent_at, mail, updated_at from notification_prefs
                                             where user_id = %s""", user_id),
         "sms_messages": await rows("""select to_phone, body, purpose, segments, status, created_at, sent_at
@@ -279,6 +288,11 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
         # other user's thread without their name (author_id is set null by the foreign key).
         await conn.execute("update conversation_messages set author_name = null where author_id = %s and from_admin",
                            (user_id,))
+        # What they wrote in conversations with other users goes; so do their direct conversations as a whole.
+        await conn.execute("""delete from conversations where kind = 'direct' and id in
+                              (select conversation_id from conversation_members where user_id = %s)""", (user_id,))
+        await conn.execute("""delete from conversation_messages x using conversations c
+                              where c.id = x.conversation_id and c.kind = 'instance' and x.author_id = %s""", (user_id,))
         await conn.execute("delete from users where id = %s", (user_id,))
         await meta_tree.delete_orphan_objects(conn)  # objects tagged only in their private tree
         await audit(conn, "gdpr.erasure", actor_id=actor_id if actor_id != user_id else None, meta=meta,

@@ -26,8 +26,10 @@ export default function MessageSettingsPage() {
     setBusy(true); setSaveError(null);
     try {
       const { sms_provider: _p, sms_sender: _s, ...values } = form;
-      const r = await api.put<MessageSettings>("/api/admin/messages/settings", values);
+      const r = await api.put<MessageSettings>("/api/admin/messages/settings",
+        { ...values, blocked_words: values.blocked_words.map((w) => w.trim()).filter(Boolean) });
       setData({ ...r, sms_sender: form.sms_sender });
+      setForm({ ...r, sms_sender: form.sms_sender });
       say("Gemt. Ændringen står i audit-loggen.");
     } catch (e) { setSaveError(errorText(e)); }
     finally { setBusy(false); }
@@ -93,9 +95,21 @@ export default function MessageSettingsPage() {
           </p>
         </Section>
 
+        <Section title="Ordfilter">
+          <label style={labelStyle}>Ord og mønstre, ét pr. linje
+            <textarea rows={6} value={form.blocked_words.join("\n")}
+              onChange={(e) => set("blocked_words", e.target.value.split("\n"))}
+              style={{ ...input, height: "auto", padding: "9px 10px", font: "13px/1.5 var(--hm-font-mono)", resize: "vertical" }} />
+          </label>
+          <p style={{ ...muted, margin: 0, fontSize: 12 }}>
+            Gælder samtaler, svar og udsendelser. Hele ord; store og små bogstaver er ligegyldige; * matcher alt, fx »tjen * om dagen«.
+            Afsenderen får at vide, at beskeden ikke kan sendes. I audit-loggen står kun antallet af ord.
+          </p>
+        </Section>
+
         <Section title="Hvem må">
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
-            Admin-rollen <strong>Support</strong> sender beskeder og besvarer svar; <strong>Drift</strong> ser levering og retter kanaler og
+            Admin-rollen <strong>Support</strong> sender beskeder, besvarer svar og modererer; <strong>Privatliv</strong> modererer også; <strong>Drift</strong> ser levering og retter kanaler og
             regler. Roller tildeles under <Link to="/users">Brugere og roller</Link>. Udsendelser til alle brugere kræver en frisk passkey.
           </p>
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.5 }}>

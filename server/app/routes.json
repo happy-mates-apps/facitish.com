@@ -103,17 +103,18 @@
   },
   {
    "id": "messages",
-   "docs_path": "`/beskeder`, `/admin/messages`",
+   "docs_path": "`/beskeder`, `/samtaler`, `/admin/messages`",
    "who": {
-    "en": "logged in (`/admin/messages`: admin, sections Support and Drift)",
-    "da": "logget ind (`/admin/messages`: admin, Support og Drift)"
+    "en": "logged in (`/admin/messages`: admin, sections Support, Privatliv and Drift)",
+    "da": "logget ind (`/admin/messages`: admin, Support, Privatliv og Drift)"
    },
    "what": {
-    "en": "**Beskeder** (spec in `specs/beskeder/`): broadcasts from the administration to an audience (everyone, admins, a feature ring, inactive users, chosen users), sent in two steps with an estimate (\"X får SMS (ca. Y kr) · Z får e-mail\") and a single-use confirmation token; a broadcast to everyone needs a step-up. Every message lands in the user's inbox on `/beskeder` (and `/m/beskeder`); per recipient it also goes by SMS (only with the user's own yes, never in quiet hours unless urgent; duplicates and an hourly cap) or e-mail. Recipients can reply: a private thread with the administration, answered in `/admin/messages/replies`. `/admin/messages` also has the delivery log and channels and rules.",
-    "da": "**Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler."
+    "en": "**Beskeder** (spec in `specs/beskeder/`): broadcasts from the administration to an audience (everyone, admins, a feature ring, inactive users, chosen users), sent in two steps with an estimate (\"X får SMS (ca. Y kr) · Z får e-mail\") and a single-use confirmation token; a broadcast to everyone needs a step-up. Every message lands in the user's inbox on `/beskeder` (and `/m/beskeder`); per recipient it also goes by SMS (only with the user's own yes, never in quiet hours unless urgent; duplicates and an hourly cap) or e-mail. Recipients can reply: a private thread with the administration, answered in `/admin/messages/replies`. `/admin/messages` also has the delivery log and channels and rules. **Samtaler** (`/samtaler`, `/m/samtaler`, phase 2): Fællessamtalen (every user) and direct conversations between two users; users report messages and block each other (a block hides the other's messages and stops direct conversations both ways); a word filter rejects messages before they are stored. `/admin/messages/moderation` (Support, Privatliv) dismisses reports or removes the message, showing the three messages before it only while a report is open (audited); blocks only as counts.",
+    "da": "**Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler. **Samtaler**: Fællessamtalen og direkte beskeder med anmeld, bloker og ordfilter; moderering i `/admin/messages/moderation`."
    },
    "code": [
     "pages/Inbox.tsx",
+    "pages/Conversations.tsx",
     "admin-app/pages/messages/",
     "messages/",
     "routes/messages.py",
@@ -427,6 +428,22 @@
    "feature": "beskeder"
   },
   {
+   "path": "/samtaler",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Samtaler",
+   "feature": "samtaler"
+  },
+  {
+   "path": "/samtaler/:id",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Samtale",
+   "feature": "samtaler"
+  },
+  {
    "path": "/privatliv",
    "group": "account",
    "app": "app",
@@ -728,6 +745,13 @@
    "title": "Svar"
   },
   {
+   "path": "/admin/messages/moderation",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Moderering"
+  },
+  {
    "path": "/admin/messages/delivery",
    "group": "admin",
    "app": "admin",
@@ -860,6 +884,24 @@
    "title": "Besked",
    "chrome": "own",
    "feature": "beskeder"
+  },
+  {
+   "path": "/m/samtaler",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Samtaler",
+   "chrome": "own",
+   "feature": "samtaler"
+  },
+  {
+   "path": "/m/samtaler/:id",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Samtale",
+   "chrome": "own",
+   "feature": "samtaler"
   },
   {
    "path": "/m/profil",

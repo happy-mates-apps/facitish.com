@@ -21,6 +21,7 @@ import Approve from "./pages/Approve";
 import Develop from "./pages/Develop";
 import Trees from "./pages/Trees";
 import Inbox from "./pages/Inbox";
+import Conversations from "./pages/Conversations";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -140,6 +141,8 @@ export default function App() {
         <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
         <Route path="/beskeder" element={<RequireUser><FeatureGate feature="beskeder"><Inbox /></FeatureGate></RequireUser>} />
         <Route path="/beskeder/:id" element={<RequireUser><FeatureGate feature="beskeder"><Inbox /></FeatureGate></RequireUser>} />
+        <Route path="/samtaler" element={<RequireUser><FeatureGate feature="samtaler"><Conversations /></FeatureGate></RequireUser>} />
+        <Route path="/samtaler/:id" element={<RequireUser><FeatureGate feature="samtaler"><Conversations /></FeatureGate></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
@@ -174,6 +177,8 @@ export default function App() {
           <Route path="filer" element={<MobileFiles />} />
           <Route path="beskeder" element={<FeatureGate feature="beskeder"><Inbox base="/m/beskeder" compact /></FeatureGate>} />
           <Route path="beskeder/:id" element={<FeatureGate feature="beskeder"><Inbox base="/m/beskeder" /></FeatureGate>} />
+          <Route path="samtaler" element={<FeatureGate feature="samtaler"><Conversations base="/m/samtaler" compact /></FeatureGate>} />
+          <Route path="samtaler/:id" element={<FeatureGate feature="samtaler"><Conversations base="/m/samtaler" compact /></FeatureGate>} />
           <Route path="profil" element={<Account />} />
         </Route>
 

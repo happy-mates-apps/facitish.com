@@ -210,6 +210,10 @@
       "title": "Levering",
       "anchors": []
     },
+    "/admin/messages/moderation": {
+      "title": "Moderering",
+      "anchors": []
+    },
     "/admin/messages/replies": {
       "title": "Svar",
       "anchors": []
@@ -456,6 +460,14 @@
         "mcp-access"
       ]
     },
+    "/m/samtaler": {
+      "title": "Samtaler",
+      "anchors": []
+    },
+    "/m/samtaler/:id": {
+      "title": "Samtale",
+      "anchors": []
+    },
     "/office-addin": {
       "title": "Office-router",
       "anchors": []
@@ -465,6 +477,14 @@
       "anchors": [
         "privacy-export"
       ]
+    },
+    "/samtaler": {
+      "title": "Samtaler",
+      "anchors": []
+    },
+    "/samtaler/:id": {
+      "title": "Samtale",
+      "anchors": []
     },
     "/user": {
       "title": "Mit område",

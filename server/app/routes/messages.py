@@ -1,12 +1,15 @@
-"""/api/messages — the user's side of Beskeder (specs/beskeder): the inbox, replies to a broadcast, and how they want
-to be told. SMS messages need a yes of their own: a phone number used for login is not consent."""
+"""/api/messages — the user's side of Beskeder (specs/beskeder): the inbox, replies to a broadcast, how they want to
+be told (SMS messages need a yes of their own: a phone number used for login is not consent), and phase 2:
+conversations between users (Fællessamtalen and direct ones), reports and blocks."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app import db, events
+from typing import Literal
+
+from app import db, events, webhooks
 from app.logs import audit, changed
-from app.messages import service
+from app.messages import chat, service
 from app.sessions import Principal, current_user
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
@@ -89,6 +92,7 @@ async def reply(broadcast_id: int, body: ReplyIn, p: Principal = Depends(current
         row = await _inbox_row(conn, broadcast_id, p.user_id)
         if not row["allow_replies"]:
             raise HTTPException(409, "Der kan ikke svares på denne besked")
+        await chat.check_text(conn, text_)
         result = await service.user_reply(conn, broadcast_id=broadcast_id, user_id=p.user_id,
                                           author_name=p.display_name, body=text_)
         await conn.execute("update message_deliveries set read_at = coalesce(read_at, now()), status = 'read' where id = %s",
@@ -144,3 +148,131 @@ async def put_prefs(body: PrefsIn, p: Principal = Depends(current_user)):
             await audit(conn, "messages.prefs", actor_id=p.user_id, meta=p.meta, table="notification_prefs",
                         row_id=p.user_id, before=b, after=a)
         return await _prefs(conn, p.user_id)
+
+
+# ── Conversations between users (phase 2) ───────────────────────────────────
+
+class PostIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+def _text(body: PostIn) -> str:
+    t = body.body.strip()
+    if not t:
+        raise HTTPException(400, "Skriv en besked")
+    return t
+
+
+@router.get("/conversations")
+async def conversations(p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return {"items": await chat.list_for(conn, p.user_id)}
+
+
+@router.get("/conversations/unread")
+async def conversations_unread(p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return {"total": await chat.unread_total(conn, p.user_id)}
+
+
+class DirectIn(BaseModel):
+    user_id: int
+
+
+@router.post("/conversations/direct")
+async def start_direct(body: DirectIn, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        result = await chat.direct(conn, p.user_id, body.user_id)
+        if result["created"]:
+            await audit(conn, "messages.conversation.start", actor_id=p.user_id, meta=p.meta, table="conversations",
+                        row_id=result["id"], with_user=body.user_id)
+    return result
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def conversation_messages(conversation_id: int, before: int | None = None, limit: int = Query(50, ge=1, le=200),
+                                p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        conv = await chat.conversation_for(conn, conversation_id, p.user_id)
+        items = await chat.messages(conn, conv, p.user_id, before=before, limit=limit)
+        title = conv["title"] or chat.INSTANCE_TITLE
+        other = None
+        if conv["kind"] == "direct":
+            o = await chat._other(conn, conversation_id, p.user_id)
+            other = {"id": o["id"], "display_name": chat.name(o["display_name"])} if o else None
+            title = other["display_name"] if other else "Direkte samtale"
+    return {"id": conversation_id, "kind": conv["kind"], "title": title, "other": other, "items": items,
+            "has_more": len(items) == limit}
+
+
+@router.post("/conversations/{conversation_id}/messages")
+async def post_message(conversation_id: int, body: PostIn, p: Principal = Depends(current_user)):
+    text_ = _text(body)
+    async with db.connection() as conn:
+        conv = await chat.conversation_for(conn, conversation_id, p.user_id)
+        message_id = await chat.post(conn, conv, user_id=p.user_id, author_name=p.display_name, body=text_)
+        await audit(conn, "messages.post", actor_id=p.user_id, meta=p.meta, table="conversation_messages",
+                    row_id=message_id, conversation_id=conversation_id, kind=conv["kind"], length=len(text_))
+    await events.emit("messages.chat", ref=str(conversation_id))
+    return {"ok": True, "id": message_id}
+
+
+@router.post("/conversations/{conversation_id}/read")
+async def read_conversation(conversation_id: int, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        await chat.conversation_for(conn, conversation_id, p.user_id)
+        await chat.mark_read(conn, conversation_id, p.user_id)
+    return {"ok": True}
+
+
+@router.get("/members")
+async def members(q: str | None = Query(None, max_length=80), p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return {"items": await chat.members(conn, p.user_id, q)}
+
+
+class ReportIn(BaseModel):
+    message_id: int
+    reason: Literal["harassment", "hate", "sexual", "spam", "other"]
+    details: str = Field(default="", max_length=1000)
+
+
+@router.post("/reports")
+async def report(body: ReportIn, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        report_id = await chat.report(conn, message_id=body.message_id, reporter_id=p.user_id, reason=body.reason,
+                                      details=body.details.strip())
+        await audit(conn, "messages.report", actor_id=p.user_id, meta=p.meta, table="message_reports", row_id=report_id,
+                    message_id=body.message_id, reason=body.reason, details_length=len(body.details.strip()))
+        await webhooks.emit(conn, "message.report.created", {"report_id": report_id, "message_id": body.message_id})
+    await events.emit("messages.report", ref=str(body.message_id))
+    return {"ok": True, "id": report_id}
+
+
+@router.get("/blocks")
+async def blocks(p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        return {"items": await chat.blocks_of(conn, p.user_id)}
+
+
+@router.put("/blocks/{user_id}")
+async def block(user_id: int, p: Principal = Depends(current_user)):
+    if user_id == p.user_id:
+        raise HTTPException(400, "Du kan ikke blokere dig selv")
+    async with db.connection() as conn:
+        if await db.fetch_one(conn, "select 1 from users where id = %s", (user_id,)) is None:
+            raise HTTPException(404, "Brugeren findes ikke")
+        row = await db.fetch_one(conn, """insert into user_blocks (blocker_id, blocked_id) values (%s, %s)
+                                          on conflict do nothing returning blocked_id""", (p.user_id, user_id))
+        if row:
+            await audit(conn, "messages.block", actor_id=p.user_id, meta=p.meta, table="user_blocks", row_id=user_id)
+    return {"ok": True}
+
+
+@router.delete("/blocks/{user_id}")
+async def unblock(user_id: int, p: Principal = Depends(current_user)):
+    async with db.connection() as conn:
+        cur = await conn.execute("delete from user_blocks where blocker_id = %s and blocked_id = %s", (p.user_id, user_id))
+        if cur.rowcount:
+            await audit(conn, "messages.unblock", actor_id=p.user_id, meta=p.meta, table="user_blocks", row_id=user_id)
+    return {"ok": True}

@@ -17,11 +17,11 @@ FULL = "fuld"
 
 ROLES: dict[str, dict] = {
     FULL: {"label": "Fuld adgang", "description": "Alt i /admin, også hvem der er admin og med hvilke roller, og MCP for admin."},
-    "support": {"label": "Support", "description": "Hjælper brugere: konti, spærring, nulstilling af login, efterligning og auth-loggen; sender beskeder og svarer brugerne."},
+    "support": {"label": "Support", "description": "Hjælper brugere: konti, spærring, nulstilling af login, efterligning og auth-loggen; sender beskeder, svarer brugerne og modererer samtaler."},
     "indhold": {"label": "Indhold", "description": "Website, filer, App Stores, Viden (vidensrum og agenter) og træstrukturer."},
     "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics, heatmaps og adoptionsforløb."},
     "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad)."},
-    "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, og godkendelse af adgang til fortrolige data."},
+    "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, godkendelse af adgang til fortrolige data og moderering af samtaler."},
     "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, MCP-servere, udvidelse og Office, webhooks, jobs, NATS, ressourcer og indstillinger; levering af beskeder og deres kanaler."},
 }
 
@@ -68,16 +68,18 @@ SECTIONS: dict[str, list[str]] = {
     "/messages/replies": ["/api/admin/messages/replies"],
     "/messages/delivery": ["/api/admin/messages/deliveries"],
     "/messages/settings": ["/api/admin/messages/settings"],
+    "/messages/moderation": ["/api/admin/messages/moderation"],
 }
 
 EVERYONE = ["/"]
 ROLE_SECTIONS: dict[str, list[str]] = {
-    "support": ["/users", "/impersonation", "/logs/auth", "/messages", "/messages/send", "/messages/replies"],
+    "support": ["/users", "/impersonation", "/logs/auth", "/messages", "/messages/send", "/messages/replies",
+                "/messages/moderation"],
     "indhold": ["/web", "/files", "/app-stores", "/knowledge", "/meta"],
     "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption", "/adoption", "/adoption/journeys",
                 "/adoption/routes", "/adoption/console", "/adoption/access"],
     "data": ["/data", "/data/explore", "/data/connect", "/data/tools"],
-    "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth", "/access"],
+    "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth", "/access", "/messages/moderation"],
     "drift": ["/mail", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/resources", "/settings",
               "/messages", "/messages/delivery", "/messages/settings"],
 }

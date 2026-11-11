@@ -20,7 +20,7 @@ import { useDeepLinkFocus } from "../deeplink";
 
 export default function AdminShell() {
   const { user, config } = useAuth();
-  const { impersonating, refreshImpersonation, missingFeatures, pendingDrafts, range, setRange, health, openReplies } = useAdmin();
+  const { impersonating, refreshImpersonation, missingFeatures, pendingDrafts, range, setRange, health, openReplies, openReports } = useAdmin();
   const { pathname } = useLocation();
   const say = useToast();
   const instance = config?.app_name ?? window.location.hostname;
@@ -35,6 +35,7 @@ export default function AdminShell() {
     if (b === "features" && missingFeatures) return { text: String(missingFeatures), amber: true };
     if (b === "mcp" && pendingDrafts) return { text: String(pendingDrafts), amber: true };
     if (b === "replies" && openReplies) return { text: String(openReplies), amber: true };
+    if (b === "reports" && openReports) return { text: String(openReports), amber: true };
     return null;
   };
 
