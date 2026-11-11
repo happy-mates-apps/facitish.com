@@ -202,6 +202,26 @@
         "mcp-drafts"
       ]
     },
+    "/admin/messages": {
+      "title": "Beskeder",
+      "anchors": []
+    },
+    "/admin/messages/delivery": {
+      "title": "Levering",
+      "anchors": []
+    },
+    "/admin/messages/replies": {
+      "title": "Svar",
+      "anchors": []
+    },
+    "/admin/messages/send": {
+      "title": "Send besked",
+      "anchors": []
+    },
+    "/admin/messages/settings": {
+      "title": "Kanaler og regler",
+      "anchors": []
+    },
     "/admin/meta": {
       "title": "Træstrukturer",
       "anchors": []
@@ -264,6 +284,14 @@
     },
     "/admin/webhooks": {
       "title": "Webhooks",
+      "anchors": []
+    },
+    "/beskeder": {
+      "title": "Beskeder",
+      "anchors": []
+    },
+    "/beskeder/:id": {
+      "title": "Besked",
       "anchors": []
     },
     "/develop": {
@@ -386,6 +414,14 @@
     },
     "/m": {
       "title": "Hjem",
+      "anchors": []
+    },
+    "/m/beskeder": {
+      "title": "Beskeder",
+      "anchors": []
+    },
+    "/m/beskeder/:id": {
+      "title": "Besked",
       "anchors": []
     },
     "/m/chat": {

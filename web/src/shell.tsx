@@ -97,6 +97,7 @@ const WORK: NavItem[] = [
   { to: "/", label: "Overblik", icon: "home", end: true, mobile: true },
   { to: "/klip", label: "Klip", icon: "clip", feature: "klip", mobile: true },
   { to: "/filer", label: "Filer", icon: "folder", feature: "filer", mobile: true },
+  { to: "/beskeder", label: "Beskeder", icon: "chat", feature: "beskeder" },
   { to: "/user", label: "Mit område", icon: "users", end: true },
   { to: "/user/deling", label: "Deling", icon: "share" },
   { to: "/develop", label: "Udvikling", icon: "code" },

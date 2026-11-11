@@ -71,6 +71,8 @@ EVENTS: dict[str, str] = {
     "meta.node.deleted": "En node i et delt træ er slettet (node-id, antal noder under den)",
     "meta.object.tagged": "Et objekt er tagget med noder i delte træer (objekt-id, node-id'er)",
     "meta.object.untagged": "Tags i delte træer er fjernet fra et objekt (objekt-id, node-id'er)",
+    "message.broadcast.sent": "En besked fra administrationen er sendt ud (besked-id, antal modtagere)",
+    "message.reply.created": "En bruger har svaret på en besked fra administrationen (tråd-id, besked-id)",
     "killswitch.changed": "Et nødstop er lukket eller åbnet, i hånden eller af en regel (nøgle, lukket, automatisk)",
 }
 

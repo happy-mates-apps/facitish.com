@@ -102,6 +102,25 @@
    ]
   },
   {
+   "id": "messages",
+   "docs_path": "`/beskeder`, `/admin/messages`",
+   "who": {
+    "en": "logged in (`/admin/messages`: admin, sections Support and Drift)",
+    "da": "logget ind (`/admin/messages`: admin, Support og Drift)"
+   },
+   "what": {
+    "en": "**Beskeder** (spec in `specs/beskeder/`): broadcasts from the administration to an audience (everyone, admins, a feature ring, inactive users, chosen users), sent in two steps with an estimate (\"X får SMS (ca. Y kr) · Z får e-mail\") and a single-use confirmation token; a broadcast to everyone needs a step-up. Every message lands in the user's inbox on `/beskeder` (and `/m/beskeder`); per recipient it also goes by SMS (only with the user's own yes, never in quiet hours unless urgent; duplicates and an hourly cap) or e-mail. Recipients can reply: a private thread with the administration, answered in `/admin/messages/replies`. `/admin/messages` also has the delivery log and channels and rules.",
+    "da": "**Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler."
+   },
+   "code": [
+    "pages/Inbox.tsx",
+    "admin-app/pages/messages/",
+    "messages/",
+    "routes/messages.py",
+    "routes/admin_messages.py"
+   ]
+  },
+  {
    "id": "mcp-links",
    "docs_path": "`/forbind`, `/go`",
    "who": {
@@ -392,6 +411,22 @@
    "title": "Mit AI-forbrug"
   },
   {
+   "path": "/beskeder",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Beskeder",
+   "feature": "beskeder"
+  },
+  {
+   "path": "/beskeder/:id",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Besked",
+   "feature": "beskeder"
+  },
+  {
    "path": "/privatliv",
    "group": "account",
    "app": "app",
@@ -672,6 +707,41 @@
    "title": "Brugerens mail"
   },
   {
+   "path": "/admin/messages",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Beskeder"
+  },
+  {
+   "path": "/admin/messages/send",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Send besked"
+  },
+  {
+   "path": "/admin/messages/replies",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Svar"
+  },
+  {
+   "path": "/admin/messages/delivery",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Levering"
+  },
+  {
+   "path": "/admin/messages/settings",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Kanaler og regler"
+  },
+  {
    "path": "/admin/data",
    "group": "admin",
    "app": "admin",
@@ -772,6 +842,24 @@
    "access": "user",
    "title": "Filer",
    "chrome": "own"
+  },
+  {
+   "path": "/m/beskeder",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Beskeder",
+   "chrome": "own",
+   "feature": "beskeder"
+  },
+  {
+   "path": "/m/beskeder/:id",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Besked",
+   "chrome": "own",
+   "feature": "beskeder"
   },
   {
    "path": "/m/profil",

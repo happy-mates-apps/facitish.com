@@ -20,6 +20,7 @@ import UserMail, { UserMailById } from "./pages/Mail";
 import Approve from "./pages/Approve";
 import Develop from "./pages/Develop";
 import Trees from "./pages/Trees";
+import Inbox from "./pages/Inbox";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -137,6 +138,8 @@ export default function App() {
         <Route path="/user/:id" element={<RequireUser><DelegatedArea /></RequireUser>} />
         <Route path="/user/:id/mail" element={<RequireUser><FeatureGate feature="mail"><UserMailById /></FeatureGate></RequireUser>} />
         <Route path="/konto/forbrug" element={<RequireUser><AiUsage /></RequireUser>} />
+        <Route path="/beskeder" element={<RequireUser><FeatureGate feature="beskeder"><Inbox /></FeatureGate></RequireUser>} />
+        <Route path="/beskeder/:id" element={<RequireUser><FeatureGate feature="beskeder"><Inbox /></FeatureGate></RequireUser>} />
         <Route path="/forbind" element={<RequireUser><McpConsent /></RequireUser>} />
         <Route path="/godkend" element={<RequireUser><Approve /></RequireUser>} />
         <Route path="/filer" element={<RequireUser><FeatureGate feature="filer"><Files /></FeatureGate></RequireUser>} />
@@ -169,6 +172,8 @@ export default function App() {
           <Route path="klip" element={<MobileClips />} />
           <Route path="chat" element={<Chat surface="mobile" contextHint="Spørg om hvad som helst." />} />
           <Route path="filer" element={<MobileFiles />} />
+          <Route path="beskeder" element={<FeatureGate feature="beskeder"><Inbox base="/m/beskeder" compact /></FeatureGate>} />
+          <Route path="beskeder/:id" element={<FeatureGate feature="beskeder"><Inbox base="/m/beskeder" /></FeatureGate>} />
           <Route path="profil" element={<Account />} />
         </Route>
 
