@@ -17,12 +17,12 @@ FULL = "fuld"
 
 ROLES: dict[str, dict] = {
     FULL: {"label": "Fuld adgang", "description": "Alt i /admin, også hvem der er admin og med hvilke roller, og MCP for admin."},
-    "support": {"label": "Support", "description": "Hjælper brugere: konti, spærring, nulstilling af login, efterligning og auth-loggen."},
+    "support": {"label": "Support", "description": "Hjælper brugere: konti, grupper, spærring, nulstilling af login, efterligning og auth-loggen."},
     "indhold": {"label": "Indhold", "description": "Website, filer, App Stores og Viden (vidensrum og agenter)."},
     "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics, heatmaps og adoptionsforløb."},
     "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad)."},
     "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, og godkendelse af adgang til fortrolige data."},
-    "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, MCP-servere, udvidelse og Office, webhooks, jobs, NATS, ressourcer og indstillinger."},
+    "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, hemmeligheder, MCP-servere, udvidelse og Office, webhooks, jobs, NATS, ressourcer og indstillinger."},
 }
 
 # /admin section (path under the router basename) → the API path prefixes it uses.
@@ -62,24 +62,26 @@ SECTIONS: dict[str, list[str]] = {
     "/mail": ["/api/admin/mail"],
     "/resources": ["/api/admin/resources"],
     "/settings": ["/api/admin/settings"],
+    "/groups": ["/api/admin/groups"],
+    "/secrets": ["/api/admin/secrets"],
 }
 
 EVERYONE = ["/"]
 ROLE_SECTIONS: dict[str, list[str]] = {
-    "support": ["/users", "/impersonation", "/logs/auth"],
+    "support": ["/users", "/groups", "/impersonation", "/logs/auth"],
     "indhold": ["/web", "/files", "/app-stores", "/knowledge"],
     "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption", "/adoption", "/adoption/journeys",
                 "/adoption/routes", "/adoption/console", "/adoption/access"],
     "data": ["/data", "/data/explore", "/data/connect", "/data/tools"],
     "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth", "/access"],
-    "drift": ["/mail", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/resources", "/settings"],
+    "drift": ["/mail", "/secrets", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/resources", "/settings"],
 }
 
 # Only `fuld`, even for roles whose sections contain the path.
 FULL_ONLY = [re.compile(r"^/api/admin/users/\d+/(role|admin-roles)$")]
 # The plain user list is read by other sections (feature levels, the extension's test-user picker in the top bar).
 USER_LIST = "/api/admin/users"
-USER_LIST_SECTIONS = {"/users", "/features", "/gdpr", "/retention", "/consumption"}
+USER_LIST_SECTIONS = {"/users", "/groups", "/features", "/gdpr", "/retention", "/consumption"}
 
 
 def clean(roles) -> list[str]:

@@ -1,6 +1,6 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, BookOpen, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
+  Archive, BookOpen, LockKeyhole, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
   Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +33,7 @@ export const NAV: NavGroup[] = [
     label: "Brugere og support",
     items: [
       { path: "/users", label: "Brugere og roller", icon: Users },
+      { path: "/groups", label: "Grupper", icon: UsersRound },
       { path: "/impersonation", label: "Efterligning", icon: VenetianMask, badge: "impersonation" },
       { path: "/logs/auth", label: "Auth-log", icon: LogIn },
     ],
@@ -79,6 +80,7 @@ export const NAV: NavGroup[] = [
     label: "Drift og integrationer",
     items: [
       { path: "/mail", label: "Mail", icon: Mail },
+      { path: "/secrets", label: "Hemmeligheder", icon: LockKeyhole },
       { path: "/mcp", label: "MCP-servere", icon: PlugZap, badge: "mcp" },
       { path: "/integrations", label: "Udvidelse og Office", icon: Puzzle },
       { path: "/webhooks", label: "Webhooks", icon: Webhook },

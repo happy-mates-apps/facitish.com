@@ -133,6 +133,10 @@
       "title": "Deep link",
       "anchors": []
     },
+    "/admin/groups": {
+      "title": "Grupper",
+      "anchors": []
+    },
     "/admin/heatmaps": {
       "title": "Heatmaps",
       "anchors": []
@@ -228,6 +232,14 @@
     },
     "/admin/retention": {
       "title": "Sletning af logdata",
+      "anchors": []
+    },
+    "/admin/secrets": {
+      "title": "Hemmeligheder",
+      "anchors": []
+    },
+    "/admin/secrets/:id": {
+      "title": "Hemmelighed",
       "anchors": []
     },
     "/admin/settings": {

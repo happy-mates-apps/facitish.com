@@ -129,6 +129,12 @@ CLEANUP_SQL = {
                               and decided_at < now() - make_interval(days => %s)""",
     "file_uploads": """delete from file_uploads where status in ('done', 'failed', 'aborted')
                        and coalesce(finished_at, created_at) < now() - make_interval(days => %s)""",
+    "secret_versions": """delete from secret_versions where superseded_at < now() - make_interval(days => %s)""",
+    "secret_access_requests": """with d as (select now() - make_interval(days => %s) as t),
+                                      g as (delete from secret_grants using d where ended_at < d.t)
+                                 delete from secret_access_requests q using d
+                                 where q.status <> 'pending' and q.decided_at < d.t""",
+    "secret_notifications": "delete from secret_notifications where sent_at < now() - make_interval(days => %s)",
     "review_orphans": """delete from review_sessions s where ended_at < now() - make_interval(days => %s)
                          and jsonb_array_length(pages) = 0
                          and not exists (select 1 from review_feedback r where r.session_id = s.id)""",

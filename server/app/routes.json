@@ -654,6 +654,27 @@
    "title": "Brugerens mail"
   },
   {
+   "path": "/admin/secrets",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Hemmeligheder"
+  },
+  {
+   "path": "/admin/secrets/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Hemmelighed"
+  },
+  {
+   "path": "/admin/groups",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Grupper"
+  },
+  {
    "path": "/admin/data",
    "group": "admin",
    "app": "admin",

@@ -67,6 +67,17 @@ EVENTS: dict[str, str] = {
     "mail.mailbox.deleted": "En postkasse er slettet eller lavet om til et alias (postkasse-id)",
     "mail.retention.completed": "Sletningen af gammel mail har kørt (kørsel-id, antal slettet, fejl)",
     "killswitch.changed": "Et nødstop er lukket eller åbnet, i hånden eller af en regel (nøgle, lukket, automatisk)",
+    "secret.created": "En hemmelighed er oprettet (hemmelighed-id, gruppe-id)",
+    "secret.access.requested": "Nogen anmoder om adgang til en hemmelighed (hemmelighed-id, anmodning-id, gruppe-id)",
+    "secret.access.decided": "En anmodning om adgang er godkendt, afvist eller udløbet (hemmelighed-id, anmodning-id, status)",
+    "secret.value.changed": "En hemmeligheds værdi er ændret (hemmelighed-id, version, gruppe-id) — aldrig værdien",
+    "secret.rotation.due": "En hemmelighed skal snart roteres (hemmelighed-id, gruppe-id)",
+    "secret.grant.expiring": "En adgang til en hemmelighed udløber snart (hemmelighed-id, adgang-id)",
+    "secret.grant.ended": "En adgang er udløbet eller tilbagekaldt (hemmelighed-id, adgang-id, årsag)",
+    "secret.grant.member_added": "En ny gruppemedlem har fået adgang via gruppen (hemmelighed-id, gruppe-id)",
+    "secret.raci.changed": "RACI for en hemmelighed er ændret (hemmelighed-id, gruppe-id)",
+    "secret.orphaned": "En hemmelighed har mistet sin ansvarlige (A) (hemmelighed-id, gruppe-id)",
+    "secret.archived": "En hemmelighed er arkiveret (hemmelighed-id, gruppe-id)",
 }
 
 # Tests replace this with an httpx.MockTransport.
