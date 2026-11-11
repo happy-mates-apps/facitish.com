@@ -28,12 +28,17 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | Path | What |
 | --- | --- |
 | `server/app/main.py` | app, CSRF + security headers, CSP per path, SPA fallback, `/health` |
-| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` own home + /shared · `admin_files` /api/admin/files tree · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `admin_ops` /api/admin webhooks (out and in), jobs, retention policies · `hooks` incoming webhooks · `review` review panel (notes, sessions, zip) · `app_store` App Stores · `data` /api/admin/data catalog, Udforsk, API sources · `nats` /api/admin/nats monitoring · `office` manifests · `web` /w website + extension zip · `user_area` /api/user Mit område + delegated access · `mail` /api/mail + `admin_mail` /api/admin/mail (mail module) |
+| `server/app/routes/` | `auth` login + second factor · `me` profile, avatar, account · `security` own factors + "Kræv passkey" · `files` own home + /shared · `admin_files` /api/admin/files tree · `clips` + bridge consent · `public` config, consent, analytics, GDPR form · `admin` /api/admin · `impersonation` test accounts · `features` rings + usage · `admin_ops` /api/admin webhooks (out and in), jobs, retention policies · `hooks` incoming webhooks · `review` review panel (notes, sessions, zip) · `app_store` App Stores · `data` /api/admin/data catalog, Udforsk, API sources · `nats` /api/admin/nats monitoring · `office` manifests · `web` /w website + extension zip · `user_area` /api/user Mit område + delegated access · `meta` /api/meta trees + `admin_meta` /api/admin/meta · `mail` /api/mail + `admin_mail` /api/admin/mail (mail module) · `messages` /api/messages inbox, replies, preferences + `admin_messages` /api/admin/messages (Beskeder) |
 | `server/app/sessions.py` | session cookie, `Principal`, `current_user` / `require_admin` / `require_admin_stepup` / `any_session` |
 | `server/app/mfa.py`, `totp.py` | second-factor rules (who needs what, changing factors), authenticator apps (TOTP) |
 | `server/app/filetree.py` | file tree over `files`: a home per user under `/users/<id>/` (`~/` = your own) and `/shared/` for project files; folders (`file_folders`), access rules, upload/write/move/delete with audit — used by `/api/files`, `/api/admin/files`, the AI chat and both MCP servers |
 | `server/app/uploads.py` | Direct upload to Object Storage: the browser PUTs to presigned links (multipart for big files) past Cloudflare's 100 MB limit, then completes (`/api/files/uploads`, `/api/admin/files/uploads`; client `web/src/upload.ts`). A zip is kept as it is or unpacked into the tree by the job `files.unzip` (folders kept, limits `UNZIP_MAX_*`); jobs `files.uploads_cleanup`, `storage.cors` (bucket CORS for `ORIGIN`) |
 | `server/app/mailbox/` | Mail, calendar and contacts (`specs/mail/`): `backend.py` Stalwart client (or in memory, `MAILBOX_BACKEND`), `service.py` rules (provisioning, shared-mailbox and collection roles, identities, app passwords, 30-day retention), `dns.py` domain records + live check, `tasks.py` jobs `mail.*` and the `lettermint` incoming-webhook handler |
+| `server/app/messages/` | Beskeder (`specs/beskeder/`): `service.py` audiences, the estimate, the two-step confirmation token, fan-out of a broadcast (an in-app row per recipient, plus SMS with the user's own yes or e-mail), quiet hours, reply threads; `tasks.py` jobs `messages.deliver`, `messages.sms` (duplicates, hourly cap, retries), `messages.mail`; `text.py` SMS segments (GSM-7/UCS-2); `chat.py` (phase 2) Fællessamtalen and direct conversations, blocks, the word filter, reports and moderation |
+| `server/app/meta.py` | Træstrukturer (`specs/meta/`): dimensions and nodes with materialised paths (`/org/drift/support`, private `~/…` per user), who may create where (top level: admin role Indhold; locked dimension: admin; below: everyone), search, resolve stored ids, subtree expansion, move with path rewrite. UI: `web/src/tree/` (`TreeView`, `TreeSelect`, `useTree`), examples on `/develop/trae`, admin on `/admin/meta`. Other tables store node ids, never paths. `server/app/meta_objects.py`: tagging objects (URL, prefix pattern `…/*`, host, entity `type:id`, note) with nodes across dimensions, visibility through the nodes, the context of a node (parents, siblings, children, objects, related) and URL look-up for the extension; `TagEditor` in `web/src/tree/` |
+| `server/app/groups.py`, `routes/groups.py` | Groups (a general feature): `/api/admin/groups` (section `/groups`, role Support) and `/api/me/groups`; members are `member` or `manager`; adding a member needs a step-up (it can give access to secrets) |
+| `server/app/secret_store.py`, `routes/admin_secrets.py` | Secret manager (`/admin/secrets`, role Drift): a secret is owned by a group and has its own RACI (one A, ≥1 R; default creator A+R, rest of the group I); values encrypted with `secrets_box`, versioned, never logged/mailed/in webhooks or MCP; access only by a request approved by A, R and C (rule per secret), always expiring; reveal/change/approve/RACI need a step-up; notifications per group (`group_notify_rules`, jobs `secrets.mail`, `secrets.digest`, `secrets.maintenance`); API sources get the level `use` ("Brug i kilde") through the same approval, and `server/app/source_secrets.py` resolves a kildebeskrivelse's `hemmelighed: gruppe/navn` for a call (never a value in the description, the browser or logs) |
+| `server/app/integrations.py` | APIs called from code (AI, Lettermint and the other mail providers, OVH SMS, Stalwart, NATS monitoring, Object Storage): what each is for, which files call it, which settings hold its keys, its endpoints. Their httpx clients get `integrations.hooks(key)`, which records each call as the event `api.call` (ref = integration + endpoint pattern only, never a real path); API sources are recorded the same way. Shown in /admin/data/explore → Forbindelser (`GET /api/admin/data/connections`). A new outside API is not done until it is in the registry |
 | `server/app/delegation.py` | Mit område (`/user`): sharing your area with another user as reader or author (`/user/<id>`), access checks, the activity list; delegates' changes are audited with `on_behalf_of` |
 | `server/app/db.py` | connection pools: `db.connection()`, `db.purge_connection()`, `fetch_one`, `fetch_all` |
 | `server/app/config.py` | all settings from environment variables |
@@ -50,13 +55,15 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/resources.py`, `routes/resources.py` | /admin/resources: resources in use (container, Postgres, events, Object Storage, NATS, AI, e-mail/SMS, jobs) with limits and prices (setting `resources`), plus kill switches, rules and events by kind |
 | `server/app/nats_monitor.py`, `routes/nats.py` | /admin/nats: reads NATS' HTTP monitoring port (`NATS_MONITOR_URL`), whitelisted endpoints and parameters, secrets masked; read only |
 | `server/app/og.py` | og:image and sharing tags for the anonymous pages (/w, /login, /privatliv): generated images in `web_static/og/` (`node web/scripts/brand-assets.cjs`), replaced per surface or per Markdown page in /admin/web |
+| `server/app/license.py` | the license key from happymates.ai: `LICENSE_KEY` is a JWT (EdDSA, keys in `ISSUER_KEYS` in the code) with license id, licensee, `domains` array and statement; `LicenseHeadMiddleware` puts the statement in the `<head>` of every /w page (UNLICENSED when the key is missing or wrong), status on `/health`. Never remove or bypass it |
+| `server/app/canonical_host.py` | `REDIRECT_HOSTS`: alias domains (apex, www, the fork's own name) redirect to `ORIGIN` (301/308, path kept, never /health); set by the Gær Fleet console, `deploy/k8s/CUSTOM-DOMAINS.md` |
 | `server/app/captcha.py` | proof-of-work captcha (no third party) in front of `POST /api/auth/otp/start` |
 | `server/app/gdpr.py`, `reapply_erasures.py` | GDPR export (zip) and erasure; re-applying erasures after a backup restore |
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
 | `web/src/` | `pages/` app · `admin-app/` the standalone /admin app (own entry `web/admin.html`, spec in `specs/admin-app/`) · `features.tsx` FeatureGate · `mobile/` /m · `extension/` /extension · `office/` /office-addin · `bridge/` postMessage clients |
 | `extension/` | MV3 browser extension (side panel) |
-| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` · `mail/` the Stalwart mail server on UpCloud (Terraform, `config.toml`, runbook) |
-| `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod) |
+| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` · `k8s/` the same app on Kubernetes, one namespace per fork made by the Gær Fleet console in Surdej (`README.md`, `app.yaml`, `deploy.sh`, `cluster/`) · `mail/` the Stalwart mail server on UpCloud (Terraform, `config.toml`, runbook) |
+| `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod), `target.yml` (the only reader of the variable `DEPLOY_TARGET` = `compose` (default) / `k8s` / `none`; every deploy workflow tests its outputs), `build-image.yml` (GHCR), `deploy-k8s.yml`, `rollback.yml`, `sync-upstream.yml` (forks pull gaer-base) |
 | `mobile/` | Expo app (iOS + Android): native login, then `/m` in a WebView — spec in `specs/mobile/` |
 | `server/app/mcp/` | MCP servers: `/mcp` (appen, as the user) and `/mcp/admin` (admin, drafts) — spec in `specs/mcp/` |
 | `server/app/access.py`, `mcp/toolmap.py` | the endpoint → tool map (Code and Data tools) governed from /admin/data, internal/external users, MCP access requests with approval from a list or an e-mail link — `specs/mcp/ACCESS.md` |
@@ -75,18 +82,19 @@ They share the same login (session cookie), the same database and the same API.
 | `/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv` | logged in (privatliv: everyone) | Clips, files in Object Storage, account (profile, avatar, passkeys, security keys, authenticator apps, "Kræv passkey", sessions), own AI consumption and budget (`/konto/forbrug`), privacy + consent + GDPR requests. | `pages/`, `clips.tsx` |
 | `/user`, `/user/<id>` | logged in (`/user/<id>`: people the owner gave access) | **Mit område**: your dashboard (counts, recent activity in your area, areas shared with you), settings (the account page) and sharing: give another user access by e-mail as **reader** (sees overview, clips, files, downloads) or **author** (also creates/edits clips and uploads files; never deletes), optionally expiring. They open it at `/user/<id>`; settings, security and sharing stay the owner's. Everything a delegate does is audited with `on_behalf_of`. | `pages/UserArea.tsx`, `routes/user_area.py`, `delegation.py` |
 | `/user/mail`, `/admin/mail` | logged in (`/admin/mail`: admin, section Drift) | **Mail, calendar and contacts** (spec in `specs/mail/`): one personal mailbox per user in **Stalwart** plus shared mailboxes (reader/sender/manager), calendars (CalDAV/JMAP) and address books (CardDAV) with sharing, all outbound mail relayed by **Lettermint**, mail kept at most **30 days**. `/user/mail` manages your mailbox, aliases, identities, app passwords, calendars, address books and client setup (`/user/<id>/mail` is the same page for your own id, 404 for anyone else); `/admin/mail` is the operator console (domains + DNS check, mailboxes, shared, calendars & contacts, sending, retention, health, audit) and `/admin/mail/users/<id>` one user's mail. Off unless `MAILBOX_BACKEND` is set. | `pages/Mail.tsx`, `admin-app/pages/mail/`, `mailbox/`, `routes/mail.py`, `routes/admin_mail.py` |
+| `/beskeder`, `/samtaler`, `/admin/messages` | logged in (`/admin/messages`: admin, sections Support, Privatliv and Drift) | **Beskeder** (spec in `specs/beskeder/`): broadcasts from the administration to an audience (everyone, admins, a feature ring, inactive users, chosen users), sent in two steps with an estimate ("X får SMS (ca. Y kr) · Z får e-mail") and a single-use confirmation token; a broadcast to everyone needs a step-up. Every message lands in the user's inbox on `/beskeder` (and `/m/beskeder`); per recipient it also goes by SMS (only with the user's own yes, never in quiet hours unless urgent; duplicates and an hourly cap) or e-mail. Recipients can reply: a private thread with the administration, answered in `/admin/messages/replies`. `/admin/messages` also has the delivery log and channels and rules. **Samtaler** (`/samtaler`, `/m/samtaler`, phase 2): Fællessamtalen (every user) and direct conversations between two users; users report messages and block each other (a block hides the other's messages and stops direct conversations both ways); a word filter rejects messages before they are stored. `/admin/messages/moderation` (Support, Privatliv) dismisses reports or removes the message, showing the three messages before it only while a report is open (audited); blocks only as counts. | `pages/Inbox.tsx`, `pages/Conversations.tsx`, `admin-app/pages/messages/`, `messages/`, `routes/messages.py`, `routes/admin_messages.py` |
 | `/forbind`, `/go` | logged in | **MCP consent** (`/forbind`: a client asks for access, `mcp:admin` needs a fresh second factor) and **deep links** (`/go?path=…&focus=…`, also `/admin/go`) that open a page and focus a `data-deeplink` anchor. | `pages/McpConsent.tsx`, `deeplink.tsx`, `admin-app/go.tsx` |
-| `/develop` | logged in | **Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). | `pages/Develop.tsx`, `develop/prompts.ts` |
-| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py` |
+| `/develop` | logged in | **Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). `/develop/trae` shows **tree structures** (`web/src/tree/`: TreeView, TreeSelect) against the real `/api/meta`: four renderings and the input fields (one node, a start node, tags, a subtree filter, creating a node). | `pages/Develop.tsx`, `develop/prompts.ts`, `pages/Trees.tsx`, `tree/` |
+| `/admin/…` | admin role (+ MFA) | **Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, tree structures (`/admin/meta`), website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), secrets owned by groups with RACI and approved access (`/admin/secrets`), groups (`/admin/groups`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited. | `admin-app/`, `routes/admin.py`, `impersonation.py`, `features.py`, `app_store.py`, `admin-app/pages/Meta.tsx` |
 | `/m/…` | logged in | **Mobile app (PWA)**: home, AI chat (if enabled), clips, files with camera upload, profile. Bottom tab bar, own manifest + service worker scoped to `/m/`. | `mobile/Mobile.tsx`, `public/m/` |
-| `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts` |
+| `/extension/…` | logged in, inside the browser extension | **Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, **tags** for the page (`/extension/meta`: what it is tagged with, tag it as the page, a folder pattern or the whole domain, browse a tag's context; the address is only looked up automatically on allowed domains), account. Talks to the panel over `gaer-bridge`. | `extension/`, `web/src/extension/`, `bridge/extension.ts`, `web/src/extension/ExtensionMeta.tsx` |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | public shell | **Office router**: loads Office.js, detects the host, embeds the matching tool. Must stay public (Office closes panes that do not initialise). | `office/OfficeShell.tsx`, `office/handlers.ts` |
 | `/extension/tools/word\|outlook\|document` | logged in, inside the Office shell | Office tools: insert/save clips and AI chat with the document or mail as context; Office.js calls go to the shell over `gaer-office-host`. | `office/Tools.tsx`, `bridge/officeHost.ts` |
 | `/api/…` | per endpoint | JSON API. State-changing calls need the `X-Gaer: 1` header (CSRF). Groups: `auth`, `me`, `files`, `clips`, `bridge-consent`, `ai`, `public`, `consent`, `collect`, `office`, `extension/download`, `admin`. | `routes/` |
 | `/mcp`, `/mcp/admin` | MCP clients (OAuth bearer) | **MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. | `server/app/mcp/`, skill `gaer-mcp` |
 | `/health` | deploy | Database check + version; used by `deploy/deploy.sh` before switching versions. | `main.py` |
 
-<details><summary>All routes (85)</summary>
+<details><summary>All routes (105)</summary>
 
 | Path | Served by | Access | Page |
 | --- | --- | --- | --- |
@@ -106,11 +114,16 @@ They share the same login (session cookie), the same database and the same API.
 | `/user/:id` | app (`index.html`) | logged in | Delt område |
 | `/user/:id/mail` | app (`index.html`) | logged in | Mail (feature `mail`) |
 | `/konto/forbrug` | app (`index.html`) | logged in | Mit AI-forbrug |
+| `/beskeder` | app (`index.html`) | logged in | Beskeder (feature `beskeder`) |
+| `/beskeder/:id` | app (`index.html`) | logged in | Besked (feature `beskeder`) |
+| `/samtaler` | app (`index.html`) | logged in | Samtaler (feature `samtaler`) |
+| `/samtaler/:id` | app (`index.html`) | logged in | Samtale (feature `samtaler`) |
 | `/privatliv` | app (`index.html`) | everyone | Privatliv |
 | `/forbind` | app (`index.html`) | logged in | Forbind MCP-klient |
 | `/godkend` | app (`index.html`) | logged in | Godkend adgang |
 | `/go` | app (`index.html`) | everyone | Deep link |
 | `/develop` | app (`index.html`) | logged in | Udvikling |
+| `/develop/trae` | app (`index.html`) | logged in | Træstrukturer |
 | `/admin` | admin app (`admin.html`) | admin | Statistik |
 | `/admin/go` | admin app (`admin.html`) | admin | Deep link |
 | `/admin/users` | admin app (`admin.html`) | admin | Brugere og roller |
@@ -134,6 +147,7 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/knowledge` | admin app (`admin.html`) | admin | Viden |
 | `/admin/knowledge/spaces/:id` | admin app (`admin.html`) | admin | Vidensrum |
 | `/admin/knowledge/agents/:id` | admin app (`admin.html`) | admin | Agent |
+| `/admin/meta` | admin app (`admin.html`) | admin | Træstrukturer |
 | `/admin/ai` | admin app (`admin.html`) | admin | AI |
 | `/admin/consumption` | admin app (`admin.html`) | admin | AI-forbrug |
 | `/admin/integrations` | admin app (`admin.html`) | admin | Udvidelse og Office |
@@ -144,6 +158,15 @@ They share the same login (session cookie), the same database and the same API.
 | `/admin/resources` | admin app (`admin.html`) | admin | Ressourcer |
 | `/admin/mail` | admin app (`admin.html`) | admin | Mail |
 | `/admin/mail/users/:id` | admin app (`admin.html`) | admin | Brugerens mail |
+| `/admin/secrets` | admin app (`admin.html`) | admin | Hemmeligheder |
+| `/admin/secrets/:id` | admin app (`admin.html`) | admin | Hemmelighed |
+| `/admin/groups` | admin app (`admin.html`) | admin | Grupper |
+| `/admin/messages` | admin app (`admin.html`) | admin | Beskeder |
+| `/admin/messages/send` | admin app (`admin.html`) | admin | Send besked |
+| `/admin/messages/replies` | admin app (`admin.html`) | admin | Svar |
+| `/admin/messages/moderation` | admin app (`admin.html`) | admin | Moderering |
+| `/admin/messages/delivery` | admin app (`admin.html`) | admin | Levering |
+| `/admin/messages/settings` | admin app (`admin.html`) | admin | Kanaler og regler |
 | `/admin/data` | admin app (`admin.html`) | admin | Katalog |
 | `/admin/data/explore` | admin app (`admin.html`) | admin | Udforsk |
 | `/admin/data/connect` | admin app (`admin.html`) | admin | Forbind API |
@@ -158,10 +181,15 @@ They share the same login (session cookie), the same database and the same API.
 | `/m/klip` | app (`index.html`) | logged in | Klip · own chrome |
 | `/m/chat` | app (`index.html`) | logged in | AI · own chrome |
 | `/m/filer` | app (`index.html`) | logged in | Filer · own chrome |
+| `/m/beskeder` | app (`index.html`) | logged in | Beskeder (feature `beskeder`) · own chrome |
+| `/m/beskeder/:id` | app (`index.html`) | logged in | Besked (feature `beskeder`) · own chrome |
+| `/m/samtaler` | app (`index.html`) | logged in | Samtaler (feature `samtaler`) · own chrome |
+| `/m/samtaler/:id` | app (`index.html`) | logged in | Samtale (feature `samtaler`) · own chrome |
 | `/m/profil` | app (`index.html`) | logged in | Profil · own chrome |
 | `/extension` | app (`index.html`) | logged in | Aktuel side · own chrome · embeddable |
 | `/extension/chat` | app (`index.html`) | logged in | AI · own chrome · embeddable |
 | `/extension/klip` | app (`index.html`) | logged in | Klip · own chrome · embeddable |
+| `/extension/meta` | app (`index.html`) | logged in | Tags · own chrome · embeddable |
 | `/extension/konto` | app (`index.html`) | logged in | Konto · own chrome · embeddable |
 | `/extension/agent` | app (`index.html`) | logged in | Agenter (feature `knowledge`) · own chrome · embeddable |
 | `/extension/agent/:slug` | app (`index.html`) | logged in | Agent (feature `knowledge`) · own chrome · embeddable |
@@ -190,7 +218,7 @@ Rules for routes:
 - The server reads the manifest (`app/route_manifest.py`): `EMBEDDABLE` (CSP frame-ancestors for the extension and
   Office hosts) and which HTML file answers. The app on / reads `chrome: "own"` for pages without the top bar.
   Mark a route `embeddable` only if it really must run inside them.
-- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx`, `routes.json` and `upload.ts` with the
+- `/admin` is a separate app: it shares only `api.ts`, `auth.tsx`, `bridge/`, `deeplink.tsx`, `routes.json`, `upload.ts` and `tree/` with the
   rest of `web/src/`. Neither side imports the other; `npm run build` fails if one does (`appBoundary()` in
   `web/vite.config.ts`).
 - Anything the public may see without login lives under `/w/`, `/login`, `/privatliv` or `/api/public/…`.

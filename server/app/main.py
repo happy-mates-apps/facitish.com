@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
 from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, webhooks
+from app import license as gaer_license
+from app.canonical_host import CanonicalHostMiddleware
 from app import uploads  # noqa: F401  (registers the files.unzip, files.uploads_cleanup and storage.cors jobs)
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
@@ -23,6 +25,12 @@ from app.routes import (admin, admin_files, admin_ops, adoption, ai, app_store, 
                         hooks, impersonation, knowledge, knowledge_admin, me, mcp_tools, nats, office, public, resources, review,
                         security, user_area, web)
 from app.routes import admin_mail
+from app.routes import admin_secrets
+from app.routes import groups as group_routes
+from app.routes import admin_messages
+from app.routes import messages as messages_routes
+from app.routes import admin_meta
+from app.routes import meta as meta_routes
 from app.routes import mail as mail_routes
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
@@ -83,6 +91,8 @@ async def lifespan(app: FastAPI):
         log.warning("e-mail is not configured, login codes cannot be sent: missing %s", ", ".join(missing))
     if config.settings.is_production and not captcha.enabled():
         log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
+    if not (lic := gaer_license.current()).valid:
+        log.warning("license: %s (%s) — /w pages say this installation is unlicensed", lic.status, lic.reason)
     await db.open_pools()
     workers = jobs.start() if retention.enabled() else None
     if workers and storage.public_origin():
@@ -166,11 +176,16 @@ def create_app() -> FastAPI:
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
+    # The license statement in the <head> of every /w page (app.license); outermost, after the guard.
+    app.add_middleware(gaer_license.LicenseHeadMiddleware)
+    # Alias domains redirect to ORIGIN before anything else runs (app.canonical_host); outermost.
+    app.add_middleware(CanonicalHostMiddleware)
+
     @app.get("/health")
     async def health():
         async with db.connection() as conn:
             await conn.execute("select 1")
-        return {"ok": True, "version": config.settings.version}
+        return {"ok": True, "version": config.settings.version, "license": gaer_license.current().public()}
 
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router,
               admin_files.router, admin.router,  # admin_files first: /files/folders before /files/{file_id}
@@ -178,7 +193,9 @@ def create_app() -> FastAPI:
               impersonation.router, mcp_oauth.router,
               mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, nats.router, resources.router, consumption.router,
               user_area.router, mail_routes.router, admin_mail.router, adoption.router, adoption.admin_router,
-              knowledge.router, knowledge_admin.router,
+              knowledge.router, knowledge_admin.router, group_routes.router, group_routes.me_router, admin_secrets.router,
+              meta_routes.router, admin_meta.router,
+              messages_routes.router, admin_messages.router,
               web.router, files.memory_router):
         app.include_router(r)
 

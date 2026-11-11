@@ -1,7 +1,11 @@
 name: deploy
-# Push to main: test, build one image, stream it to the UpCloud server over SSH and roll out with
-# docker compose. deploy/deploy.sh migrates, starts the new version and goes back to the previous
-# one if /health does not answer.
+# Push to main: test, then deploy to whatever the repository variable DEPLOY_TARGET says (read once in target.yml):
+#
+#   compose (default)  build one image, stream it to the server over SSH and roll out with docker compose.
+#                      deploy/deploy.sh migrates, starts the new version and goes back to the previous one if
+#                      /health does not answer.
+#   k8s                build to GHCR (build-image.yml), roll out to the namespace (deploy-k8s.yml, deploy/k8s/).
+#   none               build to GHCR only.
 
 on:
   push:
@@ -17,8 +21,32 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
+  target:
+    uses: ./.github/workflows/target.yml
+
+  build-image:
+    needs: [test, target]
+    if: needs.target.outputs.push_image == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      image: ${{ needs.target.outputs.image }}
+
+  deploy-k8s:
+    needs: [target, build-image]
+    if: needs.target.outputs.k8s == 'true'
+    uses: ./.github/workflows/deploy-k8s.yml
+    secrets: inherit
+    with:
+      image: ${{ needs.build-image.outputs.ref }}
+      namespace: ${{ needs.target.outputs.namespace }}
+      hostname: ${{ needs.target.outputs.hostname }}
+
   deploy:
-    needs: test
+    needs: [test, target]
+    if: needs.target.outputs.compose == 'true'
     runs-on: ubuntu-latest
     environment:
       name: production

@@ -75,8 +75,15 @@ navn: Dataforsyningen · Adresser
 type: rest                       # rest | graphql | openapi | mcp | postgres
 base_url: https://api.dataforsyningen.dk
 auth:
-  type: ingen                    # ingen | bearer | header | oauth2
-  # hemmelighed: DATA_SECRET_DAWA  # navnet på en miljøvariabel, aldrig selve nøglen
+  type: ingen                    # ingen | bearer | header | basic | oauth2
+  # hemmelighed: data-bi/dawa    # navnet i Hemmeligheder (gruppe/navn[@miljø]), aldrig selve nøglen
+  # header: X-Api-Key            # type header
+  # brugernavn: gaer             # type basic (adgangskoden er hemmeligheden)
+  # token_url: https://…/token   # type oauth2: client credentials; hemmeligheden er client secret
+  # client_id: gaer-prod
+  # scope: data.read
+  # headers:                     # op til 5 ekstra headers, altid fra hemmeligheder
+  #   X-Partner-Id: { hemmelighed: data-bi/partner-id }
 grænser: { kald_pr_minut: 60, timeout_s: 10, cache_min: 60 }
 
 datasæt:
@@ -104,9 +111,22 @@ datasæt:
 - **Kun læsning af data.** Udforsk og API-kilder læser; der skrives kun til katalogets egne tabeller.
 - **Kald går fra serveren.** Browseren kalder aldrig et eksternt API. Værter i en kildebeskrivelse kommer på
   en tilladt-liste, når beskrivelsen gemmes; kald har timeout, grænse pr. minut og cache.
-- **Ingen hemmeligheder i beskrivelsen.** `auth.hemmelighed` er navnet på en miljøvariabel, læst via
-  `config.data_secret()` i `server/app/config.py`. Kun navne, der starter med `DATA_SECRET_`, kan læses, så en beskrivelse
-  aldrig kan sende fx `DATABASE_URL` til et API. Gemmes en beskrivelse med noget, der ligner en nøgle, afvises den.
+- **Ingen hemmeligheder i beskrivelsen.** `auth.hemmelighed` (og `auth.headers.<navn>.hemmelighed`) er navnet på en
+  hemmelighed i Hemmeligheder (`/admin/secrets`) som `gruppe/navn` eller `gruppe/navn@miljø`. Kilden må kun bruge værdien,
+  mens den har en godkendt adgang **Brug i kilde** (niveau `use`): den anmodes fra Forbind API, godkendes af
+  hemmelighedens A, R og C efter dens regel, udløber altid (højst 365 dage), og ingen person kan se værdien gennem den
+  (`server/app/source_secrets.py`). Et testkald må bruge testerens egen adgang til værdien; det skrives i hemmelighedens
+  audit-log (`secret.used_in_test`). Nyeste version bruges altid, og adgangen tjekkes før cachen ved hvert kald.
+  Det gamle format, en miljøvariabel der starter med `DATA_SECRET_` (`config.data_secret()`), virker stadig, så en
+  beskrivelse aldrig kan sende fx `DATABASE_URL` til et API. Gemmes en beskrivelse med noget, der ligner en nøgle, afvises den.
+- **Forbindelser** (`/admin/data/explore?vis=forbindelser`) viser alle API'er, instansen taler med: dem, appen kalder fra
+  koden (registeret i `server/app/integrations.py`), og API-kilderne fra Forbind API — med formål, kode, nøgler (navne og om
+  de er sat, aldrig værdier), endpoints og kald, fejl og p95 for de sidste 24 timer eller 7 dage. Kald tælles som hændelsen
+  `api.call` med kun integrationen og endpointets mønster (aldrig den rigtige sti, konti eller forespørgsler). Object Storage
+  kaldes med boto3 og tælles ikke endnu.
+- **Forbind API** (`/admin/data/connect`) har fire veje ind: formular, YAML, import af et OpenAPI-dokument (JSON, læses i
+  browseren) og en cURL-kommando (nøgler i kommandoen gemmes aldrig). Formularen læser YAML gennem
+  `POST /api/admin/data/sources/parse` og skriver den tilbage. Hemmelighedstabellerne kan ikke udforskes.
 - **Klassifikation** Hvid/Grøn/Gul/Rød pr. felt og datasæt (som i datakataloget). Gule og røde felter vises
   maskeret. Afmaskering kræver en årsag, gælder i 15 minutter og skrives i audit-loggen. Tabeller, der ikke er
   i kataloget, kan udforskes, men gule og røde kolonner skjules, til de er katalogiseret.

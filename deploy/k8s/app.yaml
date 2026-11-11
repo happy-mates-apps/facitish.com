@@ -1,0 +1,174 @@
+# One Gær instance in its own namespace: Postgres (StatefulSet), the app (Deployment) and the Ingress for its
+# hostname. Rendered by deploy/k8s/deploy.sh with envsubst — only the variables it names are replaced, so the
+# Kubernetes $(VAR) references below stay as they are.
+#
+#   ${NAMESPACE} ${IMAGE} ${GAER_VERSION} ${APP_HOSTNAME} ${INGRESS_CLASS} ${STORAGE_CLASS} ${DB_STORAGE}
+#
+# Secrets made by deploy.sh (never in the repo):
+#   gaer-db         Postgres passwords, created once with random values
+#   gaer-generated  SECRET_KEY, TOTP_KEYS, SECRET_BOX_KEYS, created once
+#   gaer-app-env    the repo secret APP_ENV (KEY=value lines), rewritten on every deploy
+# ConfigMaps: gaer-defaults (DOMAIN, ORIGIN, RP_ID from APP_HOSTNAME), postgres-init (deploy/postgres-init.sh).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ${NAMESPACE}
+  labels: { app.kubernetes.io/name: postgres, app.kubernetes.io/part-of: gaer }
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/name: postgres }
+  ports:
+    - { name: postgres, port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ${NAMESPACE}
+  labels: { app.kubernetes.io/name: postgres, app.kubernetes.io/part-of: gaer }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: postgres }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: postgres, app.kubernetes.io/part-of: gaer }
+    spec:
+      securityContext: { fsGroup: 999 }
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ containerPort: 5432, name: postgres }]
+          env:
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - { name: DB_NAME, value: gaer }
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: POSTGRES_PASSWORD } } }
+            - { name: DB_OWNER_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_OWNER_PASSWORD } } }
+            - { name: DB_APP_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_APP_PASSWORD } } }
+            - { name: DB_PURGE_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_PURGE_PASSWORD } } }
+            - { name: DB_MCP_RO_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_MCP_RO_PASSWORD } } }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres"] }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d, readOnly: true }
+      volumes:
+        - name: init
+          configMap: { name: postgres-init }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: ${STORAGE_CLASS}
+        resources: { requests: { storage: ${DB_STORAGE} } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gaer
+  namespace: ${NAMESPACE}
+  labels: { app.kubernetes.io/name: gaer, app.kubernetes.io/part-of: gaer }
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy: { type: RollingUpdate, rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } }
+  selector:
+    matchLabels: { app.kubernetes.io/name: gaer }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: gaer, app.kubernetes.io/part-of: gaer }
+    spec:
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 10001 }
+      initContainers:
+        # Same order as deploy.sh on a server: migrate first, then start the new version.
+        - name: migrate
+          image: ${IMAGE}
+          command: ["python", "-m", "app.migrate"]
+          envFrom:
+            - configMapRef: { name: gaer-defaults }
+            - secretRef: { name: gaer-generated }
+            - secretRef: { name: gaer-app-env }
+          env:
+            - { name: GAER_ENV, value: production }
+            - { name: TRUST_PROXY, value: "1" }
+            - { name: GAER_VERSION, value: "${GAER_VERSION}" }
+            - { name: DB_APP_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_APP_PASSWORD } } }
+            - { name: DB_PURGE_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_PURGE_PASSWORD } } }
+            - { name: DB_OWNER_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_OWNER_PASSWORD } } }
+            - { name: DB_MCP_RO_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_MCP_RO_PASSWORD } } }
+            # Passwords are hex, so they are safe in a URL.
+            - { name: DATABASE_URL, value: "postgresql://gaer_app:$(DB_APP_PASSWORD)@postgres:5432/gaer" }
+            - { name: PURGE_DATABASE_URL, value: "postgresql://gaer_purge:$(DB_PURGE_PASSWORD)@postgres:5432/gaer" }
+            - { name: MIGRATION_DATABASE_URL, value: "postgresql://gaer_owner:$(DB_OWNER_PASSWORD)@postgres:5432/gaer" }
+            - { name: MCP_DB_QUERY_URL, value: "postgresql://gaer_mcp_ro:$(DB_MCP_RO_PASSWORD)@postgres:5432/gaer" }
+      containers:
+        - name: app
+          image: ${IMAGE}
+          ports: [{ containerPort: 8000, name: http }]
+          envFrom:
+            - configMapRef: { name: gaer-defaults }
+            - secretRef: { name: gaer-generated }
+            - secretRef: { name: gaer-app-env }
+          env:
+            - { name: GAER_ENV, value: production }
+            - { name: TRUST_PROXY, value: "1" }
+            - { name: GAER_VERSION, value: "${GAER_VERSION}" }
+            - { name: DB_APP_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_APP_PASSWORD } } }
+            - { name: DB_PURGE_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_PURGE_PASSWORD } } }
+            - { name: DB_OWNER_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_OWNER_PASSWORD } } }
+            - { name: DB_MCP_RO_PASSWORD, valueFrom: { secretKeyRef: { name: gaer-db, key: DB_MCP_RO_PASSWORD } } }
+            # Passwords are hex, so they are safe in a URL.
+            - { name: DATABASE_URL, value: "postgresql://gaer_app:$(DB_APP_PASSWORD)@postgres:5432/gaer" }
+            - { name: PURGE_DATABASE_URL, value: "postgresql://gaer_purge:$(DB_PURGE_PASSWORD)@postgres:5432/gaer" }
+            - { name: MIGRATION_DATABASE_URL, value: "postgresql://gaer_owner:$(DB_OWNER_PASSWORD)@postgres:5432/gaer" }
+            - { name: MCP_DB_QUERY_URL, value: "postgresql://gaer_mcp_ro:$(DB_MCP_RO_PASSWORD)@postgres:5432/gaer" }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          securityContext: { allowPrivilegeEscalation: false }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gaer
+  namespace: ${NAMESPACE}
+  labels: { app.kubernetes.io/name: gaer, app.kubernetes.io/part-of: gaer }
+spec:
+  selector: { app.kubernetes.io/name: gaer }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+# Traffic comes in through the Cloudflare tunnel (deploy/k8s/cluster/cloudflared.yaml) to the ingress
+# controller, which picks this namespace by hostname. TLS ends at Cloudflare.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gaer
+  namespace: ${NAMESPACE}
+  labels: { app.kubernetes.io/name: gaer, app.kubernetes.io/part-of: gaer }
+spec:
+  ingressClassName: ${INGRESS_CLASS}
+  rules:
+    - host: ${APP_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: gaer, port: { name: http } }

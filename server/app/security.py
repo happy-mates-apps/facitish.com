@@ -18,14 +18,18 @@ class InvalidEmail(ValueError):
     pass
 
 
-# Dot-free labels keep the match unambiguous, so it runs in linear time on hostile input (CodeQL py/polynomial-redos).
-EMAIL_RE = re.compile(r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+")
+def _looks_like_email(email: str) -> bool:
+    """One @, no whitespace, a local part and a domain of at least two non-empty labels. No regex: linear by construction."""
+    local, at, domain = email.partition("@")
+    labels = domain.split(".")
+    return bool(at and local and "@" not in domain and len(labels) >= 2 and all(labels)
+                and not any(c.isspace() for c in email))
 
 
 def normalize_email(raw: str) -> str:
     """Trimmed and lower-cased. Only the shape is checked; the one-time code proves the address works."""
     email = (raw or "").strip().lower()
-    if len(email) > 254 or not EMAIL_RE.fullmatch(email):
+    if len(email) > 254 or not _looks_like_email(email):
         raise InvalidEmail("Ugyldig e-mailadresse")
     return email
 

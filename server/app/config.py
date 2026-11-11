@@ -32,6 +32,9 @@ class Settings:
     rp_name: str = field(default_factory=lambda: _env("RP_NAME", "Tørgær"))
     origin: str = field(default_factory=lambda: _env("ORIGIN", "http://localhost:5173"))
 
+    # License key from happymates.ai (a JWT, checked in app.license). Its statement goes into every /w page.
+    license_key: str | None = field(default_factory=lambda: _env("LICENSE_KEY"))
+
     # Optional: the only e-mail address (or, with SMS login, phone number) that may become the first admin.
     # Without them, whoever logs in first on a new instance becomes super admin. Set one in production.
     bootstrap_admin_email: str | None = field(default_factory=lambda: _env("BOOTSTRAP_ADMIN_EMAIL"))
@@ -195,6 +198,10 @@ class Settings:
     # the retention job when archive export is on, and the nightly calendar/contacts backup.
     mail_archive_prefix: str = field(default_factory=lambda: _env("MAIL_ARCHIVE_PREFIX", "mail-archive/"))
     mail_backup_prefix: str = field(default_factory=lambda: _env("MAIL_BACKUP_PREFIX", "mail-backup/"))
+
+    # Hosts that redirect to ORIGIN (app/canonical_host.py): aliases of the primary domain, comma separated.
+    redirect_hosts: tuple[str, ...] = field(default_factory=lambda: tuple(
+        h.strip().lower().rstrip(".") for h in (_env("REDIRECT_HOSTS", "") or "").split(",") if h.strip()))
 
     @property
     def is_production(self) -> bool:

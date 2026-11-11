@@ -7,7 +7,7 @@ import time
 
 import httpx
 
-from app import config
+from app import config, integrations
 
 log = logging.getLogger("gaer.sms")
 
@@ -53,7 +53,7 @@ async def _send_ovh(phone: str, message: str, sender: str) -> None:
         "charset": "UTF-8",
         "coding": "8bit",
     }, separators=(",", ":"))
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, event_hooks=integrations.hooks("ovh_sms")) as client:
         server_time = (await client.get(f"{s.ovh_endpoint}/auth/time")).text.strip()
         timestamp = server_time if server_time.isdigit() else str(int(time.time()))
         to_sign = "+".join([s.ovh_application_secret, s.ovh_consumer_key, "POST", url, body, timestamp])

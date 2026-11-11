@@ -102,6 +102,26 @@
    ]
   },
   {
+   "id": "messages",
+   "docs_path": "`/beskeder`, `/samtaler`, `/admin/messages`",
+   "who": {
+    "en": "logged in (`/admin/messages`: admin, sections Support, Privatliv and Drift)",
+    "da": "logget ind (`/admin/messages`: admin, Support, Privatliv og Drift)"
+   },
+   "what": {
+    "en": "**Beskeder** (spec in `specs/beskeder/`): broadcasts from the administration to an audience (everyone, admins, a feature ring, inactive users, chosen users), sent in two steps with an estimate (\"X får SMS (ca. Y kr) · Z får e-mail\") and a single-use confirmation token; a broadcast to everyone needs a step-up. Every message lands in the user's inbox on `/beskeder` (and `/m/beskeder`); per recipient it also goes by SMS (only with the user's own yes, never in quiet hours unless urgent; duplicates and an hourly cap) or e-mail. Recipients can reply: a private thread with the administration, answered in `/admin/messages/replies`. `/admin/messages` also has the delivery log and channels and rules. **Samtaler** (`/samtaler`, `/m/samtaler`, phase 2): Fællessamtalen (every user) and direct conversations between two users; users report messages and block each other (a block hides the other's messages and stops direct conversations both ways); a word filter rejects messages before they are stored. `/admin/messages/moderation` (Support, Privatliv) dismisses reports or removes the message, showing the three messages before it only while a report is open (audited); blocks only as counts.",
+    "da": "**Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler. **Samtaler**: Fællessamtalen og direkte beskeder med anmeld, bloker og ordfilter; moderering i `/admin/messages/moderation`."
+   },
+   "code": [
+    "pages/Inbox.tsx",
+    "pages/Conversations.tsx",
+    "admin-app/pages/messages/",
+    "messages/",
+    "routes/messages.py",
+    "routes/admin_messages.py"
+   ]
+  },
+  {
    "id": "mcp-links",
    "docs_path": "`/forbind`, `/go`",
    "who": {
@@ -126,12 +146,14 @@
     "da": "logget ind"
    },
    "what": {
-    "en": "**Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`).",
-    "da": "**Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden."
+    "en": "**Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). `/develop/trae` shows **tree structures** (`web/src/tree/`: TreeView, TreeSelect) against the real `/api/meta`: four renderings and the input fields (one node, a start node, tags, a subtree filter, creating a node).",
+    "da": "**Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne."
    },
    "code": [
     "pages/Develop.tsx",
-    "develop/prompts.ts"
+    "develop/prompts.ts",
+    "pages/Trees.tsx",
+    "tree/"
    ]
   },
   {
@@ -142,7 +164,7 @@
     "da": "admin (+ MFA)"
    },
    "what": {
-    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited.",
+    "en": "**Standalone admin app** (own Vite entry `web/admin.html`): statistics, users + impersonation, features and rings, App Stores, auth/audit log, analytics, heatmaps, GDPR, retention, consent, files, tree structures (`/admin/meta`), website (`/admin/web`), AI (`/admin/ai`), AI consumption and budgets (`/admin/consumption`), extension & Office (`/admin/integrations`), MCP servers (`/admin/mcp`), webhooks (`/admin/webhooks`), jobs and cleanup (`/admin/jobs`), NATS monitoring (`/admin/nats`), resources, kill switches and events (`/admin/resources`), mail (`/admin/mail`), secrets owned by groups with RACI and approved access (`/admin/secrets`), groups (`/admin/groups`), data catalog + Udforsk + API sources (`/admin/data`), adoption journeys measured by the routes users visit (`/admin/adoption`), settings. Every read and change is audited.",
     "da": "Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges."
    },
    "code": [
@@ -150,7 +172,8 @@
     "routes/admin.py",
     "impersonation.py",
     "features.py",
-    "app_store.py"
+    "app_store.py",
+    "admin-app/pages/Meta.tsx"
    ]
   },
   {
@@ -177,13 +200,14 @@
     "da": "i browserudvidelsen"
    },
    "what": {
-    "en": "**Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, account. Talks to the panel over `gaer-bridge`.",
-    "da": "Sidepanelet: aktuel side, klip og AI med siden som kontekst."
+    "en": "**Side panel** of the Chrome/Edge extension (iframe). Current page + per-domain consent + save as clip, AI chat with the page as context, clips, **tags** for the page (`/extension/meta`: what it is tagged with, tag it as the page, a folder pattern or the whole domain, browse a tag's context; the address is only looked up automatically on allowed domains), account. Talks to the panel over `gaer-bridge`.",
+    "da": "Sidepanelet: aktuel side, klip, tags for siden og AI med siden som kontekst."
    },
    "code": [
     "extension/",
     "web/src/extension/",
-    "bridge/extension.ts"
+    "bridge/extension.ts",
+    "web/src/extension/ExtensionMeta.tsx"
    ]
   },
   {
@@ -388,6 +412,38 @@
    "title": "Mit AI-forbrug"
   },
   {
+   "path": "/beskeder",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Beskeder",
+   "feature": "beskeder"
+  },
+  {
+   "path": "/beskeder/:id",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Besked",
+   "feature": "beskeder"
+  },
+  {
+   "path": "/samtaler",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Samtaler",
+   "feature": "samtaler"
+  },
+  {
+   "path": "/samtaler/:id",
+   "group": "messages",
+   "app": "app",
+   "access": "user",
+   "title": "Samtale",
+   "feature": "samtaler"
+  },
+  {
    "path": "/privatliv",
    "group": "account",
    "app": "app",
@@ -421,6 +477,13 @@
    "app": "app",
    "access": "user",
    "title": "Udvikling"
+  },
+  {
+   "path": "/develop/trae",
+   "group": "develop",
+   "app": "app",
+   "access": "user",
+   "title": "Træstrukturer"
   },
   {
    "path": "/admin",
@@ -584,6 +647,13 @@
    "title": "Agent"
   },
   {
+   "path": "/admin/meta",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Træstrukturer"
+  },
+  {
    "path": "/admin/ai",
    "group": "admin",
    "app": "admin",
@@ -652,6 +722,69 @@
    "app": "admin",
    "access": "admin",
    "title": "Brugerens mail"
+  },
+  {
+   "path": "/admin/secrets",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Hemmeligheder"
+  },
+  {
+   "path": "/admin/secrets/:id",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Hemmelighed"
+  },
+  {
+   "path": "/admin/groups",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Grupper"
+  },
+  {
+   "path": "/admin/messages",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Beskeder"
+  },
+  {
+   "path": "/admin/messages/send",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Send besked"
+  },
+  {
+   "path": "/admin/messages/replies",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Svar"
+  },
+  {
+   "path": "/admin/messages/moderation",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Moderering"
+  },
+  {
+   "path": "/admin/messages/delivery",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Levering"
+  },
+  {
+   "path": "/admin/messages/settings",
+   "group": "admin",
+   "app": "admin",
+   "access": "admin",
+   "title": "Kanaler og regler"
   },
   {
    "path": "/admin/data",
@@ -756,6 +889,42 @@
    "chrome": "own"
   },
   {
+   "path": "/m/beskeder",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Beskeder",
+   "chrome": "own",
+   "feature": "beskeder"
+  },
+  {
+   "path": "/m/beskeder/:id",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Besked",
+   "chrome": "own",
+   "feature": "beskeder"
+  },
+  {
+   "path": "/m/samtaler",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Samtaler",
+   "chrome": "own",
+   "feature": "samtaler"
+  },
+  {
+   "path": "/m/samtaler/:id",
+   "group": "mobile",
+   "app": "app",
+   "access": "user",
+   "title": "Samtale",
+   "chrome": "own",
+   "feature": "samtaler"
+  },
+  {
    "path": "/m/profil",
    "group": "mobile",
    "app": "app",
@@ -787,6 +956,15 @@
    "app": "app",
    "access": "user",
    "title": "Klip",
+   "chrome": "own",
+   "embeddable": true
+  },
+  {
+   "path": "/extension/meta",
+   "group": "extension",
+   "app": "app",
+   "access": "user",
+   "title": "Tags",
    "chrome": "own",
    "embeddable": true
   },

@@ -1,10 +1,10 @@
 // Side menu of the /admin app. Paths are relative to the router basename "/admin".
 import {
-  Archive, BookOpen, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
+  Activity, Archive, ShieldAlert, BookOpen, LockKeyhole, MessageSquare, Reply, Send, SlidersHorizontal, LayoutDashboard, Route as RouteIcon, SquareTerminal, UsersRound, Waypoints, Mail, KeySquare, Network, Wrench, Bot, ChartColumn, Cookie, FileSearch, Flag, FolderOpen, Gauge, Globe, Library, LogIn, MousePointerClick, PlugZap, Puzzle, RadioTower, ScrollText, Server,
   Settings, Smartphone, Table2, Plug, Timer, TrendingUp, Users, VenetianMask, Webhook, type LucideIcon,
 } from "lucide-react";
 
-export type NavBadge = "impersonation" | "features" | "mcp";
+export type NavBadge = "impersonation" | "features" | "mcp" | "replies" | "reports";
 export type NavItem = { path: string; label: string; icon: LucideIcon; badge?: NavBadge };
 export type NavGroup = { label: string; items: NavItem[] };
 
@@ -33,8 +33,20 @@ export const NAV: NavGroup[] = [
     label: "Brugere og support",
     items: [
       { path: "/users", label: "Brugere og roller", icon: Users },
+      { path: "/groups", label: "Grupper", icon: UsersRound },
       { path: "/impersonation", label: "Efterligning", icon: VenetianMask, badge: "impersonation" },
       { path: "/logs/auth", label: "Auth-log", icon: LogIn },
+    ],
+  },
+  {
+    label: "Beskeder",
+    items: [
+      { path: "/messages", label: "Beskeder", icon: MessageSquare },
+      { path: "/messages/send", label: "Send besked", icon: Send },
+      { path: "/messages/replies", label: "Svar", icon: Reply, badge: "replies" },
+      { path: "/messages/moderation", label: "Moderering", icon: ShieldAlert, badge: "reports" },
+      { path: "/messages/delivery", label: "Levering", icon: Activity },
+      { path: "/messages/settings", label: "Kanaler og regler", icon: SlidersHorizontal },
     ],
   },
   {
@@ -43,6 +55,7 @@ export const NAV: NavGroup[] = [
       { path: "/web", label: "Website", icon: Globe },
       { path: "/files", label: "Filer", icon: FolderOpen },
       { path: "/knowledge", label: "Viden", icon: Library },
+      { path: "/meta", label: "Træstrukturer", icon: Network },
       { path: "/app-stores", label: "App Stores", icon: Smartphone },
     ],
   },
@@ -79,6 +92,7 @@ export const NAV: NavGroup[] = [
     label: "Drift og integrationer",
     items: [
       { path: "/mail", label: "Mail", icon: Mail },
+      { path: "/secrets", label: "Hemmeligheder", icon: LockKeyhole },
       { path: "/mcp", label: "MCP-servere", icon: PlugZap, badge: "mcp" },
       { path: "/integrations", label: "Udvidelse og Office", icon: Puzzle },
       { path: "/webhooks", label: "Webhooks", icon: Webhook },

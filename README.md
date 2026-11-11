@@ -38,18 +38,19 @@ herfra ind i sin fork.
 | `/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), eget AI-forbrug og budget, privatliv og GDPR. |
 | `/user`, `/user/<id>` | logget ind (`/user/<id>`: dem ejeren har givet adgang) | **Mit område**: overblik (tal, seneste aktivitet, områder delt med dig), indstillinger og deling. Giv en anden bruger adgang som **læser** eller **forfatter** (kan oprette og redigere, aldrig slette), evt. med udløb. De åbner det på `/user/<id>`. |
 | `/user/mail`, `/admin/mail` | logget ind (`/admin/mail`: admin, Drift) | **Mail, kalender og kontakter**: personlig postkasse i Stalwart, fælles postkasser, kalendere og adressebøger med deling, udgående mail via Lettermint, mail slettes efter højst 30 dage. `/user/mail` til brugeren, `/admin/mail` til drift. |
+| `/beskeder`, `/samtaler`, `/admin/messages` | logget ind (`/admin/messages`: admin, Support, Privatliv og Drift) | **Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler. **Samtaler**: Fællessamtalen og direkte beskeder med anmeld, bloker og ordfilter; moderering i `/admin/messages/moderation`. |
 | `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
-| `/develop` | logget ind | **Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. |
+| `/develop` | logget ind | **Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne. |
 | `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
 | `/m/…` | logget ind | Mobil-app (PWA) med bundmenu, AI, klip, filer og profil. |
-| `/extension/…` | i browserudvidelsen | Sidepanelet: aktuel side, klip og AI med siden som kontekst. |
+| `/extension/…` | i browserudvidelsen | Sidepanelet: aktuel side, klip, tags for siden og AI med siden som kontekst. |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | Office (offentlig skal) | Router for Word, Excel, PowerPoint og Outlook → værktøjerne under `/extension/tools/…`. |
 | `/extension/tools/word\|outlook\|document` | logget ind, i Office | Office-værktøjer: indsæt/gem klip og AI med dokumentet eller mailen som kontekst. |
 | `/api/…` | pr. endpoint | JSON-API. Ændringer kræver headeren `X-Gaer: 1` (CSRF). |
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (85)</summary>
+<details><summary>Alle ruter (105)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -69,11 +70,16 @@ herfra ind i sin fork.
 | `/user/:id` | appen | logget ind | Delt område |
 | `/user/:id/mail` | appen | logget ind | Mail (feature `mail`) |
 | `/konto/forbrug` | appen | logget ind | Mit AI-forbrug |
+| `/beskeder` | appen | logget ind | Beskeder (feature `beskeder`) |
+| `/beskeder/:id` | appen | logget ind | Besked (feature `beskeder`) |
+| `/samtaler` | appen | logget ind | Samtaler (feature `samtaler`) |
+| `/samtaler/:id` | appen | logget ind | Samtale (feature `samtaler`) |
 | `/privatliv` | appen | alle | Privatliv |
 | `/forbind` | appen | logget ind | Forbind MCP-klient |
 | `/godkend` | appen | logget ind | Godkend adgang |
 | `/go` | appen | alle | Deep link |
 | `/develop` | appen | logget ind | Udvikling |
+| `/develop/trae` | appen | logget ind | Træstrukturer |
 | `/admin` | admin-appen | admin | Statistik |
 | `/admin/go` | admin-appen | admin | Deep link |
 | `/admin/users` | admin-appen | admin | Brugere og roller |
@@ -97,6 +103,7 @@ herfra ind i sin fork.
 | `/admin/knowledge` | admin-appen | admin | Viden |
 | `/admin/knowledge/spaces/:id` | admin-appen | admin | Vidensrum |
 | `/admin/knowledge/agents/:id` | admin-appen | admin | Agent |
+| `/admin/meta` | admin-appen | admin | Træstrukturer |
 | `/admin/ai` | admin-appen | admin | AI |
 | `/admin/consumption` | admin-appen | admin | AI-forbrug |
 | `/admin/integrations` | admin-appen | admin | Udvidelse og Office |
@@ -107,6 +114,15 @@ herfra ind i sin fork.
 | `/admin/resources` | admin-appen | admin | Ressourcer |
 | `/admin/mail` | admin-appen | admin | Mail |
 | `/admin/mail/users/:id` | admin-appen | admin | Brugerens mail |
+| `/admin/secrets` | admin-appen | admin | Hemmeligheder |
+| `/admin/secrets/:id` | admin-appen | admin | Hemmelighed |
+| `/admin/groups` | admin-appen | admin | Grupper |
+| `/admin/messages` | admin-appen | admin | Beskeder |
+| `/admin/messages/send` | admin-appen | admin | Send besked |
+| `/admin/messages/replies` | admin-appen | admin | Svar |
+| `/admin/messages/moderation` | admin-appen | admin | Moderering |
+| `/admin/messages/delivery` | admin-appen | admin | Levering |
+| `/admin/messages/settings` | admin-appen | admin | Kanaler og regler |
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
@@ -121,10 +137,15 @@ herfra ind i sin fork.
 | `/m/klip` | appen | logget ind | Klip · eget layout |
 | `/m/chat` | appen | logget ind | AI · eget layout |
 | `/m/filer` | appen | logget ind | Filer · eget layout |
+| `/m/beskeder` | appen | logget ind | Beskeder (feature `beskeder`) · eget layout |
+| `/m/beskeder/:id` | appen | logget ind | Besked (feature `beskeder`) · eget layout |
+| `/m/samtaler` | appen | logget ind | Samtaler (feature `samtaler`) · eget layout |
+| `/m/samtaler/:id` | appen | logget ind | Samtale (feature `samtaler`) · eget layout |
 | `/m/profil` | appen | logget ind | Profil · eget layout |
 | `/extension` | appen | logget ind | Aktuel side · eget layout · kan indlejres |
 | `/extension/chat` | appen | logget ind | AI · eget layout · kan indlejres |
 | `/extension/klip` | appen | logget ind | Klip · eget layout · kan indlejres |
+| `/extension/meta` | appen | logget ind | Tags · eget layout · kan indlejres |
 | `/extension/konto` | appen | logget ind | Konto · eget layout · kan indlejres |
 | `/extension/agent` | appen | logget ind | Agenter (feature `knowledge`) · eget layout · kan indlejres |
 | `/extension/agent/:slug` | appen | logget ind | Agent (feature `knowledge`) · eget layout · kan indlejres |
@@ -276,3 +297,16 @@ gælder inde i udvidelsen/Office.
 Alle indstillinger er miljøvariabler — se `.env.example` (lokalt), `deploy/app.env.example` og `deploy/.env.example`
 (produktion: appens indstillinger og stakkens hemmeligheder) og
 `server/app/config.py`. Navn, logo, SMS-afsender, GDPR-mail, cookie-tekster og opbevaringsperioder sættes i /admin.
+
+## Licens
+
+Copyright © 2026 Foreningen Happy Mates (CVR 46371771). Alle rettigheder forbeholdes.
+
+Gær er **ikke** open source. Koden må kun bruges af den, der har en skriftlig aftale med Foreningen Happy Mates,
+og kun til egen intern brug inden for aftalen. Den må ikke overdrages, videresælges, videregives, genbruges i andre
+produkter eller bruges til at bygge noget konkurrerende. Se [LICENSE](LICENSE).
+
+Hver installation får en **licensnøgle** fra happymates.ai (`LICENSE_KEY`, en JWT signeret med Ed25519). Nøglen
+indeholder licens-id, licenstager, en liste over de domæner installationen må køre på (`domains`) og den licenserklæring,
+der skal stå i `<head>` på alle sider under `/w`. Serveren tjekker nøglen (`server/app/license.py`) og sætter erklæringen
+ind; uden gyldig nøgle står der, at installationen er ulicenseret. Status ses på `/health`.

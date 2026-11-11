@@ -48,6 +48,8 @@ export default function Heatmaps() {
   useEffect(() => {
     if (!path && pages.data?.length) setPath(pages.data[0].path);
   }, [pages.data, path]);
+  // Recorded paths are user input; only a path on this origin may be framed.
+  const framed = path && /^\/(?![/\\])/.test(path) ? path : null;
 
   const measure = () => {
     const doc = frame.current?.contentDocument?.documentElement;
@@ -90,8 +92,8 @@ export default function Heatmaps() {
           <div className="stack">
             <div className="spread small"><strong className="mono">{path}</strong><span className="muted">{fmtNumber(heat.data.clicks.length)} klik</span></div>
             <div className="heat-frame" ref={wrap}>
-              <iframe ref={frame} src={path} title="Forhåndsvisning" onLoad={() => setTimeout(measure, 400)}
-                      style={{ width: "100%", height: size?.h ?? 800 }} />
+              {framed && <iframe ref={frame} src={framed} title="Forhåndsvisning" onLoad={() => setTimeout(measure, 400)}
+                      style={{ width: "100%", height: size?.h ?? 800 }} />}
               <canvas ref={canvas} style={{ width: size?.w, height: size?.h }} />
             </div>
           </div>

@@ -1,0 +1,47 @@
+# Cloudflare Tunnel for the whole cluster: cloudflared dials out to Cloudflare, so the cluster has no open ports.
+# One remotely managed tunnel; in Cloudflare (Zero Trust → Networks → Tunnels → Public hostnames) add
+#
+#   *.toergaer.app  →  http://traefik.kube-system.svc.cluster.local:80        (k3s; ingress-nginx: its controller service)
+#
+# and the DNS record  *.toergaer.app CNAME <tunnel-id>.cfargotunnel.com (proxied). The ingress controller then
+# picks the fork's namespace by hostname (Ingress in deploy/k8s/app.yaml).
+#
+#   kubectl apply -f deploy/k8s/cluster/cloudflared.yaml
+#   kubectl -n cloudflared create secret generic tunnel-token --from-literal=TUNNEL_TOKEN=<token>
+#
+# The Gær Fleet console does both from /admin/gaer-fleet/clusters ("Install or update cloudflared").
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflared
+  labels: { app.kubernetes.io/part-of: gaer }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+  labels: { app.kubernetes.io/name: cloudflared }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/name: cloudflared }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: cloudflared }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 65532 }
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.10.7
+          args: ["tunnel", "--no-autoupdate", "--metrics", "0.0.0.0:2000", "run"]
+          env:
+            - { name: TUNNEL_TOKEN, valueFrom: { secretKeyRef: { name: tunnel-token, key: TUNNEL_TOKEN } } }
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 256Mi }
