@@ -453,6 +453,12 @@ def _parse(text: str) -> dict:
         raise HTTPException(422, str(e))
 
 
+@router.post("/sources/parse")
+async def parse_source(body: SpecIn):
+    """The description as the server reads it (for the form in Forbind API). Names of secrets only, never values."""
+    return _parse(body.spec_yaml)
+
+
 @router.post("/sources/test")
 async def test_source(body: TestIn, admin: Principal = Depends(require_admin)):
     """Validates a kildebeskrivelse and calls one dataset. Changes nothing but the audit log (a secret used through

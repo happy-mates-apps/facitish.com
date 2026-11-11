@@ -182,6 +182,17 @@ async def test_source_uses_a_secret_only_with_an_approved_grant(make_client, own
     assert "secret.access_granted" in actions and actions[-1] == "secret.access_ended"
 
 
+async def test_parse_for_the_form(make_client):
+    (boss, *_), _ = await _admins(make_client, 1)
+    r = await boss.post("/api/admin/data/sources/parse", json={"spec_yaml": SPEC})
+    assert r.status_code == 200 and r.json()["auth"] == {
+        "type": "bearer", "secret": "data-bi/cvr", "header": None, "username": None, "token_url": None, "client_id": None,
+        "scope": None, "headers": []}
+    assert r.json()["datasets"][0]["fields"][1]["label"] == "By"
+    r = await boss.post("/api/admin/data/sources/parse", json={"spec_yaml": "kilde: x\nauth: { type: bearer, token: abc }"})
+    assert r.status_code == 422 and "nøgle" in r.json()["detail"]
+
+
 async def test_secret_tables_are_never_explored(make_client):
     (boss, *_), _ = await _admins(make_client, 1)
     names = {t["name"] for t in (await boss.get("/api/admin/data/tables")).json()}
