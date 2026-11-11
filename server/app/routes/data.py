@@ -11,6 +11,7 @@
 """
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,7 +19,7 @@ from psycopg import sql
 from pydantic import BaseModel, Field
 
 from app import data_sources as sources_mod
-from app import db, secret_store, source_secrets
+from app import db, integrations, secret_store, source_secrets
 from app.data_sources import FetchError, SpecError
 from app.logs import audit, changed
 from app.mcp.db_tools import SECRET_COLUMN
@@ -549,7 +550,7 @@ async def source(source_id: int):
             spec = sources_mod.parse_spec(s["spec_yaml"])
         except SpecError:
             spec = {"key": s["key"], "secrets": []}
-        _, status = await source_secrets.resolve(conn, spec, source_id=source_id)
+        _, status = await source_secrets.resolve(conn, spec, source_id=source_id, values_wanted=False)
         s["secrets"] = [_secret_status_out(st) for st in status]
     return s
 
@@ -686,3 +687,79 @@ async def request_secret_use(source_id: int, body: UseRequestIn, admin: Principa
         await audit(conn, "secret_use_requested", actor_id=admin.user_id, meta=admin.meta, table="data_sources",
                     row_id=source_id, secret_id=secret["id"], request_id=row["id"], days=body.days)
     return {"id": row["id"], "status": row["status"]}
+
+
+# ── Connections: APIs called from code and API sources (Udforsk → Forbindelser) ──
+
+def _endpoint_out(method: str | None, path: str, label: str, called_from: str, row: dict | None) -> dict:
+    return {"method": method, "path": path, "label": label, "called_from": called_from,
+            "calls": row["calls"] if row else 0, "errors": row["errors"] if row else 0,
+            "p95_ms": round(row["p95_ms"]) if row and row["p95_ms"] is not None else None,
+            "last_at": row["last_at"] if row else None, "last_error_at": row["last_error_at"] if row else None}
+
+
+def _host(url: str | None) -> str | None:
+    try:
+        return urlsplit(url).hostname if url else None
+    except ValueError:
+        return None
+
+
+@router.get("/connections")
+async def connections(hours: int = 24):
+    """Every outside API the instance talks to: the ones called from code (app/integrations.py) and the API sources
+    made in Forbind API, with keys (names and whether they are set, never values), endpoints and calls in the last
+    `hours` from the events `api.call`."""
+    hours = max(1, min(hours, 168))
+    async with db.connection() as conn:
+        code_stats = await integrations.stats(conn, "", hours)
+        code = []
+        for it in integrations.REGISTRY:
+            mine = {ref: r for ref, r in code_stats.items() if ref.startswith(f"{it.key}:")}
+            endpoints = []
+            for e in it.endpoints:
+                rows = [r for ref, r in mine.items() if ref.split(":", 1)[1].endswith(f" {e.path}")
+                        and (e.method is None or ref.split(":", 1)[1].startswith(f"{e.method} "))]
+                endpoints.append(_endpoint_out(e.method, e.path, e.label, e.called_from,
+                                               integrations.summarize(rows) if rows else None))
+            other = [r for ref, r in mine.items() if ref.endswith("(andet)")]
+            if other:
+                endpoints.append(_endpoint_out(None, "(andet)", "Kald, der ikke passer på et kendt endpoint", "—",
+                                               integrations.summarize(other)))
+            base = it.base()
+            code.append({
+                "key": it.key, "kind": "code", "name": it.name, "purpose": it.purpose, "files": list(it.files),
+                "host": _host(base), "base_url": base if base and base.startswith("https://") else None,
+                "active": it.active(), "counted": it.counted, "link": it.link,
+                "secrets": [{"name": n, "set": integrations.secret_is_set(n), "where": "env"} for n in it.secrets],
+                "settings": [{"name": n, "set": integrations.secret_is_set(n)} for n in it.settings],
+                "endpoints": endpoints, **integrations.summarize(list(mine.values())),
+            })
+        sources = []
+        for s in await db.fetch_all(conn, "select id, key, name, hosts, spec_yaml from data_sources order by name"):
+            try:
+                spec = sources_mod.parse_spec(s["spec_yaml"])
+            except SpecError:
+                spec = None
+            stats = await integrations.stats(conn, f"source:{s['key']}:", hours)
+            _, secret_status = await source_secrets.resolve(conn, spec, source_id=s["id"], values_wanted=False) \
+                if spec else ({}, [])
+            datasets = {r["key"]: r for r in await db.fetch_all(
+                conn, "select id, key, name from datasets where source_id = %s", (s["id"],))}
+            endpoints = []
+            for d in (spec or {}).get("datasets", []):
+                row = stats.get(f"source:{s['key']}:GET {d['path']}")
+                ds = datasets.get(d["key"])
+                endpoints.append({**_endpoint_out("GET", d["path"], d["name"], "Forbind API", row),
+                                  "dataset_id": ds["id"] if ds else None})
+            token = stats.get(f"source:{s['key']}:POST token")
+            if spec and spec["auth"]["type"] == "oauth2":
+                endpoints.insert(0, {**_endpoint_out("POST", spec["auth"]["token_url"], "OAuth 2-token", "Forbind API",
+                                                     token), "dataset_id": None})
+            sources.append({
+                "id": s["id"], "key": s["key"], "kind": "source", "name": s["name"], "host": s["hosts"][0] if s["hosts"] else None,
+                "hosts": s["hosts"], "auth": spec["auth"]["type"] if spec else None, "valid": spec is not None,
+                "active": True, "counted": True, "secrets": [_secret_status_out(x) for x in secret_status],
+                "endpoints": endpoints, **integrations.summarize(list(stats.values())),
+            })
+    return {"hours": hours, "code": code, "sources": sources}

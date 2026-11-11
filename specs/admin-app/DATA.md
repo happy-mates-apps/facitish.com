@@ -119,6 +119,11 @@ datasæt:
   audit-log (`secret.used_in_test`). Nyeste version bruges altid, og adgangen tjekkes før cachen ved hvert kald.
   Det gamle format, en miljøvariabel der starter med `DATA_SECRET_` (`config.data_secret()`), virker stadig, så en
   beskrivelse aldrig kan sende fx `DATABASE_URL` til et API. Gemmes en beskrivelse med noget, der ligner en nøgle, afvises den.
+- **Forbindelser** (`/admin/data/explore?vis=forbindelser`) viser alle API'er, instansen taler med: dem, appen kalder fra
+  koden (registeret i `server/app/integrations.py`), og API-kilderne fra Forbind API — med formål, kode, nøgler (navne og om
+  de er sat, aldrig værdier), endpoints og kald, fejl og p95 for de sidste 24 timer eller 7 dage. Kald tælles som hændelsen
+  `api.call` med kun integrationen og endpointets mønster (aldrig den rigtige sti, konti eller forespørgsler). Object Storage
+  kaldes med boto3 og tælles ikke endnu.
 - **Forbind API** (`/admin/data/connect`) har fire veje ind: formular, YAML, import af et OpenAPI-dokument (JSON, læses i
   browseren) og en cURL-kommando (nøgler i kommandoen gemmes aldrig). Formularen læser YAML gennem
   `POST /api/admin/data/sources/parse` og skriver den tilbage. Hemmelighedstabellerne kan ikke udforskes.

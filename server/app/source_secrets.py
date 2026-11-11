@@ -55,9 +55,10 @@ async def pending_request(conn, secret_id: int, source_id: int | None) -> dict |
 
 
 async def resolve(conn, spec: dict, *, source_id: int | None, tester: dict | None = None,
-                  meta: RequestMeta | None = None) -> tuple[dict[str, str], list[dict]]:
+                  meta: RequestMeta | None = None, values_wanted: bool = True) -> tuple[dict[str, str], list[dict]]:
     """Values by name for the secrets the description needs, and one status per secret for the checks.
-    `tester` is the user row of an admin running a test call (their own access may be used); None for real calls."""
+    `tester` is the user row of an admin running a test call (their own access may be used); None for real calls.
+    values_wanted=False only reports the status (for lists): nothing is decrypted or audited."""
     values: dict[str, str] = {}
     status: list[dict] = []
     for item in spec.get("secrets", []):
@@ -66,7 +67,7 @@ async def resolve(conn, spec: dict, *, source_id: int | None, tester: dict | Non
             continue
         if is_env_ref(ref):
             value = data_secret(ref)
-            if value:
+            if value and values_wanted:
                 values[ref] = value
             status.append({"ref": ref, "used_as": item["used_as"], "kind": "env", "ok": bool(value),
                            "how": "env" if value else None,
@@ -91,6 +92,9 @@ async def resolve(conn, spec: dict, *, source_id: int | None, tester: dict | Non
                              if pending else f"Kilden har ikke adgang til {ref}. Anmod om Brug i kilde")
         else:
             entry["text"] = f"{ref}: {HOW[how]}"
+            if not values_wanted:
+                status.append(entry)
+                continue
             values[ref] = await secret_store.read_value(conn, secret["id"], secret["current_version"])
             if how == "own":
                 await audit(conn, "secret.used_in_test", actor_id=tester["id"], meta=meta or RequestMeta(),

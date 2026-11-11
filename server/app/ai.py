@@ -16,7 +16,7 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, Field
 
-from app import config, db, route_manifest, settings_store
+from app import config, db, integrations, route_manifest, settings_store
 
 Surface = Literal["app", "extension", "word", "outlook", "document", "mobile"]
 
@@ -252,7 +252,8 @@ async def stream_chat(body: ChatIn, user_id: int, app_name: str, who: SignedIn |
     calls: dict[int, dict] = {}
     usage: dict | None = None
     try:
-        async with httpx.AsyncClient(transport=transport, timeout=httpx.Timeout(120, connect=10)) as client:
+        async with httpx.AsyncClient(transport=transport, timeout=httpx.Timeout(120, connect=10),
+                                     event_hooks=integrations.hooks("ai")) as client:
             async with client.stream("POST", f"{s.ai_base_url.rstrip('/')}/chat/completions", json=payload,
                                      headers={"Authorization": f"Bearer {s.ai_api_key}"}) as r:
                 if r.status_code >= 300:

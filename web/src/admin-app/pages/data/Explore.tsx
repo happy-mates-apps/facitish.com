@@ -1,4 +1,5 @@
-// /admin/data/explore → Udforsk: datasets grouped by source, tables not in the catalog yet, and the explorer (DataExplore.dc.html).
+// /admin/data/explore → Udforsk: datasets grouped by source, tables not in the catalog yet, and the explorer (DataExplore.dc.html);
+// ?vis=forbindelser shows every outside API instead (Connections.tsx).
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Plug, Plus } from "lucide-react";
@@ -7,10 +8,31 @@ import { Btn, ErrorBox, IconBtn, PageTitle, useLoad, useToast } from "../../ui";
 import { card, fmt, input, MONO, sectionLabel } from "../../theme";
 import { CLS, srOnly, type Catalog, type Dataset, type TableRow } from "./types";
 import Explorer from "./Explorer";
+import Connections from "./Connections";
 
 export default function Explore() {
-  const say = useToast();
   const [params, setParams] = useSearchParams();
+  const tab = params.get("vis") === "forbindelser" ? "forbindelser" : "datasaet";
+  return (
+    <>
+      <PageTitle title="Udforsk" aside={<Link to="/data/connect" style={{ textDecoration: "none" }}><Btn icon={Plug}>Forbind API</Btn></Link>}>
+        Læs rækker i datasæt fra databasen og fra API'er med katalogets navne og maskering, og se alle API'er instansen taler med — også dem,
+        appen selv kalder fra koden. Intet kan ændres herfra.
+      </PageTitle>
+      <div role="tablist" aria-label="Visning" style={{ display: "flex", gap: 4, borderBottom: "1px solid #e2e8f0" }}>
+        {([["datasaet", "Datasæt"], ["forbindelser", "Forbindelser"]] as const).map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setParams(k === "datasaet" ? {} : { vis: k })}
+            style={{ border: 0, background: "none", cursor: "pointer", font: "inherit", padding: "10px 14px", fontSize: 14, marginBottom: -1,
+              fontWeight: tab === k ? 600 : 400, color: tab === k ? "#1d4ed8" : "#475569", borderBottom: `2px solid ${tab === k ? "#2563eb" : "transparent"}` }}>{label}</button>
+        ))}
+      </div>
+      {tab === "forbindelser" ? <Connections /> : <Datasets params={params} setParams={setParams} />}
+    </>
+  );
+}
+
+function Datasets({ params, setParams }: { params: URLSearchParams; setParams: (p: Record<string, string>) => void }) {
+  const say = useToast();
   const selected = params.get("d");
   const catalog = useLoad(() => api.get<Catalog>("/api/admin/data/catalog"), []);
   const tables = useLoad(() => api.get<TableRow[]>("/api/admin/data/tables"), []);
@@ -40,9 +62,6 @@ export default function Explore() {
 
   return (
     <>
-      <PageTitle title="Udforsk" aside={<Link to="/data/connect" style={{ textDecoration: "none" }}><Btn icon={Plug}>Forbind API</Btn></Link>}>
-        Læs rækker i datasæt fra databasen og fra API'er med katalogets navne og maskering. Intet kan ændres herfra.
-      </PageTitle>
       {(catalog.error || tables.error) && <ErrorBox>{catalog.error || tables.error}</ErrorBox>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
         <aside aria-label="Datasæt" style={{ ...card, flex: "1 1 240px", maxWidth: "100%", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>

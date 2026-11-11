@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from psycopg.types.json import Jsonb
 
-from app import config, db, jobs
+from app import config, db, integrations, jobs
 from app.security import phone_hash
 
 log = logging.getLogger("gaer.outbound_mail")
@@ -184,7 +184,7 @@ async def poll(*, days: int = POLL_DAYS, client: httpx.AsyncClient | None = None
         params["filter[from_email]"] = s.mail_from
     headers = {"Authorization": f"Bearer {s.lettermint_team_token}", "Accept": "application/json"}
     own = client is None
-    client = client or httpx.AsyncClient(timeout=20)
+    client = client or httpx.AsyncClient(timeout=20, event_hooks=integrations.hooks("lettermint"))
     seen = created = updated = pages = 0
     cursor: str | None = None
     try:

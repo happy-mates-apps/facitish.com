@@ -27,7 +27,7 @@ from urllib.parse import urlencode, urlsplit
 import httpx
 import yaml
 
-from app import config
+from app import config, integrations
 
 CLASSIFICATION = {"hvid": "white", "grøn": "green", "groen": "green", "gul": "yellow", "rød": "red", "roed": "red",
                   "white": "white", "green": "green", "yellow": "yellow", "red": "red"}
@@ -394,7 +394,14 @@ async def _oauth_token(spec: dict, client_secret: str) -> str:
     data = {"grant_type": "client_credentials", "client_id": auth["client_id"], "client_secret": client_secret}
     if auth["scope"]:
         data["scope"] = auth["scope"]
-    body = await http_post_form(auth["token_url"], data, spec["limits"]["timeout"])
+    start = time.monotonic()
+    try:
+        body = await http_post_form(auth["token_url"], data, spec["limits"]["timeout"])
+    except FetchError as e:
+        status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", str(e))) else 0
+        await integrations.record_source_call(spec["key"], "POST", "token", (time.monotonic() - start) * 1000, status)
+        raise
+    await integrations.record_source_call(spec["key"], "POST", "token", (time.monotonic() - start) * 1000, 200)
     try:
         lifetime = max(0, int(body.get("expires_in") or 300) - TOKEN_MARGIN_S)
     except (TypeError, ValueError):
@@ -468,8 +475,14 @@ async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None =
         await check_host(spec["host"])
         _rate_limit(spec["key"], spec["limits"]["per_minute"])
         start = time.monotonic()
-        payload = await http_get_json(url, headers, spec["limits"]["timeout"])
+        try:
+            payload = await http_get_json(url, headers, spec["limits"]["timeout"])
+        except FetchError as e:
+            status = int(m.group(1)) if (m := re.search(r"svarede (\d{3})", str(e))) else 0
+            await integrations.record_source_call(spec["key"], "GET", ds["path"], (time.monotonic() - start) * 1000, status)
+            raise
         ms, cached = round((time.monotonic() - start) * 1000), False
+        await integrations.record_source_call(spec["key"], "GET", ds["path"], ms, 200)
         if spec["limits"]["cache_min"]:
             if len(_cache) >= CACHE_ENTRIES:
                 _cache.pop(next(iter(_cache)))

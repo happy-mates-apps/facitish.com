@@ -15,7 +15,7 @@ import re
 import httpx
 from fastapi import HTTPException
 
-from app import ai, config, consumption, db
+from app import ai, config, consumption, db, integrations
 
 TOP_K = 8
 MIN_SIMILARITY = 0.2
@@ -45,7 +45,8 @@ async def embed(texts: list[str]) -> list[list[float]]:
     """Unit-length embeddings for texts, in batches. Raises httpx.HTTPError / ValueError on failure."""
     s = config.settings
     out: list[list[float]] = []
-    async with httpx.AsyncClient(transport=ai.transport, timeout=httpx.Timeout(120, connect=10)) as client:
+    async with httpx.AsyncClient(transport=ai.transport, timeout=httpx.Timeout(120, connect=10),
+                                 event_hooks=integrations.hooks("ai")) as client:
         for i in range(0, len(texts), EMBED_BATCH):
             batch = [t[:8000] for t in texts[i:i + EMBED_BATCH]]
             r = await client.post(f"{s.ai_base_url.rstrip('/')}/embeddings",
@@ -127,7 +128,8 @@ async def _chat(messages: list[dict], user_id: int) -> str:
         raise HTTPException(429, consumption.BLOCKED_TEXT[pol["blocked"]])
     payload = {"model": s.ai_model, "messages": messages, "max_tokens": s.ai_max_output_tokens, "temperature": 0.2}
     try:
-        async with httpx.AsyncClient(transport=ai.transport, timeout=httpx.Timeout(120, connect=10)) as client:
+        async with httpx.AsyncClient(transport=ai.transport, timeout=httpx.Timeout(120, connect=10),
+                                 event_hooks=integrations.hooks("ai")) as client:
             r = await client.post(f"{s.ai_base_url.rstrip('/')}/chat/completions", json=payload,
                                   headers={"Authorization": f"Bearer {s.ai_api_key}"})
     except httpx.HTTPError as e:
