@@ -100,7 +100,8 @@ async def _has_consent(conn, visitor_id: str) -> bool:
 
 
 def _clean_path(value) -> str | None:
-    if not isinstance(value, str) or not value.startswith("/"):
+    # A path, not a URL: "//host" and "/\host" would load a foreign site in the heatmap preview.
+    if not isinstance(value, str) or not value.startswith("/") or value[1:2] in ("/", "\\") or "\\" in value:
         return None
     return value.split("?")[0].split("#")[0][:300]
 
