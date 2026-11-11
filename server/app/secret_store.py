@@ -11,6 +11,8 @@ Rules (design: the canvas "Secret Manager", specs in this docstring):
   a webhook, returned by a list, or reachable through MCP.
 - Who can read and change the value: A, R, and whoever holds an active grant (level `read` = see, `write` = see and
   change). A grant to a group covers its members who are eligible. Group membership alone gives nothing.
+- An API source in /admin/data can hold a grant too (level `use` = "Brug i kilde"): the server sends the value to the
+  source's hosts when it calls the API, and no person can see it through that grant (app/source_secrets.py).
 - A grant comes only from an access request that the approvers accept. Approvers are fixed when the request is made,
   from the secret's approval rule: `all` = everyone in A, R and C; `a_and_one_r` = A and one R; `a_only` = A. The
   requester and the person getting the access never approve it. One rejection closes it; unanswered it expires after REQUEST_DAYS.
@@ -33,7 +35,7 @@ from app.logs import RequestMeta, audit
 SECTION_API = "/api/admin/secrets"
 RACI = ("R", "A", "C", "I")
 RULES = {"all": "Alle i A, R og C", "a_and_one_r": "A og én R", "a_only": "Kun A"}
-LEVELS = {"read": "Kun se", "write": "Se og ændre"}
+LEVELS = {"read": "Kun se", "write": "Se og ændre", "use": "Brug i kilde"}
 REQUEST_DAYS = 7
 MAX_GRANT_DAYS = 365
 REMIND_DAYS = 14
@@ -128,8 +130,9 @@ async def roles_of(conn, secret_id: int, user_id: int) -> set[str]:
 
 async def active_grants(conn, secret_id: int) -> list[dict]:
     return await db.fetch_all(conn, """
-        select gr.id, gr.user_id, gr.group_id, gr.level, gr.request_id, gr.granted_at, gr.expires_at, g.name as group_name
-        from secret_grants gr left join groups g on g.id = gr.group_id
+        select gr.id, gr.user_id, gr.group_id, gr.source_id, gr.level, gr.request_id, gr.granted_at, gr.expires_at,
+               g.name as group_name, ds.name as source_name, ds.key as source_key, ds.hosts as source_hosts
+        from secret_grants gr left join groups g on g.id = gr.group_id left join data_sources ds on ds.id = gr.source_id
         where gr.secret_id = %s and gr.ended_at is null and gr.expires_at > now() order by gr.granted_at""", (secret_id,))
 
 
@@ -281,18 +284,27 @@ def outcome(fallback: bool, rule: str, approvals: list[dict]) -> str:
 
 
 async def create_request(conn, secret: dict, *, requester_id: int, grantee_user_id: int | None,
-                         grantee_group_id: int | None, level: str, days: int, reason: str, meta: RequestMeta) -> dict:
+                         grantee_group_id: int | None, level: str, days: int, reason: str, meta: RequestMeta,
+                         grantee_source_id: int | None = None) -> dict:
     if secret["archived_at"] is not None:
         raise HTTPException(409, "Hemmeligheden er arkiveret")
-    if grantee_user_id is not None:
+    if [grantee_user_id, grantee_group_id, grantee_source_id].count(None) != 2:
+        raise HTTPException(400, "Vælg én modtager")
+    if (level == "use") != (grantee_source_id is not None):
+        raise HTTPException(400, "Kun en API-kilde kan få adgangen Brug i kilde")
+    if grantee_source_id is not None:
+        if not await db.fetch_one(conn, "select 1 from data_sources where id = %s", (grantee_source_id,)):
+            raise HTTPException(404, "Kilden findes ikke")
+    elif grantee_user_id is not None:
         grantee = (await users_by_id(conn, [grantee_user_id])).get(grantee_user_id)
         if not eligible(grantee):
             raise HTTPException(400, "Adgang kan kun gives til administratorer med adgang til Hemmeligheder")
     else:
         await groups.get(conn, grantee_group_id)
     dup = await db.fetch_one(conn, """select id from secret_access_requests where secret_id = %s and status = 'pending'
-                                      and grantee_user_id is not distinct from %s and grantee_group_id is not distinct from %s""",
-                             (secret["id"], grantee_user_id, grantee_group_id))
+                                      and grantee_user_id is not distinct from %s and grantee_group_id is not distinct from %s
+                                      and grantee_source_id is not distinct from %s""",
+                             (secret["id"], grantee_user_id, grantee_group_id, grantee_source_id))
     if dup:
         raise HTTPException(409, "Der er allerede en åben anmodning for den samme modtager")
     raci = await raci_map(conn, secret["id"])
@@ -306,10 +318,10 @@ async def create_request(conn, secret: dict, *, requester_id: int, grantee_user_
         if not approvers:
             raise HTTPException(409, "Der er ingen andre, der kan godkende anmodningen")
     row = await db.fetch_one(conn, """
-        insert into secret_access_requests (secret_id, requester_id, grantee_user_id, grantee_group_id, level, days, reason,
-                                            approval_rule, fallback, expires_at)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, now() + make_interval(days => %s)) returning *""",
-        (secret["id"], requester_id, grantee_user_id, grantee_group_id, level, days, reason.strip(),
+        insert into secret_access_requests (secret_id, requester_id, grantee_user_id, grantee_group_id, grantee_source_id,
+                                            level, days, reason, approval_rule, fallback, expires_at)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now() + make_interval(days => %s)) returning *""",
+        (secret["id"], requester_id, grantee_user_id, grantee_group_id, grantee_source_id, level, days, reason.strip(),
          secret["approval_rule"], fallback, REQUEST_DAYS))
     for uid, roles in approvers.items():
         await conn.execute("insert into secret_approvals (request_id, approver_id, roles) values (%s, %s, %s)",
@@ -318,7 +330,7 @@ async def create_request(conn, secret: dict, *, requester_id: int, grantee_user_
                and not fallback and not eligible(users.get(u))]
     await audit(conn, "secret.access_requested", actor_id=requester_id, meta=meta, table="secrets", row_id=secret["id"],
                 request_id=row["id"], level=level, days=days, grantee_user_id=grantee_user_id,
-                grantee_group_id=grantee_group_id, approvers=sorted(approvers), fallback=fallback,
+                grantee_group_id=grantee_group_id, grantee_source_id=grantee_source_id, approvers=sorted(approvers), fallback=fallback,
                 skipped_approvers=skipped or None)
     await notify(conn, secret, "secret.access.requested", actor_id=requester_id, direct=list(approvers),
                  extra={"request_id": row["id"]})
@@ -371,26 +383,27 @@ async def _grant(conn, secret: dict, req: dict, meta: RequestMeta) -> int:
     # A new grant replaces an active one for the same grantee.
     await conn.execute("""update secret_grants set ended_at = now(), ended_reason = 'revoked'
                           where secret_id = %s and ended_at is null and user_id is not distinct from %s
-                            and group_id is not distinct from %s""",
-                       (secret["id"], req["grantee_user_id"], req["grantee_group_id"]))
+                            and group_id is not distinct from %s and source_id is not distinct from %s""",
+                       (secret["id"], req["grantee_user_id"], req["grantee_group_id"], req["grantee_source_id"]))
     row = await db.fetch_one(conn, """
-        insert into secret_grants (secret_id, user_id, group_id, level, request_id, expires_at)
-        values (%s, %s, %s, %s, %s, now() + make_interval(days => %s)) returning id, expires_at""",
-        (secret["id"], req["grantee_user_id"], req["grantee_group_id"], req["level"], req["id"], req["days"]))
+        insert into secret_grants (secret_id, user_id, group_id, source_id, level, request_id, expires_at)
+        values (%s, %s, %s, %s, %s, %s, now() + make_interval(days => %s)) returning id, expires_at""",
+        (secret["id"], req["grantee_user_id"], req["grantee_group_id"], req["grantee_source_id"], req["level"], req["id"],
+         req["days"]))
     await audit(conn, "secret.access_granted", actor_id=None, meta=meta, table="secrets", row_id=secret["id"],
                 grant_id=row["id"], request_id=req["id"], user_id=req["grantee_user_id"], group_id=req["grantee_group_id"],
-                level=req["level"], expires_at=row["expires_at"])
+                source_id=req["grantee_source_id"], level=req["level"], expires_at=row["expires_at"])
     return row["id"]
 
 
 async def end_grant(conn, secret: dict, grant_id: int, *, reason: str, actor_id: int | None, meta: RequestMeta) -> None:
     row = await db.fetch_one(conn, """update secret_grants set ended_at = now(), ended_reason = %s, revoked_by = %s
                                       where id = %s and secret_id = %s and ended_at is null
-                                      returning id, user_id, group_id""", (reason, actor_id, grant_id, secret["id"]))
+                                      returning id, user_id, group_id, source_id""", (reason, actor_id, grant_id, secret["id"]))
     if row is None:
         raise HTTPException(404, "Adgangen findes ikke eller er allerede afsluttet")
     await audit(conn, "secret.access_ended", actor_id=actor_id, meta=meta, table="secrets", row_id=secret["id"],
-                grant_id=grant_id, reason=reason, user_id=row["user_id"], group_id=row["group_id"])
+                grant_id=grant_id, reason=reason, user_id=row["user_id"], group_id=row["group_id"], source_id=row["source_id"])
     await notify(conn, secret, "secret.grant.ended", actor_id=actor_id, direct=[row["user_id"]] if row["user_id"] else [],
                  extra={"grant_id": grant_id, "reason": reason})
 

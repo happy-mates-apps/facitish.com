@@ -196,12 +196,14 @@ async def _request_out(conn, r: dict, me: int) -> dict:
                                  + ([r["grantee_user_id"]] if r["grantee_user_id"] else []))
     group = await db.fetch_one(conn, "select id, name from groups where id = %s", (r["grantee_group_id"],)) \
         if r["grantee_group_id"] else None
+    source = await db.fetch_one(conn, "select id, key, name, hosts from data_sources where id = %s",
+                                (r["grantee_source_id"],)) if r.get("grantee_source_id") else None
     mine = next((a for a in appr if a["approver_id"] == me), None)
     return {
         "id": r["id"], "secret_id": r["secret_id"], "secret_name": r.get("secret_name"), "environment": r.get("environment"),
         "group_name": r.get("group_name"), "requester": ss.person(users.get(r["requester_id"])),
         "grantee": ss.person(users.get(r["grantee_user_id"])) if r["grantee_user_id"] else None,
-        "grantee_group": group, "level": r["level"], "level_label": ss.LEVELS[r["level"]], "days": r["days"],
+        "grantee_group": group, "grantee_source": source, "level": r["level"], "level_label": ss.LEVELS[r["level"]], "days": r["days"],
         "reason": r["reason"], "status": r["status"], "approval_rule": r["approval_rule"],
         "rule_label": "Én administrator (ingen andre i RAC)" if r["fallback"] else ss.RULES[r["approval_rule"]],
         "fallback": r["fallback"], "created_at": r["created_at"], "expires_at": r["expires_at"], "decided_at": r["decided_at"],
@@ -284,7 +286,13 @@ async def get_secret(secret_id: int, admin: Principal = Depends(require_admin)):
                           "created_by": ss.person(users.get(v["created_by"]))} for v in versions],
             "grants": [{"id": g["id"], "level": g["level"], "level_label": ss.LEVELS[g["level"]], "granted_at": g["granted_at"],
                         "expires_at": g["expires_at"], "user": ss.person(users.get(g["user_id"])) if g["user_id"] else None,
-                        "group": {"id": g["group_id"], "name": g["group_name"]} if g["group_id"] else None} for g in grants],
+                        "group": {"id": g["group_id"], "name": g["group_name"]} if g["group_id"] else None,
+                        "source": {"id": g["source_id"], "key": g["source_key"], "name": g["source_name"],
+                                   "hosts": g["source_hosts"]} if g["source_id"] else None} for g in grants],
+            "used_by": await db.fetch_all(conn, """
+                select ds.id, ds.key, ds.name, ds.hosts, array_agg(u.used_as order by u.used_as) as used_as
+                from data_source_secrets u join data_sources ds on ds.id = u.source_id where u.secret_id = %s
+                group by ds.id order by ds.name""", (secret_id,)),
             "requests": [await _request_out(conn, r, admin.user_id) for r in reqs],
             "activity": [{"ts": a["ts"], "action": a["action"], "actor": ss.person(users.get(a["actor_user_id"])),
                           "detail": {k: v for k, v in (a["detail"] or {}).items()
