@@ -13,6 +13,7 @@ from starlette.routing import Route
 
 from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, webhooks
 from app import license as gaer_license
+from app.canonical_host import CanonicalHostMiddleware
 from app import uploads  # noqa: F401  (registers the files.unzip, files.uploads_cleanup and storage.cors jobs)
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
@@ -177,6 +178,8 @@ def create_app() -> FastAPI:
 
     # The license statement in the <head> of every /w page (app.license); outermost, after the guard.
     app.add_middleware(gaer_license.LicenseHeadMiddleware)
+    # Alias domains redirect to ORIGIN before anything else runs (app.canonical_host); outermost.
+    app.add_middleware(CanonicalHostMiddleware)
 
     @app.get("/health")
     async def health():

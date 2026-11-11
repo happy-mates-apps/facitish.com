@@ -199,6 +199,10 @@ class Settings:
     mail_archive_prefix: str = field(default_factory=lambda: _env("MAIL_ARCHIVE_PREFIX", "mail-archive/"))
     mail_backup_prefix: str = field(default_factory=lambda: _env("MAIL_BACKUP_PREFIX", "mail-backup/"))
 
+    # Hosts that redirect to ORIGIN (app/canonical_host.py): aliases of the primary domain, comma separated.
+    redirect_hosts: tuple[str, ...] = field(default_factory=lambda: tuple(
+        h.strip().lower().rstrip(".") for h in (_env("REDIRECT_HOSTS", "") or "").split(",") if h.strip()))
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"

@@ -56,13 +56,14 @@ use `MAIL_PROVIDER=console` (and `SMS_PROVIDER=console`).
 | `server/app/nats_monitor.py`, `routes/nats.py` | /admin/nats: reads NATS' HTTP monitoring port (`NATS_MONITOR_URL`), whitelisted endpoints and parameters, secrets masked; read only |
 | `server/app/og.py` | og:image and sharing tags for the anonymous pages (/w, /login, /privatliv): generated images in `web_static/og/` (`node web/scripts/brand-assets.cjs`), replaced per surface or per Markdown page in /admin/web |
 | `server/app/license.py` | the license key from happymates.ai: `LICENSE_KEY` is a JWT (EdDSA, keys in `ISSUER_KEYS` in the code) with license id, licensee, `domains` array and statement; `LicenseHeadMiddleware` puts the statement in the `<head>` of every /w page (UNLICENSED when the key is missing or wrong), status on `/health`. Never remove or bypass it |
+| `server/app/canonical_host.py` | `REDIRECT_HOSTS`: alias domains (apex, www, the fork's own name) redirect to `ORIGIN` (301/308, path kept, never /health); set by the Gær Fleet console, `deploy/k8s/CUSTOM-DOMAINS.md` |
 | `server/app/captcha.py` | proof-of-work captcha (no third party) in front of `POST /api/auth/otp/start` |
 | `server/app/gdpr.py`, `reapply_erasures.py` | GDPR export (zip) and erasure; re-applying erasures after a backup restore |
 | `server/tests/` | pytest against real Postgres (`TEST_DATABASE_ADMIN_URL`) |
 | `web/src/` | `pages/` app · `admin-app/` the standalone /admin app (own entry `web/admin.html`, spec in `specs/admin-app/`) · `features.tsx` FeatureGate · `mobile/` /m · `extension/` /extension · `office/` /office-addin · `bridge/` postMessage clients |
 | `extension/` | MV3 browser extension (side panel) |
-| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` · `mail/` the Stalwart mail server on UpCloud (Terraform, `config.toml`, runbook) |
-| `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod) |
+| `deploy/` | `deploy.sh` (on the server), `compose.yml` (prod stack: Postgres, app, NATS, cloudflared), `nats.conf` (NATS + JetStream on the `nats` volume), `postgres-init.sh`, `.env.example`, `app.env.example` · `k8s/` the same app on Kubernetes, one namespace per fork made by the Gær Fleet console in Surdej (`README.md`, `app.yaml`, `deploy.sh`, `cluster/`) · `mail/` the Stalwart mail server on UpCloud (Terraform, `config.toml`, runbook) |
+| `.github/workflows/` | `test.yml` (PRs), `deploy.yml` (push to main → prod), `target.yml` (the only reader of the variable `DEPLOY_TARGET` = `compose` (default) / `k8s` / `none`; every deploy workflow tests its outputs), `build-image.yml` (GHCR), `deploy-k8s.yml`, `rollback.yml`, `sync-upstream.yml` (forks pull gaer-base) |
 | `mobile/` | Expo app (iOS + Android): native login, then `/m` in a WebView — spec in `specs/mobile/` |
 | `server/app/mcp/` | MCP servers: `/mcp` (appen, as the user) and `/mcp/admin` (admin, drafts) — spec in `specs/mcp/` |
 | `server/app/access.py`, `mcp/toolmap.py` | the endpoint → tool map (Code and Data tools) governed from /admin/data, internal/external users, MCP access requests with approval from a list or an e-mail link — `specs/mcp/ACCESS.md` |
