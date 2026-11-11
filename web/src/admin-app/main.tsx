@@ -39,6 +39,12 @@ import Nats from "./pages/Nats";
 import Resources from "./pages/Resources";
 import MailAdmin from "./pages/mail/MailAdmin";
 import MailUser from "./pages/mail/MailUser";
+import MessagesOverview from "./pages/messages/Overview";
+import SendMessage from "./pages/messages/Send";
+import Replies from "./pages/messages/Replies";
+import Moderation from "./pages/messages/Moderation";
+import Delivery from "./pages/messages/Delivery";
+import MessageSettingsPage from "./pages/messages/Settings";
 import DataCatalog from "./pages/data/Catalog";
 import DataDataset from "./pages/data/Dataset";
 import DataExplore from "./pages/data/Explore";
@@ -128,6 +134,12 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="resources" element={<Resources />} />
                   <Route path="mail" element={<MailAdmin />} />
                   <Route path="mail/users/:id" element={<MailUser />} />
+                  <Route path="messages" element={<MessagesOverview />} />
+                  <Route path="messages/send" element={<SendMessage />} />
+                  <Route path="messages/replies" element={<Replies />} />
+                  <Route path="messages/moderation" element={<Moderation />} />
+                  <Route path="messages/delivery" element={<Delivery />} />
+                  <Route path="messages/settings" element={<MessageSettingsPage />} />
                   <Route path="data" element={<DataCatalog />} />
                   <Route path="data/explore" element={<DataExplore />} />
                   <Route path="data/connect" element={<DataConnect />} />

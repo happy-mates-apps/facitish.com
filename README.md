@@ -38,6 +38,7 @@ herfra ind i sin fork.
 | `/klip`, `/filer`, `/konto`, `/konto/forbrug`, `/privatliv` | logget ind (privatliv: alle) | Klip, filer, konto (profil, passkeys, sikkerhedsnøgler, godkendelsesapps, „Kræv passkey“, sessioner), eget AI-forbrug og budget, privatliv og GDPR. |
 | `/user`, `/user/<id>` | logget ind (`/user/<id>`: dem ejeren har givet adgang) | **Mit område**: overblik (tal, seneste aktivitet, områder delt med dig), indstillinger og deling. Giv en anden bruger adgang som **læser** eller **forfatter** (kan oprette og redigere, aldrig slette), evt. med udløb. De åbner det på `/user/<id>`. |
 | `/user/mail`, `/admin/mail` | logget ind (`/admin/mail`: admin, Drift) | **Mail, kalender og kontakter**: personlig postkasse i Stalwart, fælles postkasser, kalendere og adressebøger med deling, udgående mail via Lettermint, mail slettes efter højst 30 dage. `/user/mail` til brugeren, `/admin/mail` til drift. |
+| `/beskeder`, `/samtaler`, `/admin/messages` | logget ind (`/admin/messages`: admin, Support, Privatliv og Drift) | **Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler. **Samtaler**: Fællessamtalen og direkte beskeder med anmeld, bloker og ordfilter; moderering i `/admin/messages/moderation`. |
 | `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
 | `/develop` | logget ind | **Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne. |
 | `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
@@ -49,7 +50,7 @@ herfra ind i sin fork.
 | `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (88)</summary>
+<details><summary>Alle ruter (102)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -69,6 +70,10 @@ herfra ind i sin fork.
 | `/user/:id` | appen | logget ind | Delt område |
 | `/user/:id/mail` | appen | logget ind | Mail (feature `mail`) |
 | `/konto/forbrug` | appen | logget ind | Mit AI-forbrug |
+| `/beskeder` | appen | logget ind | Beskeder (feature `beskeder`) |
+| `/beskeder/:id` | appen | logget ind | Besked (feature `beskeder`) |
+| `/samtaler` | appen | logget ind | Samtaler (feature `samtaler`) |
+| `/samtaler/:id` | appen | logget ind | Samtale (feature `samtaler`) |
 | `/privatliv` | appen | alle | Privatliv |
 | `/forbind` | appen | logget ind | Forbind MCP-klient |
 | `/godkend` | appen | logget ind | Godkend adgang |
@@ -109,6 +114,12 @@ herfra ind i sin fork.
 | `/admin/resources` | admin-appen | admin | Ressourcer |
 | `/admin/mail` | admin-appen | admin | Mail |
 | `/admin/mail/users/:id` | admin-appen | admin | Brugerens mail |
+| `/admin/messages` | admin-appen | admin | Beskeder |
+| `/admin/messages/send` | admin-appen | admin | Send besked |
+| `/admin/messages/replies` | admin-appen | admin | Svar |
+| `/admin/messages/moderation` | admin-appen | admin | Moderering |
+| `/admin/messages/delivery` | admin-appen | admin | Levering |
+| `/admin/messages/settings` | admin-appen | admin | Kanaler og regler |
 | `/admin/data` | admin-appen | admin | Katalog |
 | `/admin/data/explore` | admin-appen | admin | Udforsk |
 | `/admin/data/connect` | admin-appen | admin | Forbind API |
@@ -123,6 +134,10 @@ herfra ind i sin fork.
 | `/m/klip` | appen | logget ind | Klip · eget layout |
 | `/m/chat` | appen | logget ind | AI · eget layout |
 | `/m/filer` | appen | logget ind | Filer · eget layout |
+| `/m/beskeder` | appen | logget ind | Beskeder (feature `beskeder`) · eget layout |
+| `/m/beskeder/:id` | appen | logget ind | Besked (feature `beskeder`) · eget layout |
+| `/m/samtaler` | appen | logget ind | Samtaler (feature `samtaler`) · eget layout |
+| `/m/samtaler/:id` | appen | logget ind | Samtale (feature `samtaler`) · eget layout |
 | `/m/profil` | appen | logget ind | Profil · eget layout |
 | `/extension` | appen | logget ind | Aktuel side · eget layout · kan indlejres |
 | `/extension/chat` | appen | logget ind | AI · eget layout · kan indlejres |
