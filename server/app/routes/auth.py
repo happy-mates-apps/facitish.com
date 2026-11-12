@@ -2,8 +2,11 @@
 With SMS_LOGIN=1 a phone number + code sent by SMS works the same way (opt-in).
 
   0. GET  /captcha        a proof-of-work challenge (app.captcha); /otp/start needs its solution unless CAPTCHA=off
-  1. POST /otp/start      sends a code (stored only as a hash, short-lived, single use)
+  1. POST /otp/start      sends a code (stored only as a hash, short-lived, single use). By e-mail the mail also has a
+                          login link with its own single-use token (POST /otp/link); a contact without an account that
+                          may not sign up (app.signup) gets nothing, and the answer is the same.
   2. POST /otp/verify     the first user on a new instance becomes admin and super admin.
+     POST /otp/link       the same as /otp/verify, with the token from the login link instead of the code.
                           "Kræv passkey" switched on (users.mfa_required) -> pending 'mfa' session, see 5.
                           Otherwise -> full session. An admin without a second factor uses one of GRACE_LOGINS
                           grace logins (the session may enter /admin); everybody else is offered a passkey.
@@ -18,6 +21,7 @@ The rules are described in the gaer-auth skill and must not be bypassed.
 
 import json
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -25,15 +29,16 @@ from pydantic import BaseModel, Field
 from webauthn import (base64url_to_bytes, generate_authentication_options, generate_registration_options,
                       options_to_json, verify_authentication_response, verify_registration_response)
 from webauthn.helpers.exceptions import InvalidAuthenticationResponse, InvalidRegistrationResponse
-from webauthn.helpers.structs import (AuthenticatorAttachment, AuthenticatorSelectionCriteria,
+from webauthn.helpers.structs import (AttestationConveyancePreference, AuthenticatorAttachment, AuthenticatorSelectionCriteria,
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from app import access, admin_roles, captcha, config, db, demo_logins, events, mfa, outbound_mail, settings_store, totp, webhooks
+from app import (access, admin_roles, captcha, config, db, demo_logins, events, mfa, outbound_mail, settings_store, signup,
+                 totp, webhooks, yubikey)
 from app.logs import RequestMeta, audit, auth_event
 from app.mail import MailError, otp_mail, send_mail
 from app.security import (InvalidEmail, InvalidPhone, bootstrap_admin_email, bootstrap_admin_phone, new_otp_code,
-                          normalize_email, normalize_phone, otp_hash, otp_matches, phone_hash)
+                          new_token, normalize_email, normalize_phone, otp_hash, otp_matches, phone_hash, token_hash)
 from app.sessions import (IMP_COOKIE, Principal, admin_mfa_ok, any_session, clear_session_cookie, create_session,
                           current_user, optional_principal, request_meta, revoke_sessions)
 from app.sms import SmsError, otp_message, send_sms
@@ -139,22 +144,39 @@ async def check_send_limits(conn, contact: str, meta: RequestMeta, **detail) -> 
         raise HTTPException(429, "Der er sendt for mange koder. Prøv igen senere.")
 
 
+@dataclass(frozen=True)
+class Issued:
+    code: str
+    link: str | None = None   # the login link's token (logins by e-mail only)
+
+
+def login_link(token: str) -> str:
+    """The link in the login mail. The token sits in the fragment, so it never reaches a server log or a Referer;
+    /login reads it and finishes the login with one click (POST /otp/link), so a mail scanner that opens links
+    cannot use it up."""
+    return f"{config.settings.origin.rstrip('/')}/login#link={token}"
+
+
 async def issue_code(conn, channel: str, contact: str, meta: RequestMeta, *, purpose: str = "login",
-                     user_id: int | None = None) -> str:
-    """Stores a new one-time code (hashed) for the contact and purpose, and sends it by e-mail or SMS."""
+                     user_id: int | None = None, by: int | None = None) -> Issued:
+    """Stores a new one-time code (hashed) for the contact and purpose, and sends it by e-mail or SMS. A login by
+    e-mail also gets a login link. by: the admin who sent it from /admin/users."""
     s = config.settings
     code = new_otp_code()
+    link = new_token() if channel == "email" and purpose == "login" else None
     await conn.execute("""update otp_codes set consumed_at = now()
                           where recipient = %s and purpose = %s and consumed_at is null""", (contact, purpose))
-    await conn.execute("""insert into otp_codes (recipient, purpose, user_id, code_hash, expires_at)
-                          values (%s, %s, %s, %s, now() + make_interval(secs => %s))""",
-                       (contact, purpose, user_id, otp_hash(contact, code), s.otp_ttl_seconds))
+    await conn.execute("""insert into otp_codes (recipient, purpose, user_id, code_hash, expires_at, link_hash)
+                          values (%s, %s, %s, %s, now() + make_interval(secs => %s), %s)""",
+                       (contact, purpose, user_id, otp_hash(contact, code), s.otp_ttl_seconds,
+                        token_hash(link) if link else None))
     values = await settings_store.get_all(conn)
     minutes = max(1, s.otp_ttl_seconds // 60)
-    detail = {"channel": channel} | ({} if purpose == "login" else {"purpose": purpose})
+    detail = ({"channel": channel} | ({} if purpose == "login" else {"purpose": purpose})
+              | ({"link": True} if link else {}) | ({"by": by} if by else {}))
     try:
         if channel == "email":
-            subject, text, body = otp_mail(code, values["app_name"], minutes)
+            subject, text, body = otp_mail(code, values["app_name"], minutes, login_link(link) if link else None)
             message_id = await send_mail(contact, subject, text, body, values["app_name"])
             await outbound_mail.record_sent(conn, message_id=message_id, recipient=contact, user_id=user_id,
                                             purpose="login" if purpose == "login" else "email_change", subject=subject)
@@ -169,7 +191,7 @@ async def issue_code(conn, channel: str, contact: str, meta: RequestMeta, *, pur
                             else "Vi kunne ikke sende SMS'en. Prøv igen.")
     await auth_event(conn, "otp.sent", ok=True, meta=meta, contact=contact, user_id=user_id, **detail)
     await events.emit("auth.otp_sent", ref=channel)
-    return code
+    return Issued(code, link)
 
 
 async def consume_code(conn, contact: str, code: str, meta: RequestMeta, *, purpose: str = "login",
@@ -229,11 +251,17 @@ async def otp_start(body: StartIn, request: Request):
             await auth_event(conn, "otp.sent", ok=False, meta=meta, contact=contact, user_id=user["id"],
                              reason="blocked")
             return {"ok": True, "expires_in": s.otp_ttl_seconds}
-        code = await issue_code(conn, channel, contact, meta, user_id=user["id"] if user else None)
+        if user is None and not await may_sign_up(conn, channel, contact):
+            # Same answer as usual: the login page must not reveal who has an account (app.signup).
+            await auth_event(conn, "otp.sent", ok=False, meta=meta, contact=contact, reason="signup_closed")
+            return {"ok": True, "expires_in": s.otp_ttl_seconds}
+        issued = await issue_code(conn, channel, contact, meta, user_id=user["id"] if user else None)
 
     response = {"ok": True, "expires_in": s.otp_ttl_seconds}
     if dev_code_allowed(channel):
-        response["dev_code"] = code
+        response["dev_code"] = issued.code
+        if issued.link:
+            response["dev_link"] = issued.link
     return response
 
 
@@ -263,25 +291,59 @@ async def demo_login_start(key: str, request: Request):
         await check_send_limits(conn, contact, meta, demo=key)
         if user["blocked_at"]:
             raise HTTPException(403, "Demo-kontoen er spærret. Ophæv spærringen i /admin/users.")
-        code = await issue_code(conn, "email", contact, meta, user_id=user["id"])
-    return {"ok": True, "email": contact, "dev_code": code, "expires_in": s.otp_ttl_seconds}
+        issued = await issue_code(conn, "email", contact, meta, user_id=user["id"])
+    return {"ok": True, "email": contact, "dev_code": issued.code, "expires_in": s.otp_ttl_seconds}
 
 
 @router.post("/otp/verify")
 async def otp_verify(body: VerifyIn, request: Request, response: Response):
-    s = config.settings
     meta = request_meta(request)
     channel, contact = _contact(body)
     async with db.connection() as conn:
         await consume_code(conn, contact, body.code, meta)
-        user = await _get_or_create_user(conn, channel, contact, meta)
-        if user["blocked_at"]:
-            await auth_event(conn, "otp.verified", ok=False, meta=meta, contact=contact, user_id=user["id"],
-                             reason="blocked")
+        return await _login_with_contact(conn, response, channel, contact, meta, via="otp")
+
+
+class LinkIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+
+
+@router.post("/otp/link")
+async def otp_link(body: LinkIn, request: Request, response: Response):
+    """The login link from the mail: the same as typing its code. Single use, expires with the code, and only for the
+    address it was sent to; the second factor rules apply as after a code."""
+    meta = request_meta(request)
+    async with db.connection() as conn:
+        otp = await db.fetch_one(conn, """
+            select id, recipient from otp_codes
+            where link_hash = %s and purpose = 'login' and consumed_at is null and expires_at > now()
+            for update""", (token_hash(body.token),))
+        if otp is None:
+            await auth_event(conn, "otp.failed", ok=False, meta=meta, reason="link_invalid", via="link")
             await conn.commit()
-            raise HTTPException(403, "Din bruger er spærret. Kontakt en administrator.")
-        await auth_event(conn, "otp.verified", ok=True, meta=meta, contact=contact, user_id=user["id"])
-        return await _after_first_factor(conn, response, user, meta, contact=contact, via="otp")
+            await events.emit("auth.otp_failed")
+            raise HTTPException(400, "Linket er udløbet eller allerede brugt. Bed om en ny kode.")
+        contact = otp["recipient"]
+        if await _is_locked(conn, contact):
+            await auth_event(conn, "otp.failed", ok=False, meta=meta, contact=contact, reason="locked", via="link")
+            await conn.commit()
+            raise HTTPException(429, "For mange forkerte forsøg. Prøv igen om lidt.")
+        await conn.execute("update otp_codes set consumed_at = now() where id = %s", (otp["id"],))
+        return await _login_with_contact(conn, response, "email", contact, meta, via="link")
+
+
+async def _login_with_contact(conn, response: Response, channel: str, contact: str, meta: RequestMeta, *,
+                              via: str) -> dict:
+    """The contact proved it received the code (typed or as a link)."""
+    user = await _get_or_create_user(conn, channel, contact, meta)
+    if user["blocked_at"]:
+        await auth_event(conn, "otp.verified", ok=False, meta=meta, contact=contact, user_id=user["id"],
+                         reason="blocked")
+        await conn.commit()
+        raise HTTPException(403, "Din bruger er spærret. Kontakt en administrator.")
+    await auth_event(conn, "otp.verified", ok=True, meta=meta, contact=contact, user_id=user["id"],
+                     **({"via": via} if via != "otp" else {}))
+    return await _after_first_factor(conn, response, user, meta, contact=contact, via=via)
 
 
 async def _after_first_factor(conn, response: Response, user: dict, meta: RequestMeta, *, contact: str | None,
@@ -325,6 +387,14 @@ async def admin_open_to_anyone(conn) -> bool:
     return (await db.fetch_one(conn, "select not exists (select 1 from users) as open"))["open"]
 
 
+async def may_sign_up(conn, channel: str, contact: str) -> bool:
+    """May a contact without an account get one by logging in? The first admin always may (bootstrap contact, or
+    the first user on a new instance); everybody else as the setting `signup` says (app.signup)."""
+    if contact == _bootstrap()[channel] or await admin_open_to_anyone(conn):
+        return True
+    return signup.allows(await signup.get(conn), channel, contact)
+
+
 async def _get_or_create_user(conn, channel: str, contact: str, meta: RequestMeta) -> dict:
     """Creates the user on first login and decides who becomes admin:
     - a bootstrap contact is set: only that contact becomes admin, and only while the instance has no admin.
@@ -353,6 +423,11 @@ async def _get_or_create_user(conn, channel: str, contact: str, meta: RequestMet
             user = {**user, "role": "admin", "super_admin": super_admin, "became_admin": True}
         return user
 
+    if not await may_sign_up(conn, channel, contact):
+        # The setting changed after the code was sent: no account is created (app.signup).
+        await auth_event(conn, "otp.verified", ok=False, meta=meta, contact=contact, reason="signup_closed")
+        await conn.commit()
+        raise HTTPException(403, "Du har ikke en konto her. Kontakt en administrator.")
     if any(bootstraps.values()):
         role = "admin" if contact == bootstrap and not await _has_admin(conn) else "user"
     else:
@@ -425,6 +500,8 @@ async def passkey_register_options(body: RegisterOptionsIn | None = None, princi
                 resident_key=ResidentKeyRequirement.PREFERRED if kind == "security_key" else ResidentKeyRequirement.REQUIRED,
                 user_verification=UserVerificationRequirement.REQUIRED),
             exclude_credentials=[PublicKeyCredentialDescriptor(id=bytes(r["credential_id"])) for r in existing],
+            # A security key's attestation tells whether it is a YubiKey (app.yubikey).
+            attestation=AttestationConveyancePreference.DIRECT if kind == "security_key" else AttestationConveyancePreference.NONE,
         )
         challenge_id = await _store_challenge(conn, options.challenge, "register", principal.user_id)
     return {"challenge_id": challenge_id, "options": json.loads(options_to_json(options))}
@@ -449,28 +526,35 @@ async def passkey_register_verify(body: RegisterIn, response: Response, principa
         transports = body.credential.get("response", {}).get("transports") or []
         attachment = body.credential.get("authenticatorAttachment")
         kind = "security_key" if attachment == "cross-platform" and "hybrid" not in transports else "passkey"
-        name = (body.name or "").strip() or ("Sikkerhedsnøgle" if kind == "security_key"
-                                              else _default_passkey_name(meta.user_agent))
+        att = yubikey.inspect(body.credential, expected_challenge=challenge) if kind == "security_key" else None
+        # With the YubiKey requirement a key the user adds only counts after they proved a YubiKey they already have;
+        # the first one comes from an admin (routes/yubikey.py). Otherwise a YubiKey is simply recorded as one.
+        counts = bool(att and att.yubikey) and (not principal.yubikey_required or mfa.stepup_ok(principal))
+        name = (body.name or "").strip() or (("YubiKey" if att and att.yubikey else "Sikkerhedsnøgle")
+                                              if kind == "security_key" else _default_passkey_name(meta.user_agent))
         row = await db.fetch_one(conn, """
-            insert into passkeys (user_id, credential_id, public_key, sign_count, transports, name, kind)
-            values (%s, %s, %s, %s, %s, %s, %s) returning id""",
+            insert into passkeys (user_id, credential_id, public_key, sign_count, transports, name, kind,
+                                  yubikey, attestation, aaguid)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning id""",
             (principal.user_id, verified.credential_id, verified.credential_public_key, verified.sign_count,
-             transports, name, kind))
+             transports, name, kind, counts, att.attestation if counts else None, att.aaguid if att else None))
         await auth_event(conn, "passkey.registered", ok=True, meta=meta, user_id=principal.user_id,
-                         contact=principal.contact, passkey_id=row["id"], kind=kind)
+                         contact=principal.contact, passkey_id=row["id"], kind=kind,
+                         **({"yubikey": counts, "attestation": att.attestation or att.reason} if att else {}))
         await audit(conn, "create", actor_id=principal.user_id, meta=meta, table="passkeys", row_id=row["id"],
-                    after={"name": name, "kind": kind, "user_id": principal.user_id})
+                    after={"name": name, "kind": kind, "user_id": principal.user_id, "yubikey": counts})
         # The new key was just used with user verification: this is a second factor. New token, no grace.
-        session_id = await _rotate_session(conn, response, principal)
+        session_id = await _rotate_session(conn, response, principal, yubikey=counts)
         if not f["total"]:
             await mfa.revoke_grace_sessions(conn, principal.user_id, session_id)
-    return {"ok": True, "passkey_id": row["id"], "kind": kind}
+    return {"ok": True, "passkey_id": row["id"], "kind": kind, "yubikey": counts,
+            "yubikey_detected": bool(att and att.yubikey)}
 
 
-async def _rotate_session(conn, response: Response, principal: Principal) -> int:
-    """Replaces the session with a new full one that has proven a second factor now."""
+async def _rotate_session(conn, response: Response, principal: Principal, *, yubikey: bool = False) -> int:
+    """Replaces the session with a new full one that has proven a second factor now (and a YubiKey, if it was one)."""
     await conn.execute("update sessions set revoked_at = now() where id = %s", (principal.session_id,))
-    return await create_session(conn, response, principal.user_id, "full", principal.meta, mfa=True)
+    return await create_session(conn, response, principal.user_id, "full", principal.meta, mfa=True, yubikey=yubikey)
 
 
 def _default_passkey_name(ua: str) -> str:
@@ -504,6 +588,12 @@ async def passkey_login_verify(body: LoginIn, request: Request, response: Respon
             await auth_event(conn, "passkey.login", ok=False, meta=meta, reason="unknown_credential")
             await conn.commit()
             raise HTTPException(400, "Passkey blev ikke genkendt. Log ind med din e-mailadresse.")
+        if passkey["enrolled_by"] is not None and passkey["enrolled_by"] != passkey["user_id"]:
+            # An admin held this key when it was registered: it is only ever a second factor after the code.
+            await auth_event(conn, "passkey.login", ok=False, meta=meta, user_id=passkey["user_id"],
+                             contact=passkey["contact"], passkey_id=passkey["id"], reason="admin_enrolled")
+            await conn.commit()
+            raise HTTPException(400, "Nøglen bruges kun som andet trin. Log ind med din e-mailadresse først.")
         try:
             verified = verify_authentication_response(
                 credential=body.credential, expected_challenge=challenge, expected_rp_id=s.rp_id,
@@ -528,7 +618,7 @@ async def passkey_login_verify(body: LoginIn, request: Request, response: Respon
             user = await db.fetch_one(conn, "select * from users where id = %s", (passkey["user_id"],))
             return await _after_first_factor(conn, response, user, meta, contact=passkey["contact"], via="passkey")
         await conn.execute("update users set last_login_at = now() where id = %s", (passkey["user_id"],))
-        await create_session(conn, response, passkey["user_id"], "full", meta, mfa=True)
+        await create_session(conn, response, passkey["user_id"], "full", meta, mfa=True, yubikey=passkey["yubikey"])
     return {"status": "logged_in"}
 
 
@@ -543,29 +633,39 @@ def _no_impersonation(principal: Principal) -> None:
         raise HTTPException(403, "Ikke muligt for en testkonto")
 
 
-async def _complete_mfa(conn, response: Response, principal: Principal, method: str, factor_id: int) -> dict:
-    """A second factor was proven: the session (pending or full) is replaced by a new full session with mfa_at."""
+async def _complete_mfa(conn, response: Response, principal: Principal, method: str, factor_id: int, *,
+                        yubikey: bool = False) -> dict:
+    """A second factor was proven: the session (pending or full) is replaced by a new full session with mfa_at
+    (and yubikey_at when the factor was a YubiKey)."""
     pending = principal.scope == "mfa"
     await conn.execute("update sessions set revoked_at = now() where id = %s", (principal.session_id,))
     if pending:
         await conn.execute("update users set last_login_at = now(), updated_at = now() where id = %s",
                            (principal.user_id,))
-    await create_session(conn, response, principal.user_id, "full", principal.meta, mfa=True)
+    await create_session(conn, response, principal.user_id, "full", principal.meta, mfa=True, yubikey=yubikey)
     await auth_event(conn, "mfa.verified", ok=True, meta=principal.meta, user_id=principal.user_id,
-                     contact=principal.contact, method=method, factor_id=factor_id, login=pending)
+                     contact=principal.contact, method=method, factor_id=factor_id, login=pending,
+                     **({"yubikey": True} if yubikey else {}))
     return {"ok": True, "status": "logged_in"}
 
 
+class StepupOptionsIn(BaseModel):
+    yubikey: bool = False   # only the user's YubiKeys (the YubiKey requirement, app.mfa)
+
+
 @router.post("/mfa/passkey/options")
-async def mfa_passkey_options(principal: Principal = Depends(any_session)):
+async def mfa_passkey_options(body: StepupOptionsIn | None = None, principal: Principal = Depends(any_session)):
     """Only the user's own keys, so security keys without a discoverable credential work too. Requires user
-    verification: a key without PIN/biometrics is possession only and does not count as a second factor."""
+    verification: a key without PIN/biometrics is possession only and does not count as a second factor.
+    With yubikey: only the user's YubiKeys, for /admin and step-up under the YubiKey requirement."""
     _no_impersonation(principal)
+    only_yubikey = bool(body and body.yubikey)
     async with db.connection() as conn:
-        keys = await db.fetch_all(conn, "select credential_id, transports from passkeys where user_id = %s",
-                                  (principal.user_id,))
+        keys = await db.fetch_all(conn, f"""select credential_id, transports from passkeys where user_id = %s
+                                            {"and yubikey" if only_yubikey else ""}""", (principal.user_id,))
         if not keys:
-            raise HTTPException(400, "Du har ingen passkey eller sikkerhedsnøgle")
+            raise HTTPException(400, "Du har ingen YubiKey tilknyttet" if only_yubikey
+                                else "Du har ingen passkey eller sikkerhedsnøgle")
         options = generate_authentication_options(
             rp_id=config.settings.rp_id, user_verification=UserVerificationRequirement.REQUIRED,
             allow_credentials=[PublicKeyCredentialDescriptor(id=bytes(k["credential_id"])) for k in keys])
@@ -599,7 +699,8 @@ async def mfa_passkey_verify(body: LoginIn, response: Response, principal: Princ
             raise HTTPException(400, "Passkey kunne ikke bekræftes. Kræver fingeraftryk, ansigt eller PIN-kode.")
         await conn.execute("update passkeys set sign_count = %s, last_used_at = now() where id = %s",
                            (verified.new_sign_count, passkey["id"]))
-        return await _complete_mfa(conn, response, principal, passkey["kind"], passkey["id"])
+        return await _complete_mfa(conn, response, principal, passkey["kind"], passkey["id"],
+                                   yubikey=passkey["yubikey"])
 
 
 async def check_totp(conn, principal: Principal, code: str, *, factor_id: int | None = None) -> int:
@@ -672,6 +773,7 @@ async def me(principal: Principal | None = Depends(optional_principal)):
     async with db.connection() as conn:
         user = await db.fetch_one(conn, """
             select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.admin_roles, u.grace_logins_used, u.mfa_required,
+                   u.yubikey_required,
                    u.locale, u.avatar_file_id is not null as has_avatar
             from users u where u.id = %s""", (principal.user_id,))
         f = await mfa.factors(conn, principal.user_id)
@@ -695,6 +797,9 @@ async def me(principal: Principal | None = Depends(optional_principal)):
                 "required": user["mfa_required"],
                 "factors": f["total"],
                 "methods": mfa.methods(f),
+                # The YubiKey requirement (set in /admin): /admin and step-up count only a YubiKey
+                "yubikey_required": user["yubikey_required"],
+                "yubikeys": f["yubikeys"],
                 # /admin: is this session allowed in, and how many grace logins are left without a second factor
                 "admin_ok": is_admin and principal.scope == "full" and admin_mfa_ok(principal),
                 "admin_grace_left": max(0, s.grace_logins - user["grace_logins_used"]) if is_admin and not f["total"] else None,

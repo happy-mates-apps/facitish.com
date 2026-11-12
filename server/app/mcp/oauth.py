@@ -27,7 +27,6 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app import config, db, mfa
 from app.logs import audit, auth_event
-from app.mfa import mfa_error
 from app.security import new_token, token_hash
 from app.sessions import Principal, current_user, request_meta
 
@@ -207,9 +206,10 @@ async def consent(body: ConsentIn, p: Principal = Depends(current_user)):
             return {"redirect": _with_query(body.redirect_uri, {"error": "access_denied", **extra})}
         if body.scope == "mcp:admin" and (not p.is_admin or "fuld" not in p.admin_roles):
             raise HTTPException(403, "Kun admins med fuld adgang kan forbinde /mcp/admin")
-        if body.scope == "mcp:admin" and not mfa.within(p.mfa_at, timedelta(minutes=config.settings.stepup_minutes)):
-            # An admin token lives for weeks: it is only handed out right after a second factor (gaer-auth).
-            raise mfa_error("stepup_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp først")
+        if body.scope == "mcp:admin" and not mfa.stepup_ok(p):
+            # An admin token lives for weeks: it is only handed out right after a second factor (gaer-auth),
+            # a YubiKey for users with the YubiKey requirement.
+            raise mfa.stepup_error(p)
         code = new_token()
         await conn.execute("""
             insert into mcp_tokens (kind, token_hash, client_id, user_id, scope, redirect_uri, code_challenge, resource, expires_at)

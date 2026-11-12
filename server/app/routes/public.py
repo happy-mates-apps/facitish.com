@@ -38,6 +38,9 @@ async def public_config():
     out["captcha"] = config.settings.captcha != "off"
     out["demo_mode"] = config.settings.demo_mode
     out["demo_logins"] = demo_logins.enabled()
+    # Login page: whether a new e-mail gets an account, and the line telling others whom to ask (app/signup.py).
+    out["signup"] = {"open": values["signup"].get("mode", "open") == "open",
+                     "contact": values["signup"].get("contact", "")}
     out["logo_url"] = "/api/public/logo" if values["logo_key"] else None
     out.pop("logo_key")
     return out

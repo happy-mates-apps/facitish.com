@@ -47,17 +47,55 @@ def missing_config() -> list[str]:
     return missing
 
 
-def otp_mail(code: str, app_name: str, minutes: int) -> tuple[str, str, str]:
-    """Subject, text and HTML for a one-time code."""
+def _button(url: str, label: str) -> str:
+    return (f'<p><a href="{html.escape(url)}" style="display:inline-block;padding:12px 20px;border-radius:8px;'
+            f'background:#2563eb;color:#ffffff;font-weight:600;text-decoration:none">{html.escape(label)}</a></p>')
+
+
+def otp_mail(code: str, app_name: str, minutes: int, link: str | None = None) -> tuple[str, str, str]:
+    """Subject, text and HTML for a one-time code. With link: the same login as a button (the link opens /login,
+    where one click finishes it; it is single use and expires with the code)."""
     subject = f"{code} er din engangskode til {app_name}"
-    text = (f"Din engangskode til {app_name} er {code}.\n\n"
+    via_link = (f"Eller log ind med dette link:\n{link}\n\n" if link else "")
+    text = (f"Din engangskode til {app_name} er {code}.\n\n{via_link}"
             f"Den udløber om {minutes} minutter og kan kun bruges én gang. Del den ikke med andre.\n\n"
             "Har du ikke bedt om koden, kan du se bort fra denne mail.")
     name = html.escape(app_name)
     body = (f'<p>Din engangskode til {name} er</p>'
             f'<p style="font:700 28px/1.2 monospace;letter-spacing:4px">{code}</p>'
-            f"<p>Den udløber om {minutes} minutter og kan kun bruges én gang. Del den ikke med andre.</p>"
+            + (f"<p>Eller log ind med ét klik:</p>{_button(link, 'Log ind')}" if link else "")
+            + f"<p>{'Koden og linket' if link else 'Den'} udløber om {minutes} minutter og kan kun bruges én gang. "
+            "Del dem ikke med andre.</p>"
             '<p style="color:#64748b;font-size:13px">Har du ikke bedt om koden, kan du se bort fra denne mail.</p>')
+    return subject, text, body
+
+
+def welcome_mail(app_name: str, login_url: str, *, yubikey: bool) -> tuple[str, str, str]:
+    """A user an admin created in /admin/users. No password: the login is the e-mail address and a code."""
+    subject = f"Du har fået en konto i {app_name}"
+    key = ("\n\nDin konto kræver en YubiKey til administrationen. Du får et link til at tilknytte den, "
+           "eller en administrator hjælper dig." if yubikey else "")
+    text = (f"Der er oprettet en konto til dig i {app_name}.\n\nLog ind her med din e-mailadresse. "
+            f"Du får en engangskode på mail, så der er ingen adgangskode at huske:\n{login_url}{key}")
+    e = html.escape
+    body = (f"<p>Der er oprettet en konto til dig i {e(app_name)}.</p>"
+            "<p>Log ind med din e-mailadresse. Du får en engangskode på mail, så der er ingen adgangskode at huske.</p>"
+            + _button(login_url, "Gå til login")
+            + (f"<p>{e(key.strip())}</p>" if yubikey else ""))
+    return subject, text, body
+
+
+def yubikey_link_mail(app_name: str, link: str, hours: int) -> tuple[str, str, str]:
+    """An admin asked the user to add a YubiKey (routes/yubikey.py)."""
+    subject = f"Tilknyt din YubiKey i {app_name}"
+    lead = (f"En administrator har bedt dig tilknytte en YubiKey til din konto i {app_name}. "
+            "Åbn linket, log ind, sæt nøglen i og rør ved den.")
+    text = (f"{lead}\n\n{link}\n\nLinket virker i {hours} timer og kan kun bruges én gang. "
+            "Har du ikke ventet denne mail, så kontakt din administrator.")
+    e = html.escape
+    body = (f"<p>{e(lead)}</p>" + _button(link, "Tilknyt YubiKey")
+            + f"<p>Linket virker i {hours} timer og kan kun bruges én gang.</p>"
+            '<p style="color:#64748b;font-size:13px">Har du ikke ventet denne mail, så kontakt din administrator.</p>')
     return subject, text, body
 
 

@@ -290,10 +290,10 @@ async def _change_start(channel: str, raw: str, p: Principal) -> dict:
         if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
             raise _taken(channel)
         await check_send_limits(conn, contact, p.meta, purpose=purpose)
-        code = await issue_code(conn, channel, contact, p.meta, purpose=purpose, user_id=p.user_id)
+        issued = await issue_code(conn, channel, contact, p.meta, purpose=purpose, user_id=p.user_id)
     response = {"ok": True, "expires_in": config.settings.otp_ttl_seconds}
     if dev_code_allowed(channel):
-        response["dev_code"] = code
+        response["dev_code"] = issued.code
     return response
 
 

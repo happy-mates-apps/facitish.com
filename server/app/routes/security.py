@@ -5,8 +5,6 @@ Passkeys and security keys are registered with /api/auth/passkey/register/* and 
 STEPUP_MINUTES once the user has one (app.mfa.ensure_can_change_factors); the frontend then runs /api/auth/mfa/*.
 """
 
-from datetime import timedelta
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
@@ -41,10 +39,11 @@ async def security_overview(p: Principal = Depends(current_user)):
     """Everything the account page needs in one call: factors, MFA status, /admin status, sessions and advice."""
     s = config.settings
     async with db.connection() as conn:
-        user = await db.fetch_one(conn, "select role, mfa_required, grace_logins_used from users where id = %s",
+        user = await db.fetch_one(conn, "select role, mfa_required, yubikey_required, grace_logins_used from users where id = %s",
                                   (p.user_id,))
         f = await mfa.factors(conn, p.user_id)
-        keys = await db.fetch_all(conn, """select id, name, kind, created_at, last_used_at from passkeys
+        keys = await db.fetch_all(conn, """select id, name, kind, yubikey, attestation, enrolled_by is not null as by_admin,
+                                                  created_at, last_used_at from passkeys
                                            where user_id = %s order by created_at""", (p.user_id,))
         apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors
                                            where user_id = %s and confirmed_at is not null order by created_at""",
@@ -63,6 +62,7 @@ async def security_overview(p: Principal = Depends(current_user)):
         advice.append("enable_mfa")
     return {
         "mfa_required": user["mfa_required"],
+        "yubikey_required": user["yubikey_required"],
         "factors": f,
         "methods": mfa.methods(f),
         "passkeys": [k for k in keys if k["kind"] == "passkey"],
@@ -70,7 +70,8 @@ async def security_overview(p: Principal = Depends(current_user)):
         "totp": apps,
         "session": {
             "mfa_at": p.mfa_at,
-            "stepup_ok": mfa.within(p.mfa_at, timedelta(minutes=s.stepup_minutes)),
+            "stepup_ok": mfa.stepup_ok(p),
+            "yubikey_at": p.yubikey_at,
             "grace": p.grace,
         },
         "admin": {

@@ -5,6 +5,10 @@ Who needs one (the rules are in the gaer-auth skill):
     Security actions (roles, contact details, blocking, MFA reset, impersonation …) need one within STEPUP_MINUTES.
   - users who turned on "Kræv passkey" (users.mfa_required): every login needs a second factor.
   - everybody else: a passkey is offered, never required.
+  - users with the YubiKey requirement (users.yubikey_required, set in /admin): /admin and every step-up count only a
+    YubiKey proven within the same windows (sessions.yubikey_at); no grace logins. Passkeys and apps still log them in
+    to the app. A YubiKey counts once an admin enrolled it (in person or with a link) or the user proved another
+    YubiKey first; see routes/yubikey.py.
 A passkey or security key only counts as a second factor when the authenticator verified the user (PIN or biometrics).
 """
 
@@ -18,7 +22,8 @@ ERROR_HEADER = "X-Gaer-Error"  # lets the frontend tell the MFA cases apart from
 
 
 def mfa_error(code: str, message: str) -> HTTPException:
-    """403 with a machine-readable code: mfa_required, mfa_setup_required or stepup_required."""
+    """403 with a machine-readable code: mfa_required, mfa_setup_required, stepup_required, or for users with the
+    YubiKey requirement yubikey_required, yubikey_setup_required, yubikey_stepup_required."""
     return HTTPException(403, message, headers={ERROR_HEADER: code})
 
 
@@ -31,6 +36,7 @@ async def factors(conn, user_id: int) -> dict:
     row = await db.fetch_one(conn, """
         select (select count(*) from passkeys where user_id = %(u)s and kind = 'passkey') as passkeys,
                (select count(*) from passkeys where user_id = %(u)s and kind = 'security_key') as security_keys,
+               (select count(*) from passkeys where user_id = %(u)s and yubikey) as yubikeys,
                (select count(*) from totp_factors where user_id = %(u)s and confirmed_at is not null) as totp""",
         {"u": user_id})
     return {**row, "total": row["passkeys"] + row["security_keys"] + row["totp"]}
@@ -39,6 +45,26 @@ async def factors(conn, user_id: int) -> dict:
 def methods(f: dict) -> list[str]:
     """The ways a user can prove the second factor."""
     return (["passkey"] if f["passkeys"] + f["security_keys"] else []) + (["totp"] if f["totp"] else [])
+
+
+def stepup_ok(principal) -> bool:
+    """A second factor within STEPUP_MINUTES; for users with the YubiKey requirement, a YubiKey."""
+    window = timedelta(minutes=config.settings.stepup_minutes)
+    if getattr(principal, "yubikey_required", False):
+        return within(principal.yubikey_at, window)
+    return within(principal.mfa_at, window)
+
+
+def stepup_error(principal) -> HTTPException:
+    if getattr(principal, "yubikey_required", False):
+        return mfa_error("yubikey_stepup_required", "Bekræft med din YubiKey først")
+    return mfa_error("stepup_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp først")
+
+
+def require_stepup(principal) -> None:
+    """Raises 403 + X-Gaer-Error: stepup_required (or yubikey_stepup_required) unless stepup_ok."""
+    if not stepup_ok(principal):
+        raise stepup_error(principal)
 
 
 async def lock_user(conn, user_id: int) -> dict:

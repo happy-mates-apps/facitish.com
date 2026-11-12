@@ -396,8 +396,7 @@ class MailboxPatch(BaseModel):
 
 def _stepup(p: Principal) -> None:
     from app import mfa
-    if not mfa.within(p.mfa_at, timedelta(minutes=config.settings.stepup_minutes)):
-        raise mfa.mfa_error("stepup_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp først")
+    mfa.require_stepup(p)
 
 
 @router.patch("/users/{user_id}/mailbox")
