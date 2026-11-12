@@ -1,12 +1,16 @@
 """Enrolling a YubiKey that counts for the YubiKey requirement (users.yubikey_required, app.mfa).
 
-Two ways, both started by an admin in /admin/users/<id> (section Brugere, step-up):
+Three ways, all started by an admin in /admin/users/<id> (section Brugere, step-up):
 
-  in person  POST /api/admin/users/{id}/yubikey/options + /verify
+  in person  POST /api/admin/users/{id}/yubikey/options + /verify (mode "present")
              The user is at the admin's computer with the key and sets its PIN. The key is registered for the user
              without a discoverable credential and with enrolled_by = the admin: because the admin held it, it is only
              ever a second factor after the user's own code (routes/auth.py refuses it as a login on its own).
              Only the super admin may do this for another admin (the rule of reset-mfa).
+  shipped    the same calls with mode "ship", super admin only: the super admin sets the key up alone (and its PIN)
+             and sends it to the user; passkeys.shipped_at, optionally a mail that it is on its way (never the PIN).
+             Same rules as in person: only a second factor after the user's own code, so a key lost in the post is
+             not enough. The first use is logged as yubikey.first_use.
   link       POST /api/admin/users/{id}/yubikey/link mails the user a single-use link (YUBIKEY_LINK_HOURS).
              The user opens /konto#yubikey=<token>, logs in and registers the key themselves:
              POST /api/auth/yubikey/enroll/options + /verify.
@@ -28,7 +32,7 @@ from webauthn.helpers.structs import (AttestationConveyancePreference, Authentic
 
 from app import config, db, mfa, outbound_mail, settings_store, yubikey
 from app.logs import audit, auth_event
-from app.mail import MailError, send_mail, yubikey_link_mail
+from app.mail import MailError, send_mail, yubikey_link_mail, yubikey_shipped_mail
 from app.routes.admin import _ensure_may_reset, _user_or_404
 from app.security import new_token, token_hash
 from app.sessions import Principal, create_session, current_user, require_admin_stepup
@@ -41,6 +45,15 @@ class EnrollIn(BaseModel):
     challenge_id: str
     credential: dict
     name: str | None = Field(default=None, max_length=60)
+
+
+class AdminEnrollOptionsIn(BaseModel):
+    mode: str = Field(default="present", pattern="^(present|ship)$")
+
+
+class AdminEnrollIn(EnrollIn):
+    mode: str = Field(default="present", pattern="^(present|ship)$")
+    notify: bool = True   # ship: mail the user that the key is on its way
 
 
 def _options(user: dict, existing: list[dict], *, discoverable: bool):
@@ -74,7 +87,7 @@ async def _take(conn, challenge_id: str, user_id: int, actor_id: int | None) -> 
 
 
 async def _register(conn, *, user: dict, body: EnrollIn, challenge: bytes, meta, actor_id: int,
-                    enrolled_by: int | None, via: str) -> int:
+                    enrolled_by: int | None, via: str, shipped: bool = False) -> int:
     """Verifies the registration and its YubiKey attestation, stores the key. Raises 400 (logged) otherwise."""
     s = config.settings
     contact = user["email"] or user["phone"]
@@ -98,15 +111,16 @@ async def _register(conn, *, user: dict, body: EnrollIn, challenge: bytes, meta,
     name = (body.name or "").strip() or "YubiKey"
     row = await db.fetch_one(conn, """
         insert into passkeys (user_id, credential_id, public_key, sign_count, transports, name, kind,
-                              yubikey, attestation, aaguid, enrolled_by)
-        values (%s, %s, %s, %s, %s, %s, 'security_key', true, %s, %s, %s) returning id""",
+                              yubikey, attestation, aaguid, enrolled_by, shipped_at)
+        values (%s, %s, %s, %s, %s, %s, 'security_key', true, %s, %s, %s, case when %s then now() end) returning id""",
         (user["id"], verified.credential_id, verified.credential_public_key, verified.sign_count, transports, name,
-         att.attestation, att.aaguid, enrolled_by))
+         att.attestation, att.aaguid, enrolled_by, shipped))
     await auth_event(conn, "yubikey.enrolled", ok=True, meta=meta, user_id=user["id"], contact=contact,
                      passkey_id=row["id"], attestation=att.attestation, via=via, by=actor_id)
     await audit(conn, "create", actor_id=actor_id, meta=meta, table="passkeys", row_id=row["id"],
                 after={"name": name, "kind": "security_key", "yubikey": True, "attestation": att.attestation,
-                       "user_id": user["id"], "enrolled_by": enrolled_by}, subject_user_id=user["id"], via=via)
+                       "user_id": user["id"], "enrolled_by": enrolled_by, "shipped": shipped},
+                subject_user_id=user["id"], via=via)
     return row["id"]
 
 
@@ -121,8 +135,15 @@ async def _target(conn, user_id: int, admin: Principal) -> dict:
     return user
 
 
+def _ensure_may_ship(mode: str, admin: Principal) -> None:
+    if mode == "ship" and not admin.super_admin:
+        raise HTTPException(403, "Kun superadministratoren kan opsætte en YubiKey og sende den til brugeren")
+
+
 @admin_router.post("/{user_id}/yubikey/options")
-async def admin_enroll_options(user_id: int, admin: Principal = Depends(require_admin_stepup)):
+async def admin_enroll_options(user_id: int, body: AdminEnrollOptionsIn | None = None,
+                               admin: Principal = Depends(require_admin_stepup)):
+    _ensure_may_ship(body.mode if body else "present", admin)
     async with db.connection() as conn:
         user = await _target(conn, user_id, admin)
         await _ensure_may_reset(user, admin)
@@ -133,14 +154,33 @@ async def admin_enroll_options(user_id: int, admin: Principal = Depends(require_
 
 
 @admin_router.post("/{user_id}/yubikey/verify")
-async def admin_enroll_verify(user_id: int, body: EnrollIn, admin: Principal = Depends(require_admin_stepup)):
+async def admin_enroll_verify(user_id: int, body: AdminEnrollIn, admin: Principal = Depends(require_admin_stepup)):
+    ship = body.mode == "ship"
+    _ensure_may_ship(body.mode, admin)
+    mailed = None
     async with db.connection() as conn:
         user = await _target(conn, user_id, admin)
         await _ensure_may_reset(user, admin)
         challenge = await _take(conn, body.challenge_id, user_id, admin.user_id)
         passkey_id = await _register(conn, user=user, body=body, challenge=challenge, meta=admin.meta,
-                                     actor_id=admin.user_id, enrolled_by=admin.user_id, via="admin")
-    return {"ok": True, "passkey_id": passkey_id}
+                                     actor_id=admin.user_id, enrolled_by=admin.user_id,
+                                     via="ship" if ship else "admin", shipped=ship)
+        if ship and body.notify and user["email"]:
+            mailed = await _mail_shipped(conn, user)
+    return {"ok": True, "passkey_id": passkey_id, "mailed": mailed}
+
+
+async def _mail_shipped(conn, user: dict) -> bool:
+    """"Din YubiKey er på vej": a courtesy; the key is stored whether or not the mail goes out."""
+    values = await settings_store.get_all(conn)
+    subject, text, html_body = yubikey_shipped_mail(values["app_name"], f"{config.settings.origin.rstrip('/')}/login")
+    try:
+        message_id = await send_mail(user["email"], subject, text, html_body, values["app_name"])
+    except MailError:
+        return False
+    await outbound_mail.record_sent(conn, message_id=message_id, recipient=user["email"], user_id=user["id"],
+                                    purpose="other", subject=subject)
+    return True
 
 
 # ── Admin: link ─────────────────────────────────────────────────────────────

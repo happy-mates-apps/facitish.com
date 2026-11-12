@@ -700,6 +700,10 @@ async def mfa_passkey_verify(body: LoginIn, response: Response, principal: Princ
             raise HTTPException(400, "Passkey kunne ikke bekræftes. Kræver fingeraftryk, ansigt eller PIN-kode.")
         await conn.execute("update passkeys set sign_count = %s, last_used_at = now() where id = %s",
                            (verified.new_sign_count, passkey["id"]))
+        if passkey["shipped_at"] and passkey["last_used_at"] is None:
+            # A YubiKey the super admin sent has reached the user: its first use.
+            await auth_event(conn, "yubikey.first_use", ok=True, meta=principal.meta, user_id=principal.user_id,
+                             contact=principal.contact, passkey_id=passkey["id"])
         return await _complete_mfa(conn, response, principal, passkey["kind"], passkey["id"],
                                    yubikey=passkey["yubikey"])
 

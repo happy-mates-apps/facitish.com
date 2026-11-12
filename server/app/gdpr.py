@@ -34,7 +34,7 @@ async def build_user_export(conn, user_id: int) -> dict:
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
         "user": user,
-        "passkeys": await rows("""select id, name, kind, yubikey, attestation, enrolled_by, created_at, last_used_at
+        "passkeys": await rows("""select id, name, kind, yubikey, attestation, enrolled_by, shipped_at, created_at, last_used_at
                                   from passkeys where user_id = %s""", user_id),
         # YubiKey links an admin sent (only that they were sent and used, never the token).
         "yubikey_enrollments": await rows("""select created_at, expires_at, used_at, created_by from yubikey_enrollments

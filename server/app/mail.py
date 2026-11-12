@@ -85,6 +85,22 @@ def welcome_mail(app_name: str, login_url: str, *, yubikey: bool) -> tuple[str, 
     return subject, text, body
 
 
+def yubikey_shipped_mail(app_name: str, login_url: str) -> tuple[str, str, str]:
+    """The super admin set up a YubiKey for the user and sent it (routes/yubikey.py). Never the PIN: that goes
+    another way than the key."""
+    subject = f"Din YubiKey til {app_name} er på vej"
+    lead = (f"En administrator har gjort en YubiKey klar til din konto i {app_name} og sendt den til dig. "
+            "Nøglens PIN-kode får du ad en anden vej end nøglen.")
+    use = ("Når du har den: log ind som altid med din e-mail og engangskoden. Når der bliver spurgt om din YubiKey, "
+           "sætter du den i, skriver PIN-koden og rører ved nøglen.")
+    warn = "Er pakken åbnet, eller har du ikke ventet en nøgle, så kontakt din administrator med det samme."
+    text = f"{lead}\n\n{use}\n\n{login_url}\n\n{warn}"
+    e = html.escape
+    body = (f"<p>{e(lead)}</p><p>{e(use)}</p>" + _button(login_url, "Gå til login")
+            + f'<p style="color:#64748b;font-size:13px">{e(warn)}</p>')
+    return subject, text, body
+
+
 def yubikey_link_mail(app_name: str, link: str, hours: int) -> tuple[str, str, str]:
     """An admin asked the user to add a YubiKey (routes/yubikey.py)."""
     subject = f"Tilknyt din YubiKey i {app_name}"

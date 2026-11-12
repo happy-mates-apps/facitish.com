@@ -42,7 +42,7 @@ async def security_overview(p: Principal = Depends(current_user)):
         user = await db.fetch_one(conn, "select role, mfa_required, yubikey_required, grace_logins_used from users where id = %s",
                                   (p.user_id,))
         f = await mfa.factors(conn, p.user_id)
-        keys = await db.fetch_all(conn, """select id, name, kind, yubikey, attestation, enrolled_by is not null as by_admin,
+        keys = await db.fetch_all(conn, """select id, name, kind, yubikey, attestation, enrolled_by is not null as by_admin, shipped_at,
                                                   created_at, last_used_at from passkeys
                                            where user_id = %s order by created_at""", (p.user_id,))
         apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors

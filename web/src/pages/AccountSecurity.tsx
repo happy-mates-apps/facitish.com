@@ -11,6 +11,8 @@ type Key = {
   id: number; name: string; kind: "passkey" | "security_key"; created_at: string; last_used_at: string | null;
   /** Counts as a YubiKey (the YubiKey requirement); by_admin: an admin registered it with you. */
   yubikey?: boolean; by_admin?: boolean;
+  /** Set up and sent to you by the super admin. */
+  shipped_at?: string | null;
 };
 type App = { id: number; name: string; created_at: string; last_used_at: string | null };
 type Advice = "add_passkey" | "admin_needs_mfa" | "add_backup_factor" | "enable_mfa";
@@ -93,7 +95,8 @@ export default function AccountSecurity() {
         <strong>{k.name}{k.yubikey && <span className="pill green" style={{ marginLeft: 8, fontSize: 11 }}>YubiKey</span>}</strong>
         <span className="muted tiny">
           Oprettet {fmtDate(k.created_at)} · Sidst brugt {fmtDate(k.last_used_at)}
-          {k.by_admin ? " · tilknyttet af en administrator, bruges efter din engangskode" : ""}
+          {k.shipped_at ? " · sendt til dig af en administrator, bruges efter din engangskode"
+            : k.by_admin ? " · tilknyttet af en administrator, bruges efter din engangskode" : ""}
         </span>
       </div>
       <div className="row" style={{ "--gap": "4px" } as React.CSSProperties}>

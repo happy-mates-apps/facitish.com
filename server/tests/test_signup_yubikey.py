@@ -478,3 +478,43 @@ async def test_gdpr_export_has_the_new_fields(make_client, owner_conn):
     assert len(data["yubikey_enrollments"]) == 1 and "token_hash" not in data["yubikey_enrollments"][0]
     assert all("yubikey" in k for k in data["passkeys"])
     assert (await admin.get(f"/api/admin/users/{uid}")).json()["security"]["yubikey_attestation"] == "issuer"
+
+
+async def test_super_admin_sets_up_a_yubikey_and_ships_it(make_client, owner_conn, capsys):
+    admin, admin_key, bo, bo_key, uid = await _required_admin(make_client, owner_conn)
+    yk = SoftYubiKey(AttestationCA())
+    body = (await admin.post(f"/api/admin/users/{uid}/yubikey/options", json={"mode": "ship"})).json()
+    r = await admin.post(f"/api/admin/users/{uid}/yubikey/verify", json={
+        "challenge_id": body["challenge_id"], "credential": yk.register(body["options"]), "name": "YK 12345678",
+        "mode": "ship", "notify": True})
+    assert r.status_code == 200 and r.json()["mailed"] is True, r.text
+    assert "Din YubiKey til" in capsys.readouterr().out
+    row = owner_conn.execute("""select yubikey, enrolled_by, shipped_at is not null, last_used_at
+                                from passkeys where user_id = %s and yubikey""", (uid,)).fetchone()
+    assert row == (True, 1, True, None)
+    keys = (await admin.get(f"/api/admin/users/{uid}")).json()["security"]["keys"]
+    assert [k["shipped_at"] is not None for k in keys if k["yubikey"]] == [True]
+    # Lost in the post: the key alone logs nobody in.
+    c = make_client()
+    opts = (await c.post("/api/auth/passkey/login/options")).json()
+    r = await c.post("/api/auth/passkey/login/verify",
+                     json={"challenge_id": opts["challenge_id"], "credential": yk.assert_(opts["options"])})
+    assert r.status_code == 400
+    # The user takes it into use after their own code: logged once as the first use, and /admin opens.
+    assert (await stepup_yubikey(bo, yk)).status_code == 200
+    assert (await bo.get("/api/admin/users")).status_code == 200
+    assert (await stepup_yubikey(bo, yk)).status_code == 200
+    assert owner_conn.execute("select count(*) from auth_log where event = 'yubikey.first_use' and user_id = %s",
+                              (uid,)).fetchone()[0] == 1
+
+
+async def test_only_the_super_admin_ships_keys(make_client, owner_conn):
+    admin, admin_key, bo, bo_key, uid = await _required_admin(make_client, owner_conn)
+    # A full admin who is not the super admin may enrol in person for a plain user, but not set up and ship.
+    owner_conn.execute("update users set yubikey_required = false, admin_roles = '{fuld}' where id = %s", (uid,))
+    await email_login(make_client(), "cy@example.com")
+    cy = owner_conn.execute("select id from users where email = 'cy@example.com'").fetchone()[0]
+    await stepup(bo, bo_key)
+    r = await bo.post(f"/api/admin/users/{cy}/yubikey/options", json={"mode": "ship"})
+    assert r.status_code == 403
+    assert (await bo.post(f"/api/admin/users/{cy}/yubikey/options", json={"mode": "present"})).status_code == 200

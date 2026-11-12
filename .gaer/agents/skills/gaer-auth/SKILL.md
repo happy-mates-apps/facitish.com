@@ -70,7 +70,9 @@ Frontend usage (components, step-up dialog, profile API): skill `gaer-profile`.
     A key is a YubiKey by its attestation (`app/yubikey.py`: packed/fido-u2f, issuer Yubico; with `YUBICO_ROOTS` the
     chain must end in Yubico's root → `attestation = 'verified'`). It counts (`passkeys.yubikey`) only when an admin
     enrolled it — in person (`/api/admin/users/{id}/yubikey/*`, non-discoverable, `enrolled_by`; such a key is
-    **never a first factor**, passkey login refuses it; only the super admin may do this for another admin) or with a
+    **never a first factor**, passkey login refuses it; only the super admin may do this for another admin), set up by
+    the **super admin alone and sent** to the user (same calls with `mode: "ship"`, `passkeys.shipped_at`, optional mail
+    that it is on its way, never the PIN; same second-factor-only rule; first use logged as `yubikey.first_use`), or with a
     single-use link (`yubikey_enrollments`, `/konto#yubikey=<token>`, `/api/auth/yubikey/enroll/*`) — or when the
     user proved a YubiKey in the last `STEPUP_MINUTES`. Users without the requirement simply have their YubiKeys
     recorded as such. Nobody switches the requirement on for themselves without a YubiKey.

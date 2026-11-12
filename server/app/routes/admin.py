@@ -298,7 +298,7 @@ async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
             raise HTTPException(404, "Brugeren findes ikke")
         f = await mfa.factors(conn, user_id)
         keys = await db.fetch_all(conn, """
-            select p.id, p.name, p.kind, p.yubikey, p.attestation, p.enrolled_by, p.created_at, p.last_used_at,
+            select p.id, p.name, p.kind, p.yubikey, p.attestation, p.enrolled_by, p.shipped_at, p.created_at, p.last_used_at,
                    (select coalesce(e.display_name, e.email, e.phone) from users e where e.id = p.enrolled_by) as enrolled_by_name
             from passkeys p where p.user_id = %s order by p.created_at""", (user_id,))
         apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors

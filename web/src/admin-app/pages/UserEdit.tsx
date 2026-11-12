@@ -16,6 +16,8 @@ import { userView, type AdminRole, type AdminUser } from "../users";
 type Key = {
   id: number; name: string; kind: "passkey" | "security_key"; yubikey: boolean; attestation: "verified" | "issuer" | null;
   enrolled_by: number | null; enrolled_by_name: string | null; created_at: string; last_used_at: string | null;
+  /** Set up by the super admin and sent to the user (taken into use once last_used_at is set). */
+  shipped_at: string | null;
 };
 type Detail = {
   user: AdminUser & {
@@ -358,11 +360,14 @@ export default function UserEdit({ userId, users, roles, grace, onClose, onChang
                       <strong style={{ fontSize: 14 }}>{k.name}</strong>
                       <span style={{ fontSize: 13, color: "#475569" }}>
                         {k.yubikey ? (k.attestation === "verified" ? "YubiKey, bekræftet mod Yubico" : "YubiKey") : k.kind === "security_key" ? "Sikkerhedsnøgle" : "Passkey"}
-                        {" · "}{k.enrolled_by ? `tilknyttet af ${k.enrolled_by_name || `#${k.enrolled_by}`}` : "tilføjet af brugeren"} {dateLabel(k.created_at)}
-                        {" · "}{k.last_used_at ? `sidst brugt ${lastLabel(k.last_used_at)}` : "aldrig brugt"}
+                        {" · "}{k.shipped_at ? `opsat og sendt af ${k.enrolled_by_name || `#${k.enrolled_by}`}`
+                          : k.enrolled_by ? `tilknyttet af ${k.enrolled_by_name || `#${k.enrolled_by}`}` : "tilføjet af brugeren"} {dateLabel(k.created_at)}
+                        {" · "}{k.last_used_at ? `sidst brugt ${lastLabel(k.last_used_at)}` : k.shipped_at ? "ikke taget i brug endnu" : "aldrig brugt"}
                       </span>
                     </span>
-                    <Pill tone={k.yubikey ? "green" : "gray"}>{k.yubikey ? "Tæller til /admin" : form.yubikey_required ? "Kun appen" : "Andet trin"}</Pill>
+                    {k.shipped_at && !k.last_used_at
+                      ? <Pill tone="orange">Sendt · afventer brugeren</Pill>
+                      : <Pill tone={k.yubikey ? "green" : "gray"}>{k.yubikey ? "Tæller til /admin" : form.yubikey_required ? "Kun appen" : "Andet trin"}</Pill>}
                   </div>
                 ))}
                 {sec.totp.map((t) => (
@@ -426,7 +431,7 @@ export default function UserEdit({ userId, users, roles, grace, onClose, onChang
           )}
         </main>
       </div>
-      {dialog === "yubikey" && <YubiKeyDialog user={u} canInPerson={!isMe && (u.role !== "admin" || !!me?.super_admin)}
+      {dialog === "yubikey" && <YubiKeyDialog user={u} canInPerson={!isMe && (u.role !== "admin" || !!me?.super_admin)} canShip={!isMe && !!me?.super_admin}
         onClose={() => setDialog(null)} onDone={async (text) => { setDialog(null); say(text); await load(true); onChanged(); }} />}
       {dialog === "recover" && <RecoverDialog user={u} canReset={canResetKeys && !!(sec.factors.total || u.mfa_required)}
         onClose={() => setDialog(null)} onDone={async (text) => { setDialog(null); say(text); await load(true); onChanged(); }} />}
@@ -443,30 +448,35 @@ function Shell({ children, deeplink, label = "Bruger" }: { children: ReactNode; 
   );
 }
 
-/** Tilknyt YubiKey: here (the user is present; the key becomes a second factor only) or a link mailed to the user. */
-function YubiKeyDialog({ user: u, canInPerson, onClose, onDone }: {
-  user: Detail["user"]; canInPerson: boolean; onClose: () => void; onDone: (text: string) => Promise<void>;
+/** Tilknyt YubiKey: here (the user is present), set up and sent by the super admin, or a link mailed to the user.
+ * A key the admin held (here, ship) is only ever a second factor after the user's own code. */
+function YubiKeyDialog({ user: u, canInPerson, canShip, onClose, onDone }: {
+  user: Detail["user"]; canInPerson: boolean; canShip: boolean; onClose: () => void; onDone: (text: string) => Promise<void>;
 }) {
-  const [how, setHow] = useState<"here" | "link">(canInPerson ? "here" : "link");
+  const [how, setHow] = useState<"here" | "ship" | "link">(canInPerson ? "here" : "link");
   const [name, setName] = useState("YubiKey");
+  const [notify, setNotify] = useState(!!u.email);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const start = async () => {
     setBusy(true);
     setError(null);
     try {
-      if (how === "here") {
+      if (how === "here" || how === "ship") {
+        const mode = how === "ship" ? "ship" : "present";
         const { challenge_id, options } = await api.post<{ challenge_id: string; options: Parameters<typeof startRegistration>[0]["optionsJSON"] }>(
-          `/api/admin/users/${u.id}/yubikey/options`);
+          `/api/admin/users/${u.id}/yubikey/options`, { mode });
         const credential = await startRegistration({ optionsJSON: options });
-        await api.post(`/api/admin/users/${u.id}/yubikey/verify`, { challenge_id, credential, name });
-        await onDone("YubiKeyen er tilknyttet");
+        const r = await api.post<{ mailed: boolean | null }>(`/api/admin/users/${u.id}/yubikey/verify`, { challenge_id, credential, name, mode, notify });
+        await onDone(how === "here" ? "YubiKeyen er tilknyttet"
+          : r.mailed ? `YubiKeyen er klar til at blive sendt. ${u.email} har fået besked om, at den er på vej.`
+          : r.mailed === false ? "YubiKeyen er klar til at blive sendt, men mailen til brugeren kunne ikke sendes." : "YubiKeyen er klar til at blive sendt.");
       } else {
         await api.post(`/api/admin/users/${u.id}/yubikey/link`);
         await onDone(`Linket er sendt til ${u.email}`);
       }
     } catch (e) {
-      setError(how === "here" ? passkeyErrorText(e) : errorText(e));
+      setError(how === "link" ? errorText(e) : passkeyErrorText(e));
     } finally {
       setBusy(false);
     }
@@ -483,17 +493,35 @@ function YubiKeyDialog({ user: u, canInPerson, onClose, onDone }: {
             {canInPerson ? "Brugeren er hos dig med nøglen og vælger selv nøglens PIN. Nøglen kan kun bruges efter brugerens egen engangskode."
               : "Kun superadministratoren kan tilknytte en nøgle til en anden admin på denne måde."}</span></span>
         </label>
+        <label style={choice(how === "ship", !canShip)}>
+          <input type="radio" name="how" checked={how === "ship"} disabled={!canShip} onChange={() => setHow("ship")} style={{ marginTop: 3 }} />
+          <span><strong>Opsæt nøglen og send den til brugeren</strong><br /><span style={hint}>
+            {canShip ? "Du opsætter nøglen her og vælger dens PIN. Derefter sender du den med posten. Brugeren kan kun bruge den efter sin egen engangskode."
+              : "Kun superadministratoren kan opsætte en nøgle og sende den."}</span></span>
+        </label>
         <label style={choice(how === "link", !u.email)}>
           <input type="radio" name="how" checked={how === "link"} disabled={!u.email} onChange={() => setHow("link")} style={{ marginTop: 3 }} />
           <span><strong>Send et link til brugeren</strong><br /><span style={hint}>
             {u.email ? `Engangslink til ${u.email}. Brugeren logger ind og sætter selv nøglen i.` : "Brugeren har ingen e-mailadresse."}</span></span>
         </label>
       </fieldset>
-      {how === "here" && (
+      {(how === "here" || how === "ship") && (
         <>
-          <label style={field}>Navn på nøglen
+          <label style={field}>{how === "ship" ? "Navn på nøglen (fx serienummeret, så den kan genkendes)" : "Navn på nøglen"}
             <input style={inputStyle} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
           </label>
+          {how === "ship" && (
+            <>
+              <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fffbeb", border: "1px solid #fde68a", fontSize: 13, color: "#78350f" }}>
+                Send PIN-koden ad en anden vej end nøglen, fx på SMS eller i telefonen, aldrig i samme pakke.
+                Systemet gemmer ikke PIN-koden.
+              </div>
+              <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14, cursor: u.email ? "pointer" : "default" }}>
+                <input type="checkbox" checked={notify} disabled={!u.email} onChange={(e) => setNotify(e.target.checked)} />
+                Mail brugeren, at nøglen er på vej, og hvordan den tages i brug
+              </label>
+            </>
+          )}
           <div style={{ display: "flex", gap: 14, alignItems: "center", padding: 16, borderRadius: 12, background: "#f1f5f9" }}>
             <Usb size={28} color="#1d4ed8" />
             <span style={{ fontSize: 14, color: "#334155" }}>Tryk Start, sæt YubiKey&apos;en i og rør ved den. Tillad browseren at se nøglens model, når den spørger.</span>
@@ -505,7 +533,7 @@ function YubiKeyDialog({ user: u, canInPerson, onClose, onDone }: {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
         <Btn height={40} onClick={onClose}>Annullér</Btn>
         <Btn kind="primary" height={40} disabled={busy || (how === "link" && !u.email)} onClick={start}>
-          {busy ? (how === "here" ? "Venter på nøglen …" : "Sender …") : how === "here" ? "Start" : "Send link"}
+          {busy ? (how === "link" ? "Sender …" : "Venter på nøglen …") : how === "link" ? "Send link" : "Start"}
         </Btn>
       </div>
     </Modal>
