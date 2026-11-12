@@ -30,7 +30,7 @@ class ToolError(Exception):
 
 @dataclass
 class Caller:
-    server: str                 # app | admin
+    server: str                 # the endpoint key: app | admin | a dynamic endpoint (app/mcp/endpoints.py)
     principal: Principal        # who; principal.meta carries ip and user agent for audit()
     client_id: str | None       # the MCP client, None from the /admin hub
     via: str = "mcp"            # mcp | hub
@@ -191,7 +191,7 @@ async def invoke(server: str, name: str, raw_args: dict | None, caller: Caller) 
     the draft (nothing changes before confirm_draft)."""
     from app.mcp import drafts  # drafts registers confirm/cancel and imports this module
 
-    from app.mcp import data_tools, toolmap
+    from app.mcp import data_tools, endpoints, toolmap
 
     started = time.monotonic()
     status, args = "ok", raw_args
@@ -207,7 +207,7 @@ async def invoke(server: str, name: str, raw_args: dict | None, caller: Caller) 
             raise PermissionError(decision["message"])
         spec = toolmap.spec_for(t, server)
         args = coerce_args(spec, raw_args)
-        handler = HANDLERS.get((server, name))
+        handler = HANDLERS.get((endpoints.handler_server(server), name))
         if t["kind"] == "data":
             out: ToolOutput = await data_tools.run(t, args, caller, decision["grant"])
             result = {**out.data, **({"summary": out.text} if out.text else {})}
@@ -248,7 +248,7 @@ async def tool_list(server: str) -> list[dict]:
         tools = await toolmap.for_endpoint(conn, server)
     out = []
     for t in tools:
-        if t["kind"] == "code" and (server, t["name"]) not in HANDLERS:
+        if t["kind"] == "code" and not toolmap.has_handler(server, t["name"]):
             continue
         spec = toolmap.spec_for(t, server)
         out.append({**spec, "inputSchema": input_schema(spec)})

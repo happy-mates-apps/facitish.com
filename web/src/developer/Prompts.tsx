@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PROMPTS, type Prompt } from "../develop/prompts";
+import { PROMPTS, type Prompt } from "./promptCatalog";
 
 const ALL = "Alle";
 
@@ -52,7 +52,7 @@ function PromptCard({ prompt }: { prompt: Prompt }) {
   );
 }
 
-export default function Develop() {
+export default function Prompts() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(ALL);
 
@@ -67,15 +67,11 @@ export default function Develop() {
   }, [query, category]);
 
   return (
-    <div className="page">
-      <div className="stack" style={{ "--gap": "10px", maxWidth: 720 } as React.CSSProperties}>
-        <div className="eyebrow">Udvikling</div>
-        <h1>Promptkatalog</h1>
-        <p className="muted">
-          Prompts du kan kopiere ind i Claude, når du vil lave artifacts, planlægge en feature, skrive tests eller få et
-          review. Udfyld felterne i [KANTEDE PARENTESER], før du sender.
-        </p>
-      </div>
+    <>
+      <p className="muted" style={{ maxWidth: 720, margin: 0 }}>
+        Prompts du kan kopiere ind i Claude, når du vil lave artifacts, planlægge en feature, skrive tests eller få et
+        review. Udfyld felterne i [KANTEDE PARENTESER], før du sender.
+      </p>
 
       <div className="row" style={{ "--gap": "16px", alignItems: "flex-end" } as React.CSSProperties}>
         <label className="field" style={{ flex: "1 1 280px", maxWidth: 420 }}>
@@ -119,6 +115,6 @@ export default function Develop() {
         Prompts mærket Claude Code bruger projektets slash-kommandoer (/gaer-new-feature, /gaer-db, /gaer-pr-review …)
         og virker i et repo, der er forket fra gaer-base.
       </div>
-    </div>
+    </>
   );
 }

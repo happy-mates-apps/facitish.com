@@ -311,13 +311,46 @@
       "title": "Besked",
       "anchors": []
     },
-    "/develop": {
-      "title": "Udvikling",
+    "/developer": {
+      "title": "Udvikler",
+      "anchors": [
+        "developer-api-sources",
+        "developer-mcp-endpoints",
+        "developer-prompts",
+        "developer-studio",
+        "developer-trees"
+      ]
+    },
+    "/developer/prompts": {
+      "title": "Promptkatalog",
       "anchors": [
         "prompt-{x}"
       ]
     },
-    "/develop/trae": {
+    "/developer/studio": {
+      "title": "Studio",
+      "anchors": [
+        "developer-prompts",
+        "developer-studio",
+        "developer-trees"
+      ]
+    },
+    "/developer/studio/api": {
+      "title": "API Studio",
+      "anchors": [
+        "api-studio-editor"
+      ]
+    },
+    "/developer/studio/mcp": {
+      "title": "MCP Studio",
+      "anchors": [
+        "mcp-studio-connect",
+        "mcp-studio-editor",
+        "mcp-studio-tools",
+        "mcp-studio-try"
+      ]
+    },
+    "/developer/trae": {
       "title": "Træstrukturer",
       "anchors": []
     },

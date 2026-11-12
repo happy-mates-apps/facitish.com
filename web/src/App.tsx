@@ -18,8 +18,13 @@ import McpConsent from "./pages/McpConsent";
 import { DelegatedArea, UserHome, UserSettings, UserSharing } from "./pages/UserArea";
 import UserMail, { UserMailById } from "./pages/Mail";
 import Approve from "./pages/Approve";
-import Develop from "./pages/Develop";
-import Trees from "./pages/Trees";
+import DeveloperLayout, { StudioLayout } from "./developer/DeveloperLayout";
+import Dashboard from "./developer/Dashboard";
+import StudioOverview from "./developer/StudioOverview";
+import ApiStudio from "./developer/ApiStudio";
+import McpStudio from "./developer/McpStudio";
+import Prompts from "./developer/Prompts";
+import Trees from "./developer/Trees";
 import Inbox from "./pages/Inbox";
 import Conversations from "./pages/Conversations";
 import ExtensionLayout from "./extension/ExtensionLayout";
@@ -62,7 +67,7 @@ function TopBar() {
         <nav className="nav">
           {full && <FeatureGate feature="klip"><NavLink to="/klip">Klip</NavLink></FeatureGate>}
           {full && <FeatureGate feature="filer"><NavLink to="/filer">Filer</NavLink></FeatureGate>}
-          {full && <NavLink to="/develop">Udvikling</NavLink>}
+          {full && user.role === "admin" && user.admin_sections.includes("/developer") && <NavLink to="/developer">Udvikler</NavLink>}
           {full && <NavLink to="/user">Mit område</NavLink>}
           {full && user.role === "admin" && <a href="/admin">Admin</a>}
           {user ? (
@@ -119,10 +124,14 @@ function ExtensionClips() {
   )} />;
 }
 
+// /develop moved to /developer (the prompt catalogue is now /developer/prompts).
+const MOVED: Record<string, string> = { "/develop": "/developer/prompts", "/develop/trae": "/developer/trae" };
+
 export default function App() {
   const { pathname } = useLocation();
   useDeepLinkFocus();
   const { user, scope } = useAuth();
+  if (MOVED[pathname]) return <Navigate to={MOVED[pathname]} replace />;
   const ownChrome = OWN_CHROME.some((p) => pathname === p || pathname.startsWith(p + "/"));
   // Signed-in pages get the shell (sidepanel, assistant, phone toolbar); everyone else the plain top bar.
   const shelled = !ownChrome && !!user && scope === "full" && pathname !== "/login";
@@ -149,8 +158,16 @@ export default function App() {
         <Route path="/klip" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/klip/:id" element={<RequireUser><FeatureGate feature="klip"><ClipsPage /></FeatureGate></RequireUser>} />
         <Route path="/go" element={<GoPage />} />
-        <Route path="/develop" element={<RequireUser><Develop /></RequireUser>} />
-        <Route path="/develop/trae" element={<RequireUser><Trees /></RequireUser>} />
+        <Route path="/developer" element={<RequireUser><DeveloperLayout /></RequireUser>}>
+          <Route index element={<Dashboard />} />
+          <Route path="studio" element={<StudioLayout />}>
+            <Route index element={<StudioOverview />} />
+            <Route path="api" element={<ApiStudio />} />
+            <Route path="mcp" element={<McpStudio />} />
+          </Route>
+          <Route path="prompts" element={<Prompts />} />
+          <Route path="trae" element={<Trees />} />
+        </Route>
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>

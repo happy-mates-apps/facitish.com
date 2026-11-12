@@ -6,7 +6,7 @@ The token endpoint then creates a row in `sessions` for the client, so it shows 
 dies with "log ud alle steder", a block or an erasure. Tokens are random; only their SHA-256 is stored.
 
     GET  /.well-known/oauth-authorization-server
-    GET  /.well-known/oauth-protected-resource[/mcp|/mcp/admin]
+    GET  /.well-known/oauth-protected-resource[/mcp|/mcp/admin|/mcp/<key>]
     POST /mcp/register            public clients only, PKCE required
     GET  /mcp/authorize           → /forbind?… (consent page, web/src/pages/McpConsent.tsx)
     GET  /api/mcp/consent         what the consent page shows
@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app import config, db, mfa
 from app.logs import audit, auth_event
+from app.mcp import endpoints as endpoints_mod
 from app.security import new_token, token_hash
 from app.sessions import Principal, current_user, request_meta
 
@@ -42,11 +43,24 @@ def origin() -> str:
 
 
 def resource_url(server: str) -> str:
-    return origin() + ("/mcp/admin" if server == "admin" else "/mcp")
+    """`server` is an endpoint key: app → /mcp, admin → /mcp/admin, a dynamic endpoint → /mcp/<key>."""
+    return origin() + endpoints_mod.path_for(server)
 
 
 def scope_for(server: str) -> str:
-    return "mcp:admin" if server == "admin" else "mcp"
+    return endpoints_mod.scope_for(server)
+
+
+def _endpoint_key(resource: str | None) -> str | None:
+    """The endpoint key a resource URL names, or None when it is not one of ours."""
+    if not resource:
+        return None
+    for key in endpoints_mod.BUILTIN:
+        if resource == resource_url(key):
+            return key
+    prefix = origin() + "/mcp/"
+    key = resource[len(prefix):] if resource.startswith(prefix) else ""
+    return key if endpoints_mod.valid_key(key) else None
 
 
 # ── Discovery ───────────────────────────────────────────────────────────────
@@ -81,6 +95,16 @@ async def protected_resource_app():
 @router.get("/.well-known/oauth-protected-resource/mcp/admin", include_in_schema=False)
 async def protected_resource_admin():
     return _protected_resource("admin")
+
+
+@router.get("/.well-known/oauth-protected-resource/mcp/{key}", include_in_schema=False)
+async def protected_resource_dynamic(key: str):
+    """A dynamic endpoint from /developer/studio/mcp (app/mcp/endpoints.py)."""
+    async with db.connection() as conn:
+        row = await endpoints_mod.get(conn, key) if endpoints_mod.valid_key(key) else None
+    if row is None or row["builtin"] or not row["enabled"]:
+        raise HTTPException(404, "Not Found")
+    return _protected_resource(key)
 
 
 # ── Client registration ─────────────────────────────────────────────────────
@@ -136,8 +160,13 @@ async def _check_request(conn, a: AuthRequest) -> dict:
         raise HTTPException(400, "Kun PKCE med S256")
     if a.scope not in SCOPES:
         raise HTTPException(400, "Ukendt scope")
-    if a.resource and a.resource not in (resource_url("app"), resource_url("admin")):
-        raise HTTPException(400, "Ukendt resource")
+    if a.resource:
+        key = _endpoint_key(a.resource)
+        row = await endpoints_mod.get(conn, key) if key else None
+        if row is None or not row["enabled"]:
+            raise HTTPException(400, "Ukendt resource")
+        if a.scope != scope_for(key):
+            raise HTTPException(400, f"{endpoints_mod.path_for(key)} bruger scope {scope_for(key)}")
     return client
 
 
@@ -156,7 +185,7 @@ def _requested_scope(request: Request) -> str:
     q = request.query_params
     scope = (q.get("scope") or "").strip()
     if not scope:
-        return "mcp:admin" if q.get("resource") == resource_url("admin") else "mcp"
+        return scope_for(_endpoint_key(q.get("resource")) or "app")
     return "mcp:admin" if "mcp:admin" in scope.split() else scope.split()[0]
 
 
@@ -185,7 +214,11 @@ async def consent_info(request: Request, p: Principal = Depends(current_user)):
     a = _from_query(request, request.query_params.get("scope", "mcp"))
     async with db.connection() as conn:
         client = await _check_request(conn, a)
+        key = _endpoint_key(a.resource) or ("admin" if a.scope == "mcp:admin" else "app")
+        endpoint = await endpoints_mod.get(conn, key)
     return {"client": {"id": client["id"], "name": client["name"]}, "scope": a.scope,
+            "endpoint": {"key": key, "path": endpoints_mod.path_for(key), "name": endpoint["name"] if endpoint else key,
+                         "description": endpoint["description"] if endpoint else ""},
             "redirect_host": urlparse(a.redirect_uri).netloc or urlparse(a.redirect_uri).scheme,
             "allowed": a.scope == "mcp" or p.is_admin}
 
@@ -322,6 +355,7 @@ class McpGrant:
     display_name: str | None
     super_admin: bool = False
     admin_roles: tuple = ()
+    audience: str | None = None     # users.audience: internal | external (dynamic endpoints with audience "internal")
 
 
 async def verify_access_token(token: str) -> McpGrant | None:
@@ -329,7 +363,8 @@ async def verify_access_token(token: str) -> McpGrant | None:
     the user or erasing them ends the token at once."""
     async with db.connection() as conn:
         row = await db.fetch_one(conn, """
-            select t.user_id, t.session_id, t.client_id, t.scope, u.role, u.super_admin, u.admin_roles, u.email, u.phone, u.display_name, s.last_seen_at
+            select t.user_id, t.session_id, t.client_id, t.scope, u.role, u.super_admin, u.admin_roles, u.email, u.phone,
+                   u.display_name, u.audience, s.last_seen_at
             from mcp_tokens t join sessions s on s.id = t.session_id join users u on u.id = t.user_id
             where t.token_hash = %s and t.kind = 'access' and t.used_at is null and t.expires_at > now()
               and s.revoked_at is null and s.expires_at > now() and u.blocked_at is null and not u.impersonation_only""",
@@ -340,4 +375,4 @@ async def verify_access_token(token: str) -> McpGrant | None:
             await conn.execute("update sessions set last_seen_at = now() where id = %s", (row["session_id"],))
     return McpGrant(user_id=row["user_id"], session_id=row["session_id"], client_id=row["client_id"], scope=row["scope"],
                     role=row["role"], email=row["email"], phone=row["phone"], display_name=row["display_name"],
-                    super_admin=row["super_admin"], admin_roles=tuple(row["admin_roles"] or ()))
+                    super_admin=row["super_admin"], admin_roles=tuple(row["admin_roles"] or ()), audience=row["audience"])

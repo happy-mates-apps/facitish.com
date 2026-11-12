@@ -171,15 +171,11 @@ export default function Trees() {
   const shared = dims?.filter((d) => !d.private) ?? [];
 
   return (
-    <div className="page">
-      <div className="stack" style={{ "--gap": "10px", maxWidth: 760 } as React.CSSProperties}>
-        <div className="eyebrow">Udvikling · web/src/tree/</div>
-        <h1>Træstrukturer</h1>
-        <p className="muted">
-          Eksempler på træer og tagging i brugerfladen, mod de rigtige data i <code>/api/meta</code>. Komponenterne <code>TreeView</code> og{" "}
-          <code>TreeSelect</code> kan bruges både her og i <code>/admin</code>. Værdier gemmes som node-id'er.
-        </p>
-      </div>
+    <>
+      <p className="muted" style={{ maxWidth: 760, margin: 0 }}>
+        Komponenterne <code>TreeView</code> og <code>TreeSelect</code> (<code>web/src/tree/</code>) kan bruges både her og i{" "}
+        <code>/admin</code>. Værdier gemmes som node-id'er.
+      </p>
 
       {error && <div className="card" role="alert">{error}</div>}
 
@@ -260,8 +256,8 @@ export default function Trees() {
       {dim && <TreesTagging selected={selected} onSelect={setSelected} />}
 
       <p className="small muted">
-        Design og krav: lærredet „Træstrukturer i Gær“. Tilbage til <Link to="/develop">Udvikling</Link>.
+        Design og krav: lærredet „Træstrukturer i Gær“. Tilbage til <Link to="/developer">Udvikler</Link>.
       </p>
-    </div>
+    </>
   );
 }

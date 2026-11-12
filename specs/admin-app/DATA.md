@@ -7,8 +7,9 @@ linsen: hvert datasæt i kataloget peger på en tabel eller et API-endpoint, og 
 katalogets danske navne, beskrivelser, klassifikation og maskering.
 
 En datakilde kan være containerens egen Postgres eller **et hvilket som helst API**, beskrevet i en
-kildebeskrivelse (YAML). Datasæt, der markeres til MCP, bliver læseværktøjer på endpointet `/mcp/data`
-(se [`specs/mcp/APP.md`](../mcp/APP.md)).
+kildebeskrivelse (YAML) — skrevet her i Forbind API eller i udviklerportalens API Studio (`/developer/studio/api`).
+Et datasæt bliver et læseværktøj (dataværktøj) på de MCP-endpoints, det sættes på under MCP-værktøjer eller i MCP
+Studio (`/developer/studio/mcp`, egne endpoints på `/mcp/<nøgle>`); se [`specs/mcp/APP.md`](../mcp/APP.md).
 
 Design: [`design/data-mcp/`](design/data-mcp/README.md). Høj detaljegrad for layout og tekster; tal og
 rækker er eksempeldata.
@@ -167,7 +168,6 @@ Ikke bygget endnu:
 - Fanerne Versioner, Adgang og Feedback; `dataset_views` og `dataset_feedback`.
 - Tabeller uden for kataloget kan ikke udforskes direkte — de skal tilføjes først (og er så maskeret).
 - Typerne openapi, graphql, mcp og postgres (ekstern); "Hent fra OpenAPI-URL" og "Lad AI foreslå felter".
-- MCP-markeringen gemmes, men endpointet `/mcp/data` findes ikke endnu (`specs/mcp/APP.md`).
 - Sidemenuens søgefelt, sticky overskrifter, serverfelt (`/api/admin/system`) og sammenklapning.
 
 ## Åbne spørgsmål

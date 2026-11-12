@@ -6,7 +6,9 @@
 - A **Data tool** reads one dataset of the catalog in /admin/data (app/mcp/data_tools.py). It has no classification
   of its own: it follows the dataset's, and its fields are masked by their own classification.
 
-One tool can be on several endpoints (`mcp_tool_endpoints`); a Code tool only on endpoints with a handler.
+One tool can be on several endpoints (`mcp_tool_endpoints`); a Code tool only on endpoints with a handler. The
+endpoints themselves are rows in mcp_endpoints (app/mcp/endpoints.py): the built-in /mcp and /mcp/admin and the ones
+made in /developer/studio/mcp, which run the app's handlers.
 
 Classification → who may call the tool (on top of who may use the endpoint at all):
 
@@ -20,9 +22,10 @@ CORE tools (whoami, drafts, access_*) are always on and always white: without th
 """
 
 from app import db
+from app.mcp import endpoints as endpoints_mod
 from app.mcp.registry import CATALOG, HANDLERS, ToolError
 
-ENDPOINTS = ("app", "admin")
+ENDPOINTS = endpoints_mod.BUILTIN
 ENDPOINT_LABELS = {"app": "/mcp", "admin": "/mcp/admin"}
 CLASSIFICATIONS = ("white", "green", "yellow", "red")
 CLASS_LABELS = {"white": "Hvid · alle", "green": "Grøn · interne", "yellow": "Gul · interne med godkendelse",
@@ -46,11 +49,24 @@ TOOL_FROM = "mcp_tools t left join datasets d on d.id = t.dataset_id"
 
 
 def code_names() -> dict[str, list[str]]:
-    """Code tool name → the endpoints that have a handler for it (from the catalog)."""
+    """Code tool name → the built-in endpoints that have a handler for it (from the catalog)."""
     out: dict[str, list[str]] = {}
     for t in CATALOG["tools"]:
         out.setdefault(t["name"], []).append(t["server"])
     return out
+
+
+def possible_endpoints(t: dict, keys: list[str]) -> list[str]:
+    """Where this tool can be offered, given every endpoint key: a Data tool anywhere, a Code tool on the built-in
+    endpoints that have its handler and — when the app has one — on every dynamic endpoint (they run the app's)."""
+    if t["kind"] != "code":
+        return list(keys)
+    servers = code_names().get(t["name"], [])
+    return [k for k in keys if (k in ENDPOINTS and k in servers) or (k not in ENDPOINTS and "app" in servers)]
+
+
+def has_handler(endpoint: str, name: str) -> bool:
+    return (endpoints_mod.handler_server(endpoint), name) in HANDLERS
 
 
 def catalog_spec(endpoint: str, name: str) -> dict | None:
@@ -58,11 +74,12 @@ def catalog_spec(endpoint: str, name: str) -> dict | None:
 
 
 async def sync(conn) -> None:
-    """Adds rows for Code tools that have none yet (a new handler, or a fresh database)."""
+    """Adds rows for Code tools that have none yet (a new handler, or a fresh database), and the built-in endpoints."""
     names = code_names()
     have = await db.fetch_one(conn, "select count(*) as n from mcp_tools where kind = 'code'")
     if have["n"] >= len(names):
         return
+    await endpoints_mod.ensure_builtin(conn)
     for name, servers in names.items():
         spec = catalog_spec(servers[0], name)
         row = await db.fetch_one(conn, """
@@ -88,8 +105,9 @@ def request_level(tool: dict) -> str | None:
     return level
 
 
-def out(t: dict) -> dict:
-    implemented = code_names().get(t["name"], []) if t["kind"] == "code" else list(ENDPOINTS)
+def out(t: dict, keys: list[str] | None = None) -> dict:
+    """`keys`: every endpoint key (endpoints.keys); without it only the built-in endpoints are considered."""
+    implemented = possible_endpoints(t, list(keys) if keys is not None else list(ENDPOINTS))
     return {"id": t["id"], "name": t["name"], "kind": t["kind"], "title": t["title"] or t.get("dataset_name") or "",
             "description": t["description"], "classification": t["classification"],
             "classificationLabel": CLASS_LABELS[t["classification"]], "ownClassification": t["own_classification"],
@@ -122,7 +140,7 @@ async def resolve(conn, endpoint: str, name: str) -> dict | None:
     t = await db.fetch_one(conn, f"""select {TOOL_COLUMNS} from {TOOL_FROM}
                                      join mcp_tool_endpoints e on e.tool_id = t.id and e.endpoint = %s
                                      where t.name = %s and t.enabled""", (endpoint, name))
-    if t is None or (t["kind"] == "code" and (endpoint, name) not in HANDLERS):
+    if t is None or (t["kind"] == "code" and not has_handler(endpoint, name)):
         return None
     return t
 
@@ -135,7 +153,7 @@ async def by_name(conn, name: str) -> dict | None:
 def spec_for(t: dict, endpoint: str) -> dict:
     """The tool in catalog form (name, mode, description, params) for tools/list, the hub and argument checks."""
     if t["kind"] == "code":
-        spec = dict(catalog_spec(endpoint, t["name"]))
+        spec = dict(catalog_spec(endpoints_mod.handler_server(endpoint), t["name"]))
         if t["description"] and t["description"] != spec["description"]:
             spec["description"] = t["description"]
     else:

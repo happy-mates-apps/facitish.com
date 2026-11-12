@@ -23,7 +23,7 @@ from app import route_manifest
 from app.routes import access as access_routes
 from app.routes import (admin, admin_files, admin_ops, adoption, ai, app_store, auth, clips, consumption, data, features, files,
                         hooks, impersonation, knowledge, knowledge_admin, me, mcp_tools, nats, office, public, resources, review,
-                        security, user_area, web)
+                        security, studio, user_area, web)
 from app.routes import admin_mail
 from app.routes import admin_secrets
 from app.routes import groups as group_routes
@@ -112,10 +112,12 @@ async def lifespan(app: FastAPI):
 
 @asynccontextmanager
 async def mcp_sessions(app: FastAPI):
-    """Runs the session managers of /mcp and /mcp/admin (one each per process)."""
+    """Runs the session managers of /mcp and /mcp/admin (one each per process) and the task group the dynamic
+    /mcp/<key> endpoints start theirs in (app/mcp/transport.py DynamicEndpoints)."""
     async with AsyncExitStack() as stack:
         for endpoint in app.state.mcp.values():
             await stack.enter_async_context(endpoint.manager.run())
+        await stack.enter_async_context(app.state.mcp_dynamic.run())
         yield
 
 
@@ -192,7 +194,7 @@ def create_app() -> FastAPI:
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router,
               admin_files.router, admin.router,  # admin_files first: /files/folders before /files/{file_id}
               admin_users.router, yubikey_routes.admin_router, yubikey_routes.router,
-              app_store.router, mcp_tools.router, data.router, access_routes.router, features.router, features.admin_router,
+              app_store.router, mcp_tools.router, data.router, studio.router, access_routes.router, features.router, features.admin_router,
               impersonation.router, mcp_oauth.router,
               mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, nats.router, resources.router, consumption.router,
               user_area.router, mail_routes.router, admin_mail.router, adoption.router, adoption.admin_router,
@@ -202,10 +204,13 @@ def create_app() -> FastAPI:
               web.router, files.memory_router):
         app.include_router(r)
 
-    # MCP: exact routes, so /mcp/authorize, /mcp/token and /mcp/register above stay ordinary endpoints.
+    # MCP: exact routes, so /mcp/authorize, /mcp/token and /mcp/register above stay ordinary endpoints. The dynamic
+    # endpoints from /developer/studio/mcp answer on /mcp/<key> after them (reserved keys are refused there).
     app.state.mcp = mcp_transport.endpoints()
+    app.state.mcp_dynamic = mcp_transport.DynamicEndpoints()
     app.router.routes.append(Route("/mcp/admin", endpoint=app.state.mcp["admin"], methods=["GET", "POST", "DELETE"]))
     app.router.routes.append(Route("/mcp", endpoint=app.state.mcp["app"], methods=["GET", "POST", "DELETE"]))
+    app.router.routes.append(Route("/mcp/{key}", endpoint=app.state.mcp_dynamic, methods=["GET", "POST", "DELETE"]))
 
     static_dir = os.path.abspath(config.settings.static_dir)
     index = os.path.join(static_dir, "index.html")

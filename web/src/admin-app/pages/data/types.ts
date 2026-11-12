@@ -1,7 +1,9 @@
 // Types and small helpers for /admin → Data (specs/admin-app/DATA.md, server/app/routes/data.py).
 import type { CSSProperties } from "react";
+import type { Cls } from "../../../studio/spec";
 
-export type Cls = "white" | "green" | "yellow" | "red";
+export type { Cls };
+export { EXAMPLE_SPEC } from "../../../studio/spec";
 
 export const CLS: Record<Cls, { label: string; bg: string; fg: string; dot: string; border: string }> = {
   white: { label: "Hvid", bg: "#ffffff", fg: "#475569", dot: "#cbd5e1", border: "#cbd5e1" },
@@ -65,39 +67,3 @@ export function cell(value: unknown): string {
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
-
-export const EXAMPLE_SPEC = `kilde: energidata
-navn: Energi Data Service
-type: rest                       # kun rest indtil videre
-base_url: https://api.energidataservice.dk
-klassifikation: hvid             # standard for felterne: hvid, grøn, gul eller rød
-auth:
-  type: ingen                    # ingen | bearer | header
-  # hemmelighed: DATA_SECRET_ENERGIDATA  # navnet på en miljøvariabel, aldrig selve nøglen
-grænser: { kald_pr_minut: 20, timeout_s: 10, cache_min: 60 }
-
-datasæt:
-  - id: elspotpriser
-    navn: Elspotpriser
-    kald: GET /dataset/Elspotprices
-    parametre:
-      start: { type: dato, navn: Fra }
-      end:   { type: dato, navn: Til }
-    sider:   { type: offset, parameter: offset, størrelse: limit, max: 100 }   # type: side eller type: offset
-    rækker:  $.records[*]        # JSONPath til listen i svaret
-    felter:
-      HourDK:       { type: dato, navn: Time }
-      PriceArea:    { navn: Prisområde }
-      SpotPriceDKK: { type: tal, navn: Spotpris DKK/MWh }
-      SpotPriceEUR: { type: tal, navn: Spotpris EUR/MWh }
-
-  - id: co2
-    navn: CO2-udledning
-    kald: GET /dataset/CO2Emis
-    sider:   { type: offset, parameter: offset, størrelse: limit, max: 100 }
-    rækker:  $.records[*]
-    felter:
-      Minutes5DK:  { type: dato, navn: Tidspunkt }
-      PriceArea:   { navn: Prisområde }
-      CO2Emission: { type: tal, navn: g CO2/kWh }
-`;

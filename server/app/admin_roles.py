@@ -20,7 +20,7 @@ ROLES: dict[str, dict] = {
     "support": {"label": "Support", "description": "Hjælper brugere: konti, grupper, spærring, nulstilling af login, efterligning og auth-loggen; sender beskeder, svarer brugerne og modererer samtaler."},
     "indhold": {"label": "Indhold", "description": "Website, filer, App Stores, Viden (vidensrum og agenter) og træstrukturer."},
     "produkt": {"label": "Produkt", "description": "Features og ringe, AI og AI-forbrug, analytics, heatmaps og adoptionsforløb."},
-    "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad)."},
+    "data": {"label": "Data", "description": "Datakatalog, Udforsk, API-kilder og MCP-værktøjer (hvem må bruge hvad), og udviklerportalen /developer (API Studio og MCP Studio)."},
     "privatliv": {"label": "Privatliv", "description": "GDPR-forespørgsler, samtykke, sletning af logdata, audit- og auth-log, godkendelse af adgang til fortrolige data og moderering af samtaler."},
     "drift": {"label": "Drift", "description": "Mail, kalendere og kontakter, hemmeligheder, MCP-servere, udvidelse og Office, webhooks, jobs, NATS, ressourcer og indstillinger; levering af beskeder og deres kanaler."},
 }
@@ -51,6 +51,8 @@ SECTIONS: dict[str, list[str]] = {
     "/data/explore": ["/api/admin/data"],
     "/data/connect": ["/api/admin/data"],
     "/data/tools": ["/api/admin/data"],
+    # The developer portal on /developer (served by the app on /, not /admin): dashboard, API Studio, MCP Studio.
+    "/developer": ["/api/admin/studio"],
     "/access": ["/api/admin/access"],
     "/gdpr": ["/api/admin/gdpr"],
     "/consent": ["/api/admin/consent"],
@@ -80,7 +82,7 @@ ROLE_SECTIONS: dict[str, list[str]] = {
     "indhold": ["/web", "/files", "/app-stores", "/knowledge", "/meta"],
     "produkt": ["/analytics", "/heatmaps", "/features", "/ai", "/consumption", "/adoption", "/adoption/journeys",
                 "/adoption/routes", "/adoption/console", "/adoption/access"],
-    "data": ["/data", "/data/explore", "/data/connect", "/data/tools"],
+    "data": ["/data", "/data/explore", "/data/connect", "/data/tools", "/developer"],
     "privatliv": ["/gdpr", "/consent", "/retention", "/logs/audit", "/logs/auth", "/access", "/messages/moderation"],
     "drift": ["/mail", "/secrets", "/mcp", "/integrations", "/webhooks", "/jobs", "/nats", "/resources", "/settings",
               "/messages", "/messages/delivery", "/messages/settings"],

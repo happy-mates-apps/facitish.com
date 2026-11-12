@@ -40,7 +40,9 @@ async def run(t: dict, args: dict, caller: Caller, grant: dict | None) -> ToolOu
         if d["source_id"] is None:
             result = await data_routes._query_table(d["key"], fields, body, None, False)
         else:
-            result = await data_routes._query_api(d, fields, body, None, False)
+            # The caller stands in for the admin: the source's secrets are resolved by the source's own grant, and the
+            # caller's meta (ip, user agent) goes on the audit row when a secret is used.
+            result = await data_routes._query_api(d, fields, body, None, False, caller.principal)
     except HTTPException as e:
         raise ToolError(str(e.detail))
     rows = [{k: (data_routes.MASK if k in masked and v is not None else data_routes._plain(v)) for k, v in r.items()}

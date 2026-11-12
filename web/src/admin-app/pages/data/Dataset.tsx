@@ -189,8 +189,9 @@ function Mcp({ data, onSaved }: { data: DatasetData; onSaved: (d: DatasetData) =
         <span style={{ fontWeight: 600 }}>Markér datasættet til MCP</span>
       </div>
       <p style={{ margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.5 }}>
-        Markerede datasæt bliver læseværktøjer på endpointet <code style={{ fontFamily: MONO }}>/mcp/data</code>, når MCP-appen er bygget
-        (specs/mcp/APP.md). Indtil da gemmes kun markeringen. Gule og røde felter maskeres også dér: {visible} af {data.fields.length} felter
+        Markeringen siger, at datasættet må blive et dataværktøj. Selve værktøjet laves under <a href="/admin/data/tools">MCP-værktøjer</a> eller i{" "}
+        <a href="/developer/studio/mcp">MCP Studio</a>, hvor det sættes på et eller flere endpoints (<code style={{ fontFamily: MONO }}>/mcp</code>,{" "}
+        <code style={{ fontFamily: MONO }}>/mcp/&lt;nøgle&gt;</code>). Gule og røde felter maskeres også dér: {visible} af {data.fields.length} felter
         vil kunne læses.
       </p>
     </section>

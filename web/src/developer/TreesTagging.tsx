@@ -1,4 +1,4 @@
-// /develop/trae, part 2: tagging objects (URLs, entities, notes) with nodes across trees, looking up a URL as the
+// /developer/trae, part 2: tagging objects (URLs, entities, notes) with nodes across trees, looking up a URL as the
 // browser extension will, and the context of a node: parents, siblings, children, objects and related nodes.
 import { useEffect, useState } from "react";
 import { ApiError, errorText } from "../api";

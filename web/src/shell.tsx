@@ -93,7 +93,7 @@ function initials(text: string): string {
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 
-type NavItem = { to: string; label: string; icon: string; feature?: string; end?: boolean; mobile?: boolean };
+type NavItem = { to: string; label: string; icon: string; feature?: string; end?: boolean; mobile?: boolean; section?: string };
 const WORK: NavItem[] = [
   { to: "/", label: "Overblik", icon: "home", end: true, mobile: true },
   { to: "/klip", label: "Klip", icon: "clip", feature: "klip", mobile: true },
@@ -102,7 +102,7 @@ const WORK: NavItem[] = [
   { to: "/samtaler", label: "Samtaler", icon: "chat", feature: "samtaler" },
   { to: "/user", label: "Mit område", icon: "users", end: true },
   { to: "/user/deling", label: "Deling", icon: "share" },
-  { to: "/develop", label: "Udvikling", icon: "code" },
+  { to: "/developer", label: "Udvikler", icon: "code", section: "/developer" },
 ];
 const ACCOUNT: NavItem[] = [
   { to: "/konto", label: "Konto og sikkerhed", icon: "user", end: true },
@@ -112,7 +112,10 @@ const ACCOUNT: NavItem[] = [
 
 function SideLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   const enabled = useFeature(item.feature ?? "");
+  const { user } = useAuth();
   if (item.feature && !enabled) return null;
+  // Admin sections (app/admin_roles.py): /developer is for admins with the role Data or Fuld.
+  if (item.section && !(user?.role === "admin" && user.admin_sections.includes(item.section))) return null;
   return (
     <NavLink to={item.to} end={item.end} className="side-link" title={item.label} onClick={onClick}>
       <Icon name={item.icon} />

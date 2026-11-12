@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app import db
 from app.logs import audit
+from app.mcp import endpoints as endpoints_mod
 from app.mcp import toolmap
 from app.mcp.registry import ToolError
 from app.sessions import Principal, require_admin, require_admin_stepup
@@ -35,18 +36,21 @@ async def _tool(conn, tool_id: int) -> dict:
 async def tools():
     async with db.connection() as conn:
         rows = await toolmap.all_tools(conn)
+        all_endpoints = await endpoints_mod.all_endpoints(conn)
         datasets = await db.fetch_all(conn, """select id, name, classification, personal_data, mcp_exposed from datasets
                                                order by name""")
-    return {"tools": [toolmap.out(t) for t in rows], "datasets": datasets,
-            "endpoints": [{"id": e, "path": toolmap.ENDPOINT_LABELS[e]} for e in toolmap.ENDPOINTS],
+    keys = [e["key"] for e in all_endpoints]
+    return {"tools": [toolmap.out(t, keys) for t in rows], "datasets": datasets,
+            "endpoints": [{"id": e["key"], "path": endpoints_mod.path_for(e["key"]), "name": e["name"],
+                           "builtin": e["builtin"], "enabled": e["enabled"]} for e in all_endpoints],
             "classifications": [{"id": c, "label": toolmap.CLASS_LABELS[c]} for c in toolmap.CLASSIFICATIONS]}
 
 
 async def _set_endpoints(conn, t: dict, endpoints: list[str]) -> None:
-    possible = toolmap.code_names().get(t["name"], []) if t["kind"] == "code" else list(toolmap.ENDPOINTS)
+    possible = toolmap.possible_endpoints(t, await endpoints_mod.keys(conn))
     bad = [e for e in endpoints if e not in possible]
     if bad:
-        raise HTTPException(422, f"{t['name']} har ingen kode til {', '.join(toolmap.ENDPOINT_LABELS.get(e, e) for e in bad)}")
+        raise HTTPException(422, f"{t['name']} kan ikke tilbydes på {', '.join(endpoints_mod.path_for(e) for e in bad)}")
     await conn.execute("delete from mcp_tool_endpoints where tool_id = %s", (t["id"],))
     for e in sorted(set(endpoints)):
         await conn.execute("insert into mcp_tool_endpoints (tool_id, endpoint) values (%s, %s)", (t["id"], e))
@@ -62,7 +66,7 @@ class DataToolIn(BaseModel):
     dataset_id: int
     title: str = Field(default="", max_length=120)
     description: str = Field(default="", max_length=1000)
-    endpoints: list[str] = Field(default_factory=lambda: ["app"], max_length=2)
+    endpoints: list[str] = Field(default_factory=lambda: ["app"], max_length=50)
 
 
 @router.post("", status_code=201)
@@ -84,12 +88,13 @@ async def create_data_tool(body: DataToolIn, admin: Principal = Depends(require_
         t = await _tool(conn, row["id"])
         await audit(conn, "mcp_tool.created", actor_id=admin.user_id, meta=admin.meta, table="mcp_tools", row_id=t["id"],
                     after={"name": t["name"], "dataset_id": body.dataset_id, "endpoints": list(t["endpoints"])})
-    return toolmap.out(t)
+        keys = await endpoints_mod.keys(conn)
+    return toolmap.out(t, keys)
 
 
 class ToolPatch(BaseModel):
     classification: str | None = Field(default=None, pattern="^(white|green|yellow|red)$")
-    endpoints: list[str] | None = Field(default=None, max_length=2)
+    endpoints: list[str] | None = Field(default=None, max_length=50)
     enabled: bool | None = None
     title: str | None = Field(default=None, max_length=120)
     description: str | None = Field(default=None, max_length=1000)
@@ -99,7 +104,8 @@ class ToolPatch(BaseModel):
 async def update_tool(tool_id: int, body: ToolPatch, admin: Principal = Depends(require_admin_stepup)):
     async with db.connection() as conn:
         t = await _tool(conn, tool_id)
-        before = toolmap.out(t)
+        keys = await endpoints_mod.keys(conn)
+        before = toolmap.out(t, keys)
         if t["name"] in toolmap.CORE and (body.classification not in (None, "white") or body.enabled is False
                                           or body.endpoints is not None):
             raise HTTPException(409, f"{t['name']} er et kerneværktøj: det er altid åbent, så man kan bede om adgang")
@@ -118,7 +124,7 @@ async def update_tool(tool_id: int, body: ToolPatch, admin: Principal = Depends(
         await conn.execute("update mcp_tools set updated_at = now() where id = %s", (tool_id,))
         if t["kind"] == "data":
             await _sync_exposed(conn, t["dataset_id"])
-        after = toolmap.out(await _tool(conn, tool_id))
+        after = toolmap.out(await _tool(conn, tool_id), keys)
         keys = ("classification", "endpoints", "enabled", "title", "description")
         await audit(conn, "mcp_tool.updated", actor_id=admin.user_id, meta=admin.meta, table="mcp_tools", row_id=tool_id,
                     before={k: before[k] for k in keys if before[k] != after[k]},
