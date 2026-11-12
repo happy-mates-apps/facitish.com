@@ -25,12 +25,13 @@ Ny gruppe **Data** i `web/src/admin-app/nav.ts` mellem Produkt og Integrationer:
 
 Under Integrationer erstattes "MCP-servere" af **MCP-app ↗**, der åbner den separate app på `/mcp`.
 
-Sidemenuen (`AdminShell.tsx`) får desuden, jf. `AdminNav.dc.html`:
-- **Søgefelt** "Søg kommando" med ⌘K. Filtrerer menupunkterne på label, sti og gruppenavn; tomme grupper
-  skjules, antal træf vises ved gruppen, og "Ingen kommandoer matcher …" når intet passer.
+Sidemenuen (`SideMenu.tsx`) har desuden, jf. `AdminNav.dc.html`:
+- **Søgefelt** "Søg kommando" bag søgeikonet øverst og ⌘K. Filtrerer menupunkterne på label, sti og gruppenavn og
+  markerer de matchende tegn; tomme grupper skjules, antal træf vises ved gruppen, og "Ingen kommandoer matcher …"
+  når intet passer. *Bygget.*
 - **Sticky gruppeoverskrifter**. Panelet er altid 100 % højde (`position: sticky; height: 100vh`); kun
   listen scroller. Logo og søgefelt ligger fast øverst, serverfeltet fast nederst. Under 900 px lægger panelet
-  sig over indholdet uden intern scroll (som `.tg-side` i dag).
+  sig over indholdet uden intern scroll (som `.tg-side` i dag). *Bygget.*
 - **Serverfelt**: status, CPU sidste time (sparkline) og bjælker for CPU, hukommelse, disk og
   DB-forbindelser med brugt mod kapacitet. Grøn < 60 %, gul < 85 %, rød derover. Kræver et nyt endpoint
   `GET /api/admin/system` (`require_admin`); `/health` giver i dag kun database-tjek og version.
@@ -168,7 +169,7 @@ Ikke bygget endnu:
 - Fanerne Versioner, Adgang og Feedback; `dataset_views` og `dataset_feedback`.
 - Tabeller uden for kataloget kan ikke udforskes direkte — de skal tilføjes først (og er så maskeret).
 - Typerne openapi, graphql, mcp og postgres (ekstern); "Hent fra OpenAPI-URL" og "Lad AI foreslå felter".
-- Sidemenuens søgefelt, sticky overskrifter, serverfelt (`/api/admin/system`) og sammenklapning.
+- Sidemenuens serverfelt (`/api/admin/system`) og sammenklapning.
 
 ## Åbne spørgsmål
 - Skal kildebeskrivelser ligge i databasen (redigeres i admin) eller som filer i repoet (`kilder/*.yaml`) eller begge?

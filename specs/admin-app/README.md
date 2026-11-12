@@ -42,8 +42,9 @@ web/
   src/
     admin-app/                NY · den selvstændige admin-app
       main.tsx                mount + BrowserRouter basename="/admin"
-      AdminShell.tsx          mørk sidemenu, sticky topbar, efterligningsbanner      → 01
-      nav.ts                  menugrupper: Overblik · Adgang · Produkt · Integrationer · System
+      AdminShell.tsx          sidemenu + sticky topbar + efterligningsbanner           → 01
+      SideMenu.tsx            mørk sidemenu: fast top (mærke, søgning) og bund, scrollende menu med sticky overskrifter
+      nav.ts                  menugrupper og filterNav (menusøgning med markering)
       pages/
         Stats.tsx             /admin                                                  → 01
         Users.tsx             /admin/users  + UserEdit.tsx (full screen, ?user=<id>)  → 02, 03
@@ -99,12 +100,17 @@ Happy AI-sidepanelet (13–19) bygges **ikke** i gaer-base. Det hører til Happy
 | 17–19 | Happy AI-sidepanel · Expo · EAS (trin 1, trin 4, tjek) | `17–19-sidepanel-expo-*.png` | `/extension/tools/app-stores/expo` |
 
 ### Shell (alle sider)
-- **Sidemenu**: 232 px, `#0f172a`, sticky, fuld højde, padding `20px 10px 16px`. Øverst Tørgær-mærket
-  (`ToergaerMark`, variant a, 28 px, uden byline, `dark`) og `/admin · <instans>` i mono 11 px, 60 % hvid.
-  Grupper: label 10 px/700, tracking 0.1em, versaler, 45 % hvid. Punkt: 13 px, padding `8px 10px`,
-  radius 8 px. Aktiv: bg `rgba(255,255,255,0.1)`, 600, hvid, 2×16 px streg til venstre i `#fcbf49`. Inaktiv: 72 % hvid.
-  Badges 18 px høje: rød `#dc2626` (tal), amber `#f59e0b` med `#0f172a` tekst (efterligning aktiv, kladder,
-  manglende features). Bund: hairline 10 % hvid, grøn pulserende prik + „Server online · v<version>“, link „← Til appen på /“.
+- **Sidemenu** (`SideMenu.tsx`): 232 px, `#0f172a`, sticky, fuld højde, padding `20px 10px 16px`. Fast øverst: Tørgær-mærket
+  (`ToergaerMark`, variant a, 28 px, uden byline, `dark`) med en værktøjsrække til højre (søgeikon 28 px, ⌘K) og `/admin · <instans>`
+  i mono 11 px, 60 % hvid. Fast nederst: hairline 10 % hvid, grøn pulserende prik + „Server online · v<version>“, link „← Til appen på /“.
+  Imellem scroller kun selve menuen (tynd scrollbar) med **sticky gruppeoverskrifter** på `#0f172a`: label 10 px/700, tracking 0.1em,
+  versaler, 45 % hvid. Punkt: 13 px, padding `8px 10px`, radius 8 px. Aktiv: bg `rgba(255,255,255,0.1)`, 600, hvid, 2×16 px streg til
+  venstre i `#fcbf49`. Inaktiv: 72 % hvid. Badges 18 px høje: rød `#dc2626` (tal), amber `#f59e0b` med `#0f172a` tekst (efterligning
+  aktiv, kladder, manglende features). Under 900 px ligger panelet over indholdet uden intern scroll og uden sticky overskrifter.
+- **Menusøgning**: søgeikonet eller ⌘K/Ctrl+K åbner feltet „Søg kommando“ (34 px, `rgba(255,255,255,0.06)`, kant 14 % hvid) under
+  mærket. Hvert ord skal findes i punktets label, sti eller gruppenavn (`filterNav` i `nav.ts`); tomme grupper skjules, antal træf står
+  ved gruppen, de matchende tegn markeres med `<mark>` i amber (`rgba(252,191,73,0.3)`), og „Ingen kommandoer matcher “…”.“ ved nul træf.
+  Enter åbner første træf, Esc rydder (og lukker, når feltet er tomt), og et valg i menuen lukker feltet igen.
 - **Topbar**: sticky, `rgba(255,255,255,0.92)` + `backdrop-filter: blur(8px)`, bund `1px #e2e8f0`, padding `10px 24px`.
   Venstre: `<domæne>` + **sti** i mono 13 px (stien 600 `#020817`). Periodeskifter 7/30/90 dage kun på Statistik.
   Health-pille. Højre: **Happy AI-knap** (32 px rund, logo 22 px, statusprik 10 px nederst til højre:

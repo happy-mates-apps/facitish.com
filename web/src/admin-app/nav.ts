@@ -109,6 +109,53 @@ export function navFor(sections: string[] | undefined): NavGroup[] {
   return NAV.map((g) => ({ ...g, items: g.items.filter((i) => open.has(i.path)) })).filter((g) => g.items.length > 0);
 }
 
+/** Start and end (exclusive) of a run of matching characters in a label. */
+export type Range = [start: number, end: number];
+export type NavHit = { item: NavItem; ranges: Range[] };
+export type NavGroupHit = { group: NavGroup; ranges: Range[]; items: NavHit[] };
+
+/** The words of a menu search, lower-cased. */
+export function navTerms(query: string): string[] {
+  return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/** Every occurrence of the terms in text, merged and in order — the characters to highlight. */
+export function matchRanges(text: string, terms: string[]): Range[] {
+  const lower = text.toLowerCase();
+  const found: Range[] = [];
+  for (const t of terms) {
+    for (let i = lower.indexOf(t); i >= 0; i = lower.indexOf(t, i + 1)) found.push([i, i + t.length]);
+  }
+  found.sort((a, b) => a[0] - b[0]);
+  const merged: Range[] = [];
+  for (const [start, end] of found) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
+}
+
+/**
+ * The menu filtered by a search: every word must occur in the item's label, its path or its group's name.
+ * Groups without hits disappear. An empty query returns every group with no ranges to highlight.
+ */
+export function filterNav(groups: NavGroup[], query: string): NavGroupHit[] {
+  const terms = navTerms(query);
+  return groups
+    .map((group) => {
+      const inGroup = group.label.toLowerCase();
+      const items = group.items
+        .filter((item) => {
+          const label = item.label.toLowerCase();
+          return terms.every((t) => label.includes(t) || item.path.includes(t) || inGroup.includes(t));
+        })
+        .map((item) => ({ item, ranges: matchRanges(item.label, terms) }));
+      return { group, ranges: matchRanges(group.label, terms), items };
+    })
+    .filter((g) => g.items.length > 0);
+}
+
 /** The section a path under /admin belongs to: the longest menu path it starts with ("/" only matches itself). */
 export function sectionFor(pathname: string): string {
   const paths = NAV.flatMap((g) => g.items.map((i) => i.path)).sort((a, b) => b.length - a.length);
