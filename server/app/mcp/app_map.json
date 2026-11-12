@@ -275,6 +275,7 @@
       "anchors": [
         "setting-app_name",
         "setting-gdpr_email",
+        "setting-signup",
         "setting-sms_sender"
       ]
     },

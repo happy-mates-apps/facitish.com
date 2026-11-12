@@ -91,7 +91,7 @@ function RequireUser({ children, login = "/login" }: { children: ReactNode; logi
   const { user, scope, loading } = useAuth();
   const location = useLocation();
   if (loading) return null;
-  if (!user || scope !== "full") return <Navigate to={login} replace state={{ from: location.pathname + location.search }} />;
+  if (!user || scope !== "full") return <Navigate to={login} replace state={{ from: location.pathname + location.search + location.hash }} />;
   return <>{children}</>;
 }
 

@@ -358,7 +358,8 @@ async def _after_first_factor(conn, response: Response, user: dict, meta: Reques
         await auth_event(conn, "mfa.pending", ok=True, meta=meta, contact=contact, user_id=user["id"], via=via)
         return {"status": "mfa_required", "methods": mfa.methods(f)}
     grace, grace_left = False, None
-    if user["role"] == "admin" and not f["total"]:
+    # The YubiKey requirement has no grace logins: /admin waits for a YubiKey (app.mfa).
+    if user["role"] == "admin" and not f["total"] and not user["yubikey_required"]:
         used = user["grace_logins_used"]
         if used < s.grace_logins:
             used += 1
@@ -802,7 +803,8 @@ async def me(principal: Principal | None = Depends(optional_principal)):
                 "yubikeys": f["yubikeys"],
                 # /admin: is this session allowed in, and how many grace logins are left without a second factor
                 "admin_ok": is_admin and principal.scope == "full" and admin_mfa_ok(principal),
-                "admin_grace_left": max(0, s.grace_logins - user["grace_logins_used"]) if is_admin and not f["total"] else None,
+                "admin_grace_left": (max(0, s.grace_logins - user["grace_logins_used"])
+                                     if is_admin and not f["total"] and not user["yubikey_required"] else None),
             },
         },
         "scope": principal.scope,

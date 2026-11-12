@@ -1,16 +1,23 @@
 // /konto#sikkerhed: passkeys, security keys (YubiKey), authenticator apps and "Kræv passkey".
 // Uses GET /api/me/security; changes that need a recent second factor open the step-up dialog by themselves.
-import { useState, type FormEvent } from "react";
+// /konto#yubikey=<token>: the link an admin mailed to add a YubiKey that counts for the YubiKey requirement.
+import { useEffect, useState, type FormEvent } from "react";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { api, errorText } from "../api";
-import { passkeyErrorText, registerPasskey, totpSetup, useAuth, type TotpSetup } from "../auth";
+import { enrollYubiKeyWithLink, passkeyErrorText, registerPasskey, totpSetup, useAuth, type Registered, type TotpSetup } from "../auth";
 import { Alert, fmtDate, Loading, useLoad } from "../ui";
 
-type Key = { id: number; name: string; kind: "passkey" | "security_key"; created_at: string; last_used_at: string | null };
+type Key = {
+  id: number; name: string; kind: "passkey" | "security_key"; created_at: string; last_used_at: string | null;
+  /** Counts as a YubiKey (the YubiKey requirement); by_admin: an admin registered it with you. */
+  yubikey?: boolean; by_admin?: boolean;
+};
 type App = { id: number; name: string; created_at: string; last_used_at: string | null };
 type Advice = "add_passkey" | "admin_needs_mfa" | "add_backup_factor" | "enable_mfa";
 export type Security = {
   mfa_required: boolean;
+  /** Set by an admin: /admin and security actions accept only a YubiKey. */
+  yubikey_required: boolean;
   factors: { passkeys: number; security_keys: number; totp: number; total: number };
   passkeys: Key[];
   security_keys: Key[];
@@ -39,6 +46,14 @@ export default function AccountSecurity() {
   const [setup, setSetup] = useState<TotpSetup | null>(null);
   const [code, setCode] = useState("");
   const webauthn = browserSupportsWebAuthn();
+  const [linkToken, setLinkToken] = useState<string | null>(() => new URLSearchParams(window.location.hash.slice(1)).get("yubikey"));
+  const [linkState, setLinkState] = useState<"checking" | "ready" | "invalid">("checking");
+  useEffect(() => {
+    if (!linkToken) return;
+    window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + "#sikkerhed");
+    api.post("/api/auth/yubikey/enroll/check", { token: linkToken })
+      .then(() => setLinkState("ready")).catch(() => setLinkState("invalid"));
+  }, [linkToken]);
 
   const act = async (fn: () => Promise<unknown>, ok?: string, passkey = false) => {
     setError(null);
@@ -61,11 +76,25 @@ export default function AccountSecurity() {
     }, "Godkendelsesappen er tilføjet");
   };
 
+  const addSecurityKey = async () => {
+    const out: { r?: Registered } = {};
+    await act(async () => { out.r = await registerPasskey(undefined, "security_key"); }, undefined, true);
+    const r = out.r;
+    if (!r) return;
+    setMessage(r.yubikey ? "Din YubiKey er tilføjet"
+      : r.yubikey_detected && s?.yubikey_required
+        ? "Nøglen er tilføjet, men tæller ikke til administrationen endnu. Bed en administrator om et link til at tilknytte din YubiKey."
+        : "Sikkerhedsnøglen er tilføjet");
+  };
+
   const keyRow = (k: Key) => (
     <div key={k.id} className="spread" style={row}>
       <div className="stack" style={stack2}>
-        <strong>{k.name}</strong>
-        <span className="muted tiny">Oprettet {fmtDate(k.created_at)} · Sidst brugt {fmtDate(k.last_used_at)}</span>
+        <strong>{k.name}{k.yubikey && <span className="pill green" style={{ marginLeft: 8, fontSize: 11 }}>YubiKey</span>}</strong>
+        <span className="muted tiny">
+          Oprettet {fmtDate(k.created_at)} · Sidst brugt {fmtDate(k.last_used_at)}
+          {k.by_admin ? " · tilknyttet af en administrator, bruges efter din engangskode" : ""}
+        </span>
       </div>
       <div className="row" style={{ "--gap": "4px" } as React.CSSProperties}>
         <button className="btn btn-ghost btn-sm" onClick={() => {
@@ -87,6 +116,30 @@ export default function AccountSecurity() {
       <Alert>{error}</Alert>
       {!s ? <Loading /> : (
         <>
+          {linkToken && linkState !== "checking" && (
+            <div className="stack" style={{ "--gap": "10px", padding: 14, borderRadius: 12, border: "1px solid var(--hm-border)" } as React.CSSProperties}>
+              <strong>Tilknyt din YubiKey</strong>
+              {linkState === "invalid" ? (
+                <Alert>Linket er udløbet, allerede brugt eller til en anden bruger. Bed din administrator om et nyt.</Alert>
+              ) : (
+                <>
+                  <span className="muted small">En administrator har bedt dig tilknytte en YubiKey. Sæt nøglen i, tryk på knappen og rør ved nøglen. Du bliver bedt om nøglens PIN (eller om at vælge en).</span>
+                  <div className="row">
+                    <button className="btn btn-primary btn-sm" disabled={!webauthn} onClick={() => act(async () => {
+                      await enrollYubiKeyWithLink(linkToken);
+                      setLinkToken(null);
+                    }, "Din YubiKey er tilknyttet", true)}>Tilknyt YubiKey</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setLinkToken(null)}>Ikke nu</button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {s.yubikey_required && (
+            <Alert kind="info">
+              Din konto kræver en YubiKey til administrationen og andre beskyttede handlinger. Passkeys og apps virker stadig i resten af appen.
+            </Alert>
+          )}
           {s.advice.map((a) => <Alert key={a} kind={a === "admin_needs_mfa" ? "warn" : "info"}>{ADVICE[a]}</Alert>)}
           {s.admin && (
             <p className="small">
@@ -119,7 +172,7 @@ export default function AccountSecurity() {
           <div className="spread" style={row}>
             <strong>Sikkerhedsnøgler</strong>
             <button className="btn btn-outline btn-sm" disabled={!webauthn}
-                    onClick={() => act(() => registerPasskey(undefined, "security_key"), "Sikkerhedsnøglen er tilføjet", true)}>
+                    onClick={addSecurityKey}>
               Tilføj sikkerhedsnøgle
             </button>
           </div>

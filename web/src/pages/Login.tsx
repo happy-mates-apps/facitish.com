@@ -2,16 +2,19 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { api, errorText } from "../api";
-import { loginWithPasskey, passkeyErrorText, registerPasskey, useAuth, type LoginResult, type MfaMethod } from "../auth";
+import { loginWithLink, loginWithPasskey, passkeyErrorText, registerPasskey, useAuth, type LoginResult, type MfaMethod } from "../auth";
 import { SecondFactor } from "../security";
 import { Alert } from "../ui";
 import { solveCaptcha } from "../captcha";
 
 // After the code: users with "Kræv passkey" prove their second factor (step "mfa"); everybody else is logged in
 // and offered a passkey (step "offer"). Admins also see how many grace logins /admin has left.
+// A login link from the mail (/login#link=<token>) opens step "link": one click finishes the login, so a mail scanner
+// that opens the link cannot use it up.
 type Step =
   | { kind: "phone" }
-  | { kind: "code"; devCode?: string }
+  | { kind: "link"; token: string }
+  | { kind: "code"; devCode?: string; devLink?: string }
   | { kind: "offer"; adminGraceLeft: number | null; becameAdmin: boolean }
   | { kind: "mfa"; methods: MfaMethod[] };
 
@@ -77,7 +80,16 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
   const from = (location.state as { from?: string } | null)?.from ?? sameOriginPath(next) ?? home;
   // /admin is a separate app, so it needs a full page load.
   const goFrom = () => (from === "/admin" || from.startsWith("/admin/") ? window.location.assign(from) : navigate(from, { replace: true }));
-  const [step, setStep] = useState<Step>({ kind: "phone" });
+  const [step, setStep] = useState<Step>(() => {
+    const token = new URLSearchParams(window.location.hash.slice(1)).get("link");
+    return token ? { kind: "link", token } : { kind: "phone" };
+  });
+  // The token is not left in the address bar or the history.
+  useEffect(() => {
+    if (window.location.hash.startsWith("#link=")) {
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    }
+  }, []);
   const [channel, setChannel] = useState<"email" | "phone">("email");
   const [phone, setPhone] = useState("");
   const contact = channel === "email" ? { email: phone.trim() } : { phone };
@@ -140,9 +152,9 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
           captcha.current = null; // a solution works once
         }
       }
-      const res = await api.post<{ dev_code?: string }>("/api/auth/otp/start", { ...contact, captcha: solution });
+      const res = await api.post<{ dev_code?: string; dev_link?: string }>("/api/auth/otp/start", { ...contact, captcha: solution });
       setCode("");
-      setStep({ kind: "code", devCode: res.dev_code });
+      setStep({ kind: "code", devCode: res.dev_code, devLink: res.dev_link });
     });
   };
 
@@ -161,6 +173,10 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
     }, true);
 
   const passkeyLogin = () => run(async () => after(await loginWithPasskey()), true);
+
+  const linkLogin = (token: string) => run(async () => after(await loginWithLink(token)));
+  const signupOpen = config?.signup?.open ?? true;
+  const signupContact = config?.signup?.contact ?? "";
 
   const demoLogin = (key: string) =>
     run(async () => {
@@ -225,7 +241,34 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
                 </>
               )}
               {config?.demo_logins && demo.length > 0 && <DemoLogins accounts={demo} busy={busy} onPick={demoLogin} />}
+              <details className="muted small">
+                <summary style={{ cursor: "pointer" }}>Kan du ikke logge ind?</summary>
+                <div className="stack" style={{ "--gap": "6px", paddingTop: 8 } as React.CSSProperties}>
+                  <span>Der er ingen adgangskode at nulstille. Skriv din e-mail, så sender vi en ny kode og et login-link, som du bare klikker på.</span>
+                  <span>Har du mistet din passkey, sikkerhedsnøgle eller YubiKey, kan en administrator gendanne din adgang.</span>
+                  {!signupOpen && (
+                    <span>Har du ikke en konto, skal en administrator oprette dig{signupContact ? <>. Skriv til <strong>{signupContact}</strong></> : ""}.</span>
+                  )}
+                </div>
+              </details>
             </form>
+          )}
+
+          {step.kind === "link" && (
+            <div className="stack" style={{ "--gap": "16px" } as React.CSSProperties}>
+              <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
+                <div className="eyebrow">Login-link</div>
+                <h2>Log ind med linket fra din mail</h2>
+                <p className="muted small">Linket kan bruges én gang og udløber sammen med koden i mailen.</p>
+              </div>
+              <Alert>{error}</Alert>
+              <button className="btn btn-primary btn-block" onClick={() => linkLogin(step.token)} disabled={busy} autoFocus>
+                {busy ? "Logger ind …" : "Log ind"}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setError(null); setStep({ kind: "phone" }); }}>
+                Bed om en ny kode i stedet
+              </button>
+            </div>
           )}
 
           {step.kind === "code" && (
@@ -233,9 +276,16 @@ export default function Login({ home = "/", embedded = false }: { home?: string;
               <div className="stack" style={{ "--gap": "6px" } as React.CSSProperties}>
                 <div className="eyebrow">Engangskode</div>
                 <h2>Skriv koden</h2>
-                <p className="muted small">Vi har sendt en kode til {phone}. Den kan kun bruges én gang og udløber om få minutter.</p>
+                <p className="muted small">
+                  {signupOpen ? "Vi har sendt en kode til " : "Hvis der er en konto til "}{phone}
+                  {signupOpen ? "" : ", har vi sendt en kode dertil"}
+                  {channel === "email" ? ". Du kan også klikke på login-linket i mailen" : ""}. Koden kan kun bruges én gang og udløber om få minutter.
+                </p>
+                {!signupOpen && signupContact && <p className="muted tiny">Har du ikke en konto? Skriv til {signupContact}.</p>}
               </div>
-              {step.devCode && <Alert kind="info">Udvikling: koden er <strong className="mono">{step.devCode}</strong></Alert>}
+              {step.devCode && <Alert kind="info">Udvikling: koden er <strong className="mono">{step.devCode}</strong>
+                {step.devLink && <> · <a href={`/login#link=${step.devLink}`} onClick={(e) => { e.preventDefault(); setStep({ kind: "link", token: step.devLink! }); }}>brug login-linket</a></>}
+              </Alert>}
               <input className="code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
                      onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} aria-label="Engangskode" autoFocus />
               <Alert>{error}</Alert>

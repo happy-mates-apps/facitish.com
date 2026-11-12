@@ -18,7 +18,7 @@ browser only.
 | Login steps (code → offer / mfa) | `web/src/pages/Login.tsx` | (uses `/login`) | |
 | Account: profile, avatar, security | `web/src/pages/Account.tsx`, `AccountSecurity.tsx` | | |
 | MFA gate + grace banner | | `admin-app/main.tsx` (`RequireAdmin`), `AdminShell.tsx` | |
-| User list + drawer (MFA status, reset, profile) | | `admin-app/pages/Users.tsx`, `UserDrawer.tsx`, `users.ts` | |
+| User list, "Opret bruger", full-screen edit with one Save (profile, access, YubiKey requirement; reset, login link, YubiKey enrolment act at once) | | `admin-app/pages/Users.tsx`, `UserEdit.tsx`, `users.ts` | |
 
 The admin app may not import the app's files (and vice versa) — `npm run build` fails. Shared code goes in
 `auth.tsx`/`api.ts` only if both apps need it and it has no UI.
@@ -106,7 +106,7 @@ Do not add your own retry, and do not call `/api/auth/mfa/*` before every action
 - **/admin gate**: `RequireAdmin` shows `AdminMfaGate` while `!user.mfa.admin_ok`; the server checks too.
 - **A new profile field** end to end: migration (a new file) → `ProfileIn` + `clean_profile` in `routes/me.py`
   (validation) → `GET /profile` → GDPR export in `gdpr.py` → `GET /api/admin/users/{id}` → UI in `Account.tsx`
-  and `UserDrawer.tsx` → tests in `server/tests/test_mfa.py`. The audit entry comes from `update_profile_fields`.
+  and `UserEdit.tsx` → tests in `server/tests/test_mfa.py`. The audit entry comes from `update_profile_fields`.
 - Security texts are Danish and concrete: "passkey", "sikkerhedsnøgle (fx YubiKey)", "godkendelsesapp",
   "Kræv passkey", "Bekræft at det er dig".
 

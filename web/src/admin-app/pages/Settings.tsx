@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, errorText } from "../../api";
 import { useAuth } from "../../auth";
 import { Alert, Loading, PageHeader, useLoad } from "../ui";
+import SettingsSignup from "./SettingsSignup";
 
 type Data = {
   app_name: string; sms_sender: string; gdpr_email: string; logo_url: string | null;
@@ -52,6 +53,7 @@ export default function Settings() {
             <label className="field">E-mail til GDPR-forespørgsler<input data-deeplink="setting-gdpr_email" type="email" value={form.gdpr_email} onChange={(e) => setForm({ ...form, gdpr_email: e.target.value })} /></label>
             <div><button className="btn btn-primary">Gem</button></div>
           </form>
+          <SettingsSignup />
           <div className="stack" style={{ "--gap": "16px" } as React.CSSProperties}>
             <div className="card">
               <span className="eyebrow">Logo</span>

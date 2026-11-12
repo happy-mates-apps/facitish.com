@@ -1,14 +1,15 @@
 // MFA in the admin app: the gate in front of /admin, the grace-login banner and the step-up dialog for security
 // actions. Same server rules as the app on / (gaer-auth skill), but its own UI (the admin app may not import the app).
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Fingerprint, KeyRound, ShieldCheck, Smartphone } from "lucide-react";
+import { Fingerprint, KeyRound, ShieldCheck, Smartphone, Usb } from "lucide-react";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { errorText, setStepUpHandler } from "../api";
 import { passkeyErrorText, registerPasskey, stepUpWithPasskey, stepUpWithTotp, useAuth, type MfaMethod } from "../auth";
 import { SANS } from "./theme";
 import { Btn, ErrorBox, Modal } from "./ui";
 
-function SecondFactorForm({ methods, onDone }: { methods: MfaMethod[]; onDone: () => Promise<void> }) {
+/** yubikey: the user has the YubiKey requirement, so only a YubiKey counts (no passkey on the phone, no app). */
+function SecondFactorForm({ methods, onDone, yubikey = false }: { methods: MfaMethod[]; onDone: () => Promise<void>; yubikey?: boolean }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,18 @@ function SecondFactorForm({ methods, onDone }: { methods: MfaMethod[]; onDone: (
     e.preventDefault();
     run(() => stepUpWithTotp(code), false);
   };
+  if (yubikey) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Btn kind="primary" icon={Usb} height={44} disabled={busy || !browserSupportsWebAuthn()}
+             onClick={() => run(() => stepUpWithPasskey({ yubikey: true }), true)} style={{ justifyContent: "center" }}>
+          {busy ? "Venter på nøglen …" : "Brug YubiKey"}
+        </Btn>
+        <span style={{ fontSize: 13, color: "#475569" }}>Sæt nøglen i og rør ved den, når den blinker. Du kan blive bedt om nøglens PIN.</span>
+        {error && <ErrorBox>{error}</ErrorBox>}
+      </div>
+    );
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {methods.includes("passkey") && (
@@ -68,6 +81,25 @@ export function AdminMfaGate() {
   const [error, setError] = useState<string | null>(null);
   if (!user) return null;
   const { methods } = user.mfa;
+  if (user.mfa.yubikey_required) {
+    return (
+      <Card title={user.mfa.yubikeys ? "Bekræft med din YubiKey" : "Din konto kræver en YubiKey"}>
+        {user.mfa.yubikeys ? (
+          <>
+            <p style={{ margin: 0, color: "#475569" }}>Administrationen kræver din YubiKey. Passkeys og godkendelsesapps virker ikke her.</p>
+            <SecondFactorForm methods={methods} onDone={refresh} yubikey />
+          </>
+        ) : (
+          <p style={{ margin: 0, color: "#475569" }}>
+            Der er ikke tilknyttet en YubiKey til din konto endnu. Bed en administrator om at tilknytte en, eller om et link,
+            så du selv kan gøre det.
+          </p>
+        )}
+        <span style={{ fontSize: 13, color: "#475569" }}>Mistet nøglen? En administrator kan tilknytte en ny.</span>
+        <a href="/" style={{ fontSize: 13 }}>← Til appen på /</a>
+      </Card>
+    );
+  }
   if (methods.length) {
     return (
       <Card title="Bekræft at det er dig">
@@ -127,11 +159,13 @@ export function AdminStepUp() {
   const waiting = useRef<((ok: boolean) => void)[]>([]);
   const methods = useRef<MfaMethod[]>([]);
   methods.current = user?.mfa.methods ?? [];
+  const yubikey = !!user?.mfa.yubikey_required;
 
   useEffect(() => {
     // Calls that fail at the same time (e.g. a page loading several lists) share one dialog.
-    setStepUpHandler((_code, text) => {
-      if (methods.current.length === 0) return Promise.resolve(false);
+    setStepUpHandler((code, text) => {
+      // yubikey_required (no YubiKey in this session at all) is the gate's job, not a dialog's.
+      if (methods.current.length === 0 || code === "yubikey_required") return Promise.resolve(false);
       return new Promise<boolean>((resolve) => {
         waiting.current.push(resolve);
         setMessage((m) => m ?? text);
@@ -154,7 +188,7 @@ export function AdminStepUp() {
         <strong style={{ fontSize: 17 }}>Bekræft at det er dig</strong>
       </div>
       <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>{message}. Det gælder handlinger, der ændrer adgang og sikkerhed.</p>
-      <SecondFactorForm methods={methods.current} onDone={async () => { await refresh(); close(true); }} />
+      <SecondFactorForm methods={methods.current} yubikey={yubikey} onDone={async () => { await refresh(); close(true); }} />
       <Btn kind="ghost" onClick={() => close(false)}>Annullér</Btn>
     </Modal>
   );

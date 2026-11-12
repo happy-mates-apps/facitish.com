@@ -7,8 +7,9 @@ import { errorText, setStepUpHandler } from "./api";
 import { passkeyErrorText, stepUpWithPasskey, stepUpWithTotp, useAuth, type MfaMethod } from "./auth";
 import { Alert } from "./ui";
 
-/** Passkey/security key button and/or a field for a code from an authenticator app. */
-export function SecondFactor({ methods, onDone }: { methods: MfaMethod[]; onDone: () => void | Promise<void> }) {
+/** Passkey/security key button and/or a field for a code from an authenticator app. yubikey: the server asked for a
+ * YubiKey (users with the YubiKey requirement, on admin-level actions): only the user's YubiKeys are offered. */
+export function SecondFactor({ methods, onDone, yubikey = false }: { methods: MfaMethod[]; onDone: () => void | Promise<void>; yubikey?: boolean }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,18 @@ export function SecondFactor({ methods, onDone }: { methods: MfaMethod[]; onDone
     run(() => stepUpWithTotp(code), false);
   };
 
+  if (yubikey) {
+    return (
+      <div className="stack" style={{ "--gap": "12px" } as React.CSSProperties}>
+        <button className="btn btn-primary btn-block" disabled={busy || !browserSupportsWebAuthn()}
+                onClick={() => run(() => stepUpWithPasskey({ yubikey: true }), true)}>
+          {busy ? "Venter på nøglen …" : "Brug YubiKey"}
+        </button>
+        <p className="muted tiny" style={{ margin: 0 }}>Din konto kræver en YubiKey her. Sæt den i og rør ved den, når den blinker.</p>
+        <Alert>{error}</Alert>
+      </div>
+    );
+  }
   if (methods.length === 0) {
     return (
       <Alert kind="warn">
@@ -41,7 +54,7 @@ export function SecondFactor({ methods, onDone }: { methods: MfaMethod[]; onDone
     <div className="stack" style={{ "--gap": "12px" } as React.CSSProperties}>
       {methods.includes("passkey") && (
         <button className="btn btn-primary btn-block" disabled={busy || !browserSupportsWebAuthn()}
-                onClick={() => run(stepUpWithPasskey, true)}>
+                onClick={() => run(() => stepUpWithPasskey(), true)}>
           Brug passkey eller sikkerhedsnøgle
         </button>
       )}
@@ -66,15 +79,17 @@ export function SecondFactor({ methods, onDone }: { methods: MfaMethod[]; onDone
 export function StepUpDialog() {
   const { user, refresh } = useAuth();
   const [message, setMessage] = useState<string | null>(null);
+  const [yubikey, setYubikey] = useState(false);
   const waiting = useRef<((ok: boolean) => void)[]>([]);
   const methods = useRef<MfaMethod[]>([]);
   methods.current = user?.mfa.methods ?? [];
 
   useEffect(() => {
-    setStepUpHandler((_code, text) => {
+    setStepUpHandler((code, text) => {
       if (methods.current.length === 0) return Promise.resolve(false);
       return new Promise<boolean>((resolve) => {
         waiting.current.push(resolve);
+        setYubikey(code === "yubikey_stepup_required" || code === "yubikey_required");
         setMessage((m) => m ?? text);
       });
     });
@@ -96,7 +111,7 @@ export function StepUpDialog() {
           <h3 id="stepup-title">Bekræft at det er dig</h3>
           <p className="muted small">{message}</p>
         </div>
-        <SecondFactor methods={methods.current} onDone={async () => { await refresh(); close(true); }} />
+        <SecondFactor methods={methods.current} yubikey={yubikey} onDone={async () => { await refresh(); close(true); }} />
         <button className="btn btn-ghost btn-sm" onClick={() => close(false)}>Annullér</button>
       </div>
     </div>

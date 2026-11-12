@@ -41,7 +41,7 @@ async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, ad
         rows = await db.fetch_all(conn, f"""
             select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.admin_roles, u.grace_logins_used, u.blocked_at,
                    u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required, u.audience, u.yubikey_required,
-                   u.created_by, (select c.display_name from users c where c.id = u.created_by) as created_by_name,
+                   u.created_by, (select coalesce(c.display_name, c.email, c.phone) from users c where c.id = u.created_by) as created_by_name,
                    (select count(*) from passkeys p where p.user_id = u.id and p.yubikey) as yubikeys,
                    (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
@@ -291,7 +291,7 @@ async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
             select u.id, u.email, u.phone, u.display_name, u.locale, u.time_zone, u.role, u.super_admin, u.admin_roles,
                    u.mfa_required, u.yubikey_required, u.audience, u.grace_logins_used, u.blocked_at, u.created_at,
                    u.updated_at, u.last_login_at, u.impersonation_only, u.impersonation_owner_id, u.created_by,
-                   (select c.display_name from users c where c.id = u.created_by) as created_by_name,
+                   (select coalesce(c.display_name, c.email, c.phone) from users c where c.id = u.created_by) as created_by_name,
                    u.avatar_file_id is not null as has_avatar
             from users u where u.id = %s""", (user_id,))
         if user is None or (user["impersonation_only"] and user["impersonation_owner_id"] != admin.user_id):
@@ -299,7 +299,7 @@ async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
         f = await mfa.factors(conn, user_id)
         keys = await db.fetch_all(conn, """
             select p.id, p.name, p.kind, p.yubikey, p.attestation, p.enrolled_by, p.created_at, p.last_used_at,
-                   (select e.display_name from users e where e.id = p.enrolled_by) as enrolled_by_name
+                   (select coalesce(e.display_name, e.email, e.phone) from users e where e.id = p.enrolled_by) as enrolled_by_name
             from passkeys p where p.user_id = %s order by p.created_at""", (user_id,))
         apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors
                                            where user_id = %s and confirmed_at is not null order by created_at""",

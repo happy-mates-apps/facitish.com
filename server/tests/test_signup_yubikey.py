@@ -248,7 +248,7 @@ async def test_create_user_then_closed_signup_login(make_client, owner_conn):
     assert (await email_login(make_client(), "ny@example.com"))["status"] == "logged_in"
     assert (await admin.post("/api/admin/users", json={"email": "ny@example.com"})).status_code == 409
     listed = (await admin.get("/api/admin/users")).json()["items"]
-    assert [u["created_by_name"] for u in listed if u["email"] == "ny@example.com"] == [None]  # admin has no name
+    assert [u["created_by_name"] for u in listed if u["email"] == "ny@example.com"] == ["admin@example.com"]
     assert any(u["created_by"] == 1 for u in listed)
 
 
@@ -366,6 +366,10 @@ async def test_requirement_blocks_admin_until_a_yubikey(make_client, owner_conn)
     assert r.status_code == 403 and r.headers["x-gaer-error"] == "yubikey_setup_required"
     me = (await bo.get("/api/auth/me")).json()["user"]["mfa"]
     assert me["yubikey_required"] is True and me["yubikeys"] == 0 and me["admin_ok"] is False
+    assert me["admin_grace_left"] is None
+    again = await email_login(make_client(), "bo@example.com")
+    assert again["admin_grace_left"] is None
+    assert owner_conn.execute("select count(*) from auth_log where event = 'grace.used' and user_id = %s", (uid,)).fetchone()[0] == 0
     # A passkey proves nothing for /admin now; the app itself works.
     assert (await stepup(bo, bo_key)).status_code == 200
     assert (await bo.get("/api/admin/users")).status_code == 403
