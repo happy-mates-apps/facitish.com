@@ -936,7 +936,7 @@ async def outbound_poll(body: PollIn, p: Principal = Depends(require_admin)):
     except jobs.Retry as e:
         raise HTTPException(429, str(e))
     except RuntimeError as e:
-        raise HTTPException(502, str(e))
+        raise HTTPException(424, str(e))
     async with db.connection() as conn:
         await audit(conn, "mail.outbound_poll", actor_id=p.user_id, meta=p.meta, after=result)
     return result

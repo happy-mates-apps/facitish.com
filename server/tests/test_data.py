@@ -216,6 +216,20 @@ async def test_internal_hosts_are_refused():
             await data_sources.check_host(host)
 
 
+async def test_paging_by_page_number_or_offset(fake_api):
+    spec = parse_spec(SPEC)
+    await data_sources.fetch(spec, spec["datasets"][0], {}, page=3, size=20)
+    assert "side=3" in fake_api[-1]["url"] and "per_side=20" in fake_api[-1]["url"]
+
+    offset_spec = parse_spec(SPEC.replace("sider: { type: side, parameter: side, størrelse: per_side, max: 100 }",
+                                          "sider: { type: offset, parameter: offset, størrelse: limit, max: 100 }"))
+    await data_sources.fetch(offset_spec, offset_spec["datasets"][0], {}, page=3, size=20)
+    assert "offset=40" in fake_api[-1]["url"] and "limit=20" in fake_api[-1]["url"]
+
+    with pytest.raises(SpecError, match="side eller type: offset"):
+        parse_spec(SPEC.replace("type: side, parameter", "type: cursor, parameter"))
+
+
 async def test_secret_comes_from_a_data_secret_variable(monkeypatch, fake_api):
     spec = parse_spec(SPEC.replace("klassifikation: hvid", "klassifikation: hvid\nauth: { type: bearer, hemmelighed: DATA_SECRET_DAWA }"))
     ds = spec["datasets"][1]

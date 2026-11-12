@@ -66,37 +66,38 @@ export function cell(value: unknown): string {
   return String(value);
 }
 
-export const EXAMPLE_SPEC = `kilde: dawa
-navn: Dataforsyningen · Adresser
+export const EXAMPLE_SPEC = `kilde: energidata
+navn: Energi Data Service
 type: rest                       # kun rest indtil videre
-base_url: https://api.dataforsyningen.dk
+base_url: https://api.energidataservice.dk
 klassifikation: hvid             # standard for felterne: hvid, grøn, gul eller rød
 auth:
   type: ingen                    # ingen | bearer | header
-  # hemmelighed: DATA_SECRET_DAWA  # navnet på en miljøvariabel, aldrig selve nøglen
-grænser: { kald_pr_minut: 60, timeout_s: 10, cache_min: 60 }
+  # hemmelighed: DATA_SECRET_ENERGIDATA  # navnet på en miljøvariabel, aldrig selve nøglen
+grænser: { kald_pr_minut: 20, timeout_s: 10, cache_min: 60 }
 
 datasæt:
-  - id: adresser
-    navn: Adresser
-    kald: GET /adresser
+  - id: elspotpriser
+    navn: Elspotpriser
+    kald: GET /dataset/Elspotprices
     parametre:
-      q:      { type: tekst, navn: Søg }
-      postnr: { type: tal,   navn: Postnr. }
-    sider:   { type: side, parameter: side, størrelse: per_side, max: 100 }
-    rækker:  $[*]                # JSONPath til listen i svaret
-    nøgle:   id
+      start: { type: dato, navn: Fra }
+      end:   { type: dato, navn: Til }
+    sider:   { type: offset, parameter: offset, størrelse: limit, max: 100 }   # type: side eller type: offset
+    rækker:  $.records[*]        # JSONPath til listen i svaret
     felter:
-      id:      { type: uuid, navn: ID }
-      vej:     { sti: adgangsadresse.vejstykke.navn, navn: Vej }
-      husnr:   { sti: adgangsadresse.husnr, navn: Husnr. }
-      postnr:  { sti: adgangsadresse.postnummer.nr, navn: Postnr. }
-      by:      { sti: adgangsadresse.postnummer.navn, navn: By }
+      HourDK:       { type: dato, navn: Time }
+      PriceArea:    { navn: Prisområde }
+      SpotPriceDKK: { type: tal, navn: Spotpris DKK/MWh }
+      SpotPriceEUR: { type: tal, navn: Spotpris EUR/MWh }
 
-  - id: postnumre
-    navn: Postnumre
-    kald: GET /postnumre
+  - id: co2
+    navn: CO2-udledning
+    kald: GET /dataset/CO2Emis
+    sider:   { type: offset, parameter: offset, størrelse: limit, max: 100 }
+    rækker:  $.records[*]
     felter:
-      nr:   { type: tal, navn: Postnr. }
-      navn: { navn: By }
+      Minutes5DK:  { type: dato, navn: Tidspunkt }
+      PriceArea:   { navn: Prisområde }
+      CO2Emission: { type: tal, navn: g CO2/kWh }
 `;
