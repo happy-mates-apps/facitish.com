@@ -40,7 +40,9 @@ async def list_users(q: str | None = None, limit: int = 100, offset: int = 0, ad
     async with db.connection() as conn:
         rows = await db.fetch_all(conn, f"""
             select u.id, u.email, u.phone, u.display_name, u.role, u.super_admin, u.admin_roles, u.grace_logins_used, u.blocked_at,
-                   u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required, u.audience,
+                   u.created_at, u.last_login_at, u.impersonation_only, u.mfa_required, u.audience, u.yubikey_required,
+                   u.created_by, (select coalesce(c.display_name, c.email, c.phone) from users c where c.id = u.created_by) as created_by_name,
+                   (select count(*) from passkeys p where p.user_id = u.id and p.yubikey) as yubikeys,
                    (select ring from feature_rings r where r.user_id = u.id) as feature_ring,
                    (select count(*) from passkeys p where p.user_id = u.id) as passkeys,
                    (select count(*) from totp_factors t where t.user_id = u.id and t.confirmed_at is not null) as totp,
@@ -152,27 +154,32 @@ class AdminRolesIn(BaseModel):
 @router.put("/users/{user_id}/admin-roles")
 async def set_admin_roles(user_id: int, body: AdminRolesIn, admin: Principal = Depends(require_admin_stepup)):
     """Which parts of /admin an admin may use. Only admins with 'fuld' get here (app/admin_roles.py)."""
-    roles = admin_roles.clean(body.roles)
-    if len(roles) != len(set(body.roles)):
-        raise HTTPException(422, "Ukendt admin-rolle")
     async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id, admin)
-        if user["role"] != "admin" or user["impersonation_only"]:
-            raise HTTPException(409, "Kun admins har admin-roller")
-        if user["super_admin"] and admin_roles.FULL not in roles:
-            raise HTTPException(409, "Superadministratoren har altid fuld adgang")
-        before = sorted(user["admin_roles"] or [])
-        if admin_roles.FULL in before and admin_roles.FULL not in roles:
-            others = await db.fetch_one(conn, """
-                select count(*) as n from users where role = 'admin' and 'fuld' = any (admin_roles) and blocked_at is null
-                  and not impersonation_only and id <> %s""", (user_id,))
-            if not others["n"]:
-                raise HTTPException(409, "Der skal være mindst én admin med fuld adgang")
-        if before != roles:
-            await conn.execute("update users set admin_roles = %s, updated_at = now() where id = %s", (roles, user_id))
-            await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                        before={"admin_roles": before}, after={"admin_roles": roles})
+        roles = await do_set_admin_roles(conn, await _user_or_404(conn, user_id, admin), body.roles, admin)
     return {"admin_roles": roles}
+
+
+async def do_set_admin_roles(conn, user: dict, requested: list[str], admin: Principal) -> list[str]:
+    roles = admin_roles.clean(requested)
+    if not roles or len(roles) != len(set(requested)):
+        raise HTTPException(422, "Ukendt admin-rolle")
+    user_id = user["id"]
+    if user["role"] != "admin" or user["impersonation_only"]:
+        raise HTTPException(409, "Kun admins har admin-roller")
+    if user["super_admin"] and admin_roles.FULL not in roles:
+        raise HTTPException(409, "Superadministratoren har altid fuld adgang")
+    before = sorted(user["admin_roles"] or [])
+    if admin_roles.FULL in before and admin_roles.FULL not in roles:
+        others = await db.fetch_one(conn, """
+            select count(*) as n from users where role = 'admin' and 'fuld' = any (admin_roles) and blocked_at is null
+              and not impersonation_only and id <> %s""", (user_id,))
+        if not others["n"]:
+            raise HTTPException(409, "Der skal være mindst én admin med fuld adgang")
+    if before != roles:
+        await conn.execute("update users set admin_roles = %s, updated_at = now() where id = %s", (roles, user_id))
+        await audit(conn, "role.changed", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                    before={"admin_roles": before}, after={"admin_roles": roles})
+    return roles
 
 
 class AdminPhoneIn(BaseModel):
@@ -184,25 +191,29 @@ class AdminEmailIn(BaseModel):
 
 
 async def _set_contact(user_id: int, channel: str, contact: str, admin: Principal) -> dict:
+    async with db.connection() as conn:
+        await do_set_contact(conn, await _user_or_404(conn, user_id, admin), channel, contact, admin)
+    return {"ok": True}
+
+
+async def do_set_contact(conn, user: dict, channel: str, contact: str, admin: Principal) -> None:
     """Rectification by an admin, e.g. when a user lost access to the old address or number. The user's sessions
     are revoked and passkeys are kept; the next login with a code goes to the new contact."""
-    async with db.connection() as conn:
-        user = await _user_or_404(conn, user_id, admin)
-        if user["impersonation_only"]:
-            raise HTTPException(409, "En testkonto har ingen e-mail eller telefonnummer")
-        if contact == user[channel]:
-            return {"ok": True}
-        if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
-            raise HTTPException(409, "E-mailadressen bruges allerede af en anden bruger" if channel == "email"
-                                else "Nummeret bruges allerede af en anden bruger")
-        await conn.execute(f"update users set {channel} = %s, updated_at = now() where id = %s", (contact, user_id))
-        await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
-                    before={channel: user[channel]}, after={channel: contact}, reason="rectification")
-        await auth_event(conn, f"{channel}.changed", ok=True, meta=admin.meta, user_id=user_id, contact=contact,
-                         by=admin.user_id)
-        await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason=f"{channel}_changed",
-                              actor_id=admin.user_id)
-    return {"ok": True}
+    user_id = user["id"]
+    if user["impersonation_only"]:
+        raise HTTPException(409, "En testkonto har ingen e-mail eller telefonnummer")
+    if contact == user[channel]:
+        return
+    if await db.fetch_one(conn, f"select 1 from users where {channel} = %s", (contact,)):
+        raise HTTPException(409, "E-mailadressen bruges allerede af en anden bruger" if channel == "email"
+                            else "Nummeret bruges allerede af en anden bruger")
+    await conn.execute(f"update users set {channel} = %s, updated_at = now() where id = %s", (contact, user_id))
+    await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="users", row_id=user_id,
+                before={channel: user[channel]}, after={channel: contact}, reason="rectification")
+    await auth_event(conn, f"{channel}.changed", ok=True, meta=admin.meta, user_id=user_id, contact=contact,
+                     by=admin.user_id)
+    await revoke_sessions(conn, meta=admin.meta, user_id=user_id, reason=f"{channel}_changed",
+                          actor_id=admin.user_id)
 
 
 @router.patch("/users/{user_id}/email")
@@ -277,15 +288,19 @@ async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
     """One user's profile and security status (factors, MFA, grace logins, sessions). Never secrets."""
     async with db.connection() as conn:
         user = await db.fetch_one(conn, """
-            select id, email, phone, display_name, locale, time_zone, role, super_admin, admin_roles, mfa_required,
-                   grace_logins_used, blocked_at, created_at, updated_at, last_login_at, impersonation_only,
-                   impersonation_owner_id, avatar_file_id is not null as has_avatar
-            from users where id = %s""", (user_id,))
+            select u.id, u.email, u.phone, u.display_name, u.locale, u.time_zone, u.role, u.super_admin, u.admin_roles,
+                   u.mfa_required, u.yubikey_required, u.audience, u.grace_logins_used, u.blocked_at, u.created_at,
+                   u.updated_at, u.last_login_at, u.impersonation_only, u.impersonation_owner_id, u.created_by,
+                   (select coalesce(c.display_name, c.email, c.phone) from users c where c.id = u.created_by) as created_by_name,
+                   u.avatar_file_id is not null as has_avatar
+            from users u where u.id = %s""", (user_id,))
         if user is None or (user["impersonation_only"] and user["impersonation_owner_id"] != admin.user_id):
             raise HTTPException(404, "Brugeren findes ikke")
         f = await mfa.factors(conn, user_id)
-        keys = await db.fetch_all(conn, """select id, name, kind, created_at, last_used_at from passkeys
-                                           where user_id = %s order by created_at""", (user_id,))
+        keys = await db.fetch_all(conn, """
+            select p.id, p.name, p.kind, p.yubikey, p.attestation, p.enrolled_by, p.shipped_at, p.created_at, p.last_used_at,
+                   (select coalesce(e.display_name, e.email, e.phone) from users e where e.id = p.enrolled_by) as enrolled_by_name
+            from passkeys p where p.user_id = %s order by p.created_at""", (user_id,))
         apps = await db.fetch_all(conn, """select id, name, created_at, last_used_at from totp_factors
                                            where user_id = %s and confirmed_at is not null order by created_at""",
                                   (user_id,))
@@ -304,6 +319,8 @@ async def get_user(user_id: int, admin: Principal = Depends(require_admin)):
             "totp": apps,
             "grace_logins": s.grace_logins,
             "grace_left": max(0, s.grace_logins - user["grace_logins_used"]) if user["role"] == "admin" and not f["total"] else None,
+            "yubikey_required": user["yubikey_required"],
+            "yubikey_attestation": "verified" if config.settings.yubico_roots else "issuer",
         },
         "sessions": sessions,
     }

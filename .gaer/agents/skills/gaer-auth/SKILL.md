@@ -51,6 +51,31 @@ Frontend usage (components, step-up dialog, profile API): skill `gaer-profile`.
    blocked users; with UV it counts as MFA.
 10. TOTP secrets are encrypted with AES-GCM using versioned keys (`TOTP_KEYS`, fallback derived from `SECRET_KEY`)
     and never leave the server after setup; the GDPR export lists apps without secrets.
+11. **Sign-up** (`app/signup.py`, setting `signup`, /admin/settings → Tilmelding): `open` (default), `domains` (e-mail
+    domains and their subdomains) or `closed`. A contact without an account that may not sign up gets **no code**, and
+    `otp/start` answers exactly as usual (auth log `otp.sent` fail, reason `signup_closed`). `_get_or_create_user`
+    checks again, so a code sent before the setting changed creates no account. The first admin (bootstrap contact,
+    or the first user on a new instance) always gets in. Admins create users with `POST /api/admin/users`
+    (`users.created_by`); an admin only with role `fuld`, and an admin or a user with the YubiKey requirement needs a
+    step-up.
+12. **Login link**: a login code sent by e-mail also has a link `ORIGIN/login#link=<token>` (only the token's SHA-256 is
+    stored, `otp_codes.link_hash`). `POST /api/auth/otp/link` is the same as typing the code: single use, consumes the
+    code too, expires with it, then the usual second-factor rules. The token sits in the fragment and /login finishes
+    the login only on a click (mail scanners). "Gendan adgang" in /admin (`POST /api/admin/users/{id}/login-link`)
+    sends the same mail, optionally after a reset-mfa (step-up, same rules). There are no passwords to reset.
+13. **YubiKey requirement** (`users.yubikey_required`, set in /admin/users, step-up): `require_admin`,
+    `require_admin_stepup`, `mfa.stepup_ok` / `mfa.require_stepup` (also /forbind `mcp:admin`, Beskeder to everyone,
+    mail) count only a YubiKey proven in this session (`sessions.yubikey_at`), within `ADMIN_MFA_HOURS` /
+    `STEPUP_MINUTES`; no grace logins. Codes `yubikey_required`, `yubikey_setup_required`, `yubikey_stepup_required`.
+    A key is a YubiKey by its attestation (`app/yubikey.py`: packed/fido-u2f, issuer Yubico; with `YUBICO_ROOTS` the
+    chain must end in Yubico's root → `attestation = 'verified'`). It counts (`passkeys.yubikey`) only when an admin
+    enrolled it — in person (`/api/admin/users/{id}/yubikey/*`, non-discoverable, `enrolled_by`; such a key is
+    **never a first factor**, passkey login refuses it; only the super admin may do this for another admin), set up by
+    the **super admin alone and sent** to the user (same calls with `mode: "ship"`, `passkeys.shipped_at`, optional mail
+    that it is on its way, never the PIN; same second-factor-only rule; first use logged as `yubikey.first_use`), or with a
+    single-use link (`yubikey_enrollments`, `/konto#yubikey=<token>`, `/api/auth/yubikey/enroll/*`) — or when the
+    user proved a YubiKey in the last `STEPUP_MINUTES`. Users without the requirement simply have their YubiKeys
+    recorded as such. Nobody switches the requirement on for themselves without a YubiKey.
 
 ## Administrative roles (`server/app/admin_roles.py`)
 An admin (`users.role = 'admin'`) also has one or more **admin roles** in `users.admin_roles`. They decide which parts
@@ -82,6 +107,9 @@ of /admin the admin may use; they never widen anything a plain admin could not d
 - Blocking a user revokes all sessions. Logout revokes the current one. All revocations log `session.revoked`.
 
 ## Never
+- Send a code to, or create, a contact that may not sign up, or answer `otp/start` differently for it.
+- Count a passkey, an app or a non-YubiKey key where the YubiKey requirement applies, or let a key an admin enrolled
+  in person log a user in on its own.
 - Add a login path that skips the code, or a way to get a full session from a pending one without a second factor.
 - Count a WebAuthn assertion without verified UV as MFA, or upgrade a session row in place instead of a new token.
 - Let a code-only session add a factor to an account that already has one, or accept a grace login for a

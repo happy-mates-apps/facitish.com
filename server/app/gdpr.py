@@ -24,8 +24,8 @@ async def build_user_export(conn, user_id: int) -> dict:
         return await db.fetch_all(conn, sql, params)
 
     user = await db.fetch_one(conn, """select id, email, phone, display_name, locale, time_zone, role, super_admin, admin_roles,
-                                              mfa_required, grace_logins_used, blocked_at, audience, created_at, updated_at,
-                                              last_login_at, avatar_file_id
+                                              mfa_required, yubikey_required, created_by, grace_logins_used, blocked_at,
+                                              audience, created_at, updated_at, last_login_at, avatar_file_id
                                        from users where id = %s""", (user_id,))
     if user is None:
         raise HTTPException(404, "Brugeren findes ikke")
@@ -34,12 +34,16 @@ async def build_user_export(conn, user_id: int) -> dict:
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
         "user": user,
-        "passkeys": await rows("select id, name, kind, created_at, last_used_at from passkeys where user_id = %s", user_id),
+        "passkeys": await rows("""select id, name, kind, yubikey, attestation, enrolled_by, shipped_at, created_at, last_used_at
+                                  from passkeys where user_id = %s""", user_id),
+        # YubiKey links an admin sent (only that they were sent and used, never the token).
+        "yubikey_enrollments": await rows("""select created_at, expires_at, used_at, created_by from yubikey_enrollments
+                                             where user_id = %s order by created_at""", user_id),
         # Authenticator apps: only that they exist, never the secret.
         "totp_factors": await rows("""select id, name, created_at, confirmed_at, last_used_at from totp_factors
                                       where user_id = %s order by created_at""", user_id),
         "sessions": await rows("""select created_at, last_seen_at, expires_at, revoked_at, host(ip) as ip, user_agent,
-                                         mfa_at
+                                         mfa_at, yubikey_at
                                   from sessions where user_id = %s order by created_at""", user_id),
         "files": await rows("""select id, filename, folder, content_type, size_bytes, kind, created_at, updated_at
                                from files where user_id = %s order by created_at""", user_id),

@@ -30,6 +30,10 @@ export type MfaStatus = {
   admin_ok: boolean;
   /** Admins without a second factor: logins with a code left before /admin requires one. */
   admin_grace_left: number | null;
+  /** Set by an admin: /admin and security actions accept only a YubiKey (no grace logins). */
+  yubikey_required: boolean;
+  /** YubiKeys that count for the requirement. */
+  yubikeys: number;
 };
 
 export type Scope = "full" | "mfa";
@@ -48,6 +52,8 @@ export type PublicConfig = {
   demo_logins: boolean;
   /** POST /api/auth/otp/start needs a solved robot check (src/captcha.ts). */
   captcha: boolean;
+  /** Whether a new e-mail gets an account by logging in, and whom to ask otherwise (server/app/signup.py). */
+  signup: { open: boolean; contact: string };
 };
 
 type AuthState = {
@@ -111,20 +117,35 @@ export function useAuth(): AuthState {
 
 type Options<T> = { challenge_id: string; options: T };
 
+type RegisterOptions = Options<Parameters<typeof startRegistration>[0]["optionsJSON"]>;
+/** What registering a key answers: yubikey = it counts as a YubiKey; yubikey_detected = it is one by its attestation. */
+export type Registered = { ok: true; passkey_id: number; kind?: "passkey" | "security_key"; yubikey?: boolean; yubikey_detected?: boolean };
+
 /** kind "security_key" asks the browser for a separate key (YubiKey …) instead of the device itself. */
-export async function registerPasskey(name?: string, kind: "passkey" | "security_key" = "passkey"): Promise<void> {
-  const { challenge_id, options } = await api.post<Options<Parameters<typeof startRegistration>[0]["optionsJSON"]>>(
-    "/api/auth/passkey/register/options", { kind },
-  );
+export async function registerPasskey(name?: string, kind: "passkey" | "security_key" = "passkey"): Promise<Registered> {
+  const { challenge_id, options } = await api.post<RegisterOptions>("/api/auth/passkey/register/options", { kind });
   const credential = await startRegistration({ optionsJSON: options });
-  await api.post("/api/auth/passkey/register/verify", { challenge_id, credential, name });
+  return api.post<Registered>("/api/auth/passkey/register/verify", { challenge_id, credential, name });
 }
 
-/** Second factor with a passkey or security key: completes a pending login or steps up the session. */
-export async function stepUpWithPasskey(): Promise<void> {
+/** A YubiKey with the link an admin mailed (/konto#yubikey=<token>, server/app/routes/yubikey.py). */
+export async function enrollYubiKeyWithLink(token: string, name?: string): Promise<Registered> {
+  const { challenge_id, options } = await api.post<RegisterOptions>("/api/auth/yubikey/enroll/options", { token });
+  const credential = await startRegistration({ optionsJSON: options });
+  return api.post<Registered>("/api/auth/yubikey/enroll/verify", { token, challenge_id, credential, name });
+}
+
+/** /login#link=<token>: the login link from the mail, the same as typing the code. */
+export function loginWithLink(token: string): Promise<LoginResult> {
+  return api.post<LoginResult>("/api/auth/otp/link", { token });
+}
+
+/** Second factor with a passkey or security key: completes a pending login or steps up the session.
+ * yubikey: only the user's YubiKeys (the YubiKey requirement). */
+export async function stepUpWithPasskey(opts: { yubikey?: boolean } = {}): Promise<void> {
   const { challenge_id, options } = await api.post<
     Options<Parameters<typeof startAuthentication>[0]["optionsJSON"]>
-  >("/api/auth/mfa/passkey/options");
+  >("/api/auth/mfa/passkey/options", { yubikey: !!opts.yubikey });
   const credential = await startAuthentication({ optionsJSON: options });
   await api.post("/api/auth/mfa/passkey/verify", { challenge_id, credential });
 }

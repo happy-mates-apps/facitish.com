@@ -183,8 +183,8 @@ async def broadcast(body: BroadcastIn, admin: Principal = Depends(require_admin)
             raise HTTPException(409, "Bekræftelsen er udløbet. Tjek overslaget igen.")
         if why:
             raise HTTPException(409, "Beskeden eller modtagerne er ændret siden overslaget. Tjek det igen.")
-        if fields["audience"]["kind"] == "all" and not mfa.within(admin.mfa_at, timedelta(minutes=config.settings.stepup_minutes)):
-            raise mfa.mfa_error("stepup_required", "Bekræft med din passkey, sikkerhedsnøgle eller godkendelsesapp først")
+        if fields["audience"]["kind"] == "all":
+            mfa.require_stepup(admin)
         h = service.token_hash(body.confirmation_token)
         if await db.fetch_one(conn, "select 1 from message_broadcasts where confirmation_hash = %s", (h,)):
             raise HTTPException(409, "Beskeden er allerede sendt")

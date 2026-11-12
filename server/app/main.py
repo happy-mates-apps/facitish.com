@@ -32,6 +32,8 @@ from app.routes import messages as messages_routes
 from app.routes import admin_meta
 from app.routes import meta as meta_routes
 from app.routes import mail as mail_routes
+from app.routes import admin_users
+from app.routes import yubikey as yubikey_routes
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
 
@@ -189,6 +191,7 @@ def create_app() -> FastAPI:
 
     for r in (auth.router, ai.router, me.router, security.router, files.router, clips.router, public.router,
               admin_files.router, admin.router,  # admin_files first: /files/folders before /files/{file_id}
+              admin_users.router, yubikey_routes.admin_router, yubikey_routes.router,
               app_store.router, mcp_tools.router, data.router, access_routes.router, features.router, features.admin_router,
               impersonation.router, mcp_oauth.router,
               mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, nats.router, resources.router, consumption.router,

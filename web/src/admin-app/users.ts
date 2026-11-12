@@ -24,6 +24,13 @@ export type AdminUser = {
   feature_ring?: number | null;
   /** Internal (employee) or external (partner, customer): decides which MCP tools and data the user may use. */
   audience: "internal" | "external";
+  /** /admin and security actions accept only a YubiKey (set by an admin). */
+  yubikey_required?: boolean;
+  /** YubiKeys that count for the requirement. */
+  yubikeys?: number;
+  /** The admin who created the user in /admin (null: signed up by logging in). */
+  created_by?: number | null;
+  created_by_name?: string | null;
 };
 
 /** An administrative role as the server describes it (server/app/admin_roles.py). */
@@ -41,6 +48,7 @@ export function userView(u: AdminUser, grace: number) {
   const factors = factorCount(u);
   // Admins need a second factor after the grace logins; other users are only nudged.
   const login: [string, Tone] = test ? ["Kun efterligning", "orange"]
+    : u.yubikey_required ? (u.yubikeys ? ["YubiKey kræves", "green"] : ["Afventer YubiKey", "orange"])
     : u.mfa_required ? ["Kræver MFA", "green"]
     : factors > 0 ? [`${factors} ${factors > 1 ? "nøgler" : "nøgle"}`, "green"]
     : u.role !== "admin" ? ["Kun engangskode", "gray"]

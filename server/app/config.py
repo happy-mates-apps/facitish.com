@@ -60,6 +60,12 @@ class Settings:
     # /admin: a second factor (or a grace login) counts for this long; security actions need one within STEPUP_MINUTES.
     admin_mfa_hours: int = field(default_factory=lambda: _int("ADMIN_MFA_HOURS", 12))
     stepup_minutes: int = field(default_factory=lambda: _int("STEPUP_MINUTES", 15))
+    # YubiKey attestation (app.yubikey): Yubico's root certificates (PEM, a file path or the PEM itself) from
+    # https://developers.yubico.com/PKI/. With them a key's attestation chain is verified ('verified'); without them a
+    # key only counts as a YubiKey when its attestation is signed by a certificate that names Yubico ('issuer').
+    yubico_roots: str | None = field(default_factory=lambda: _env("YUBICO_ROOTS"))
+    # How long a YubiKey link from /admin (POST /api/admin/users/{id}/yubikey/link) is valid.
+    yubikey_link_hours: int = field(default_factory=lambda: _int("YUBIKEY_LINK_HOURS", 24))
     # Captcha on POST /api/auth/otp/start (account creation and login with a code): "pow" (proof of work, no third
     # party) or "off". CAPTCHA_MAX_NUMBER sets the work: the browser needs about half as many SHA-256 hashes.
     captcha: str = field(default_factory=lambda: _env("CAPTCHA", "pow"))

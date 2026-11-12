@@ -46,7 +46,7 @@ web/
       nav.ts                  menugrupper: Overblik · Adgang · Produkt · Integrationer · System
       pages/
         Stats.tsx             /admin                                                  → 01
-        Users.tsx             /admin/users  + UserDrawer.tsx                          → 02, 03
+        Users.tsx             /admin/users  + UserEdit.tsx (full screen, ?user=<id>)  → 02, 03
         Impersonation.tsx     /admin/impersonation                                    → 04
         Features.tsx          /admin/features                                         → 05
         AppStores/            /admin/app-stores  (Overview, Assets, Texts, Links,     → 06–08

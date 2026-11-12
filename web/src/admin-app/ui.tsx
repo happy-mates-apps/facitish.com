@@ -13,12 +13,13 @@ export function Pill({ tone, children, size = 11, style }: { tone: Tone; childre
   );
 }
 
-type BtnKind = "primary" | "outline" | "ghost" | "dark";
+type BtnKind = "primary" | "outline" | "ghost" | "dark" | "danger";
 const BTN: Record<BtnKind, CSSProperties> = {
   primary: { border: 0, background: "#2563eb", color: "#f8fafc" },
   outline: { border: "1px solid #e2e8f0", background: "#ffffff", color: "#020817" },
   ghost: { border: 0, background: "transparent", color: "#020817" },
   dark: { border: 0, background: "#78350f", color: "#ffffff" },
+  danger: { border: 0, background: "#dc2626", color: "#ffffff" },
 };
 
 export function Btn({ kind = "outline", icon: Icon, iconSize = 14, height = 36, onClick, disabled, children, style, title, type = "button", deeplink }: {
