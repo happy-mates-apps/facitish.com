@@ -2,6 +2,7 @@
 (access_requests_list, access_request_decide, user_set_audience). Rules: app/access.py and app/mcp/toolmap.py."""
 
 from app import access, db
+from app.mcp import endpoints
 from app.mcp.common import limit, masked
 from app.mcp.links import link_for
 from app.mcp.registry import Caller, DraftPlan, ToolError, ToolOutput, draft, tool
@@ -103,7 +104,7 @@ async def access_request_decide(args, caller: Caller, conn) -> DraftPlan:
     summary = (f"Godkend i {days or access.DEFAULT_CONFIDENTIAL_DAYS} dage: {who} · {what}" if approve
                else f"Afvis: {who} · {what}")
     return DraftPlan(summary=summary,
-                     impact={"bullets": [f"Klient: {r['client_name']} på {'/mcp' if r['endpoint'] == 'app' else '/mcp/admin'}",
+                     impact={"bullets": [f"Klient: {r['client_name']} på {endpoints.path_for(r['endpoint'])}",
                                          f"Begrundelse: {r['reason']}",
                                          "Gælder kun den MCP-session, der bad om det"]},
                      state={"id": r["id"], "status": r["status"], "audience": r["user_audience"]}, execute=execute,

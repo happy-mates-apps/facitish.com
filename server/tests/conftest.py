@@ -110,6 +110,11 @@ def clean_database():
                         mcp_clients, mcp_tokens, mcp_drafts, mcp_log,
                         data_sources, datasets, dataset_fields, events, kill_switches, meta_dimensions, meta_nodes, meta_objects
                         restart identity cascade""")
+        # The truncate cascades into mcp_endpoints (created_by → users): put the built-in /mcp and /mcp/admin rows back.
+        from app.mcp.endpoints import BUILTIN_ROWS
+        for key, name, description in BUILTIN_ROWS:
+            conn.execute("insert into mcp_endpoints (key, name, description, builtin) values (%s, %s, %s, true) "
+                         "on conflict (key) do nothing", (key, name, description))
         # The features seeded by migration 0006 (truncate cascades to them via features.created_by).
         from app.features_catalog import CATALOG
         for c in CATALOG:

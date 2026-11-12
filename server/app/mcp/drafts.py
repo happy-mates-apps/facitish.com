@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 
 from app import config, db
 from app.logs import audit
+from app.mcp import endpoints
 from app.mcp.registry import HANDLERS, Caller, ToolError, ToolOutput, jsonable, tool
 
 STATUS = {"pending": "Afventer", "confirmed": "Bekræftet", "cancelled": "Annulleret", "expired": "Udløbet", "failed": "Fejlede"}
@@ -30,7 +31,7 @@ def _view(row: dict) -> dict:
 
 
 async def create(server: str, name: str, args: dict, caller: Caller) -> dict:
-    handler = HANDLERS[(server, name)]
+    handler = HANDLERS[(endpoints.handler_server(server), name)]
     async with db.connection() as conn:
         plan = await handler.plan(args, caller, conn)
         await conn.rollback()  # plan() never changes anything
@@ -59,7 +60,7 @@ async def confirm(server: str, draft_id: str, reason: str, caller: Caller) -> di
             await conn.execute("update mcp_drafts set status = 'expired' where id = %s", (draft_id,))
             await conn.commit()
             raise ToolError("Kladden er udløbet. Lav en ny.")
-        handler = HANDLERS[(server, row["tool_name"])]
+        handler = HANDLERS[(endpoints.handler_server(server), row["tool_name"])]
         error = ""
         try:
             plan = await handler.plan(row["args"], caller, conn)
@@ -109,14 +110,15 @@ async def list_for(caller: Caller, server: str | None = None, status: str | None
 
 for _server in ("app", "admin"):
     def _register(server: str):
+        # caller.server, not the closure's: on a dynamic endpoint (app handlers) the draft belongs to that endpoint.
         @tool(server, "confirm_draft")
         async def confirm_draft(args, caller: Caller) -> ToolOutput:
-            d = await confirm(server, args["draftId"], args["reason"], caller)
+            d = await confirm(caller.server, args["draftId"], args["reason"], caller)
             return ToolOutput(d, links=d["links"], text=f"Udført: {d['summary']}")
 
         @tool(server, "cancel_draft")
         async def cancel_draft(args, caller: Caller) -> ToolOutput:
-            d = await cancel(server, args["draftId"], caller)
+            d = await cancel(caller.server, args["draftId"], caller)
             return ToolOutput(d, text="Kladden er annulleret. Intet er ændret.")
 
     _register(_server)

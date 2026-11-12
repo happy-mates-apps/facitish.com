@@ -1,6 +1,6 @@
 ---
 name: gaer-mcp
-description: The two MCP servers in Gær — /mcp for the app (acts as the user, own data) and /mcp/admin for admin (admin role, every change is a draft). Use when adding or changing an MCP tool, the OAuth flow, drafts or deep links.
+description: The MCP servers in Gær — /mcp for the app (acts as the user, own data), /mcp/admin for admin (admin role, every change is a draft) and the endpoints defined in MCP Studio on /mcp/<key>. Use when adding or changing an MCP tool, an endpoint, the OAuth flow, drafts or deep links.
 ---
 
 # MCP servers (gaer-mcp)
@@ -8,11 +8,27 @@ description: The two MCP servers in Gær — /mcp for the app (acts as the user,
 Contract: `specs/mcp/SPEC.md`. Tools: `specs/mcp/catalog.json` — add a tool there first; a test fails if
 the registered tools and the catalog differ. Code: `server/app/mcp/`.
 
-| | `/mcp` | `/mcp/admin` |
-|---|---|---|
-| Who | full session | `role = 'admin'`, not a test account, not impersonating; consent needs a fresh second factor |
-| Data | caller's own rows only | whole instance |
-| Writes | own data directly; delete/export → draft | always draft → `confirm_draft` |
+| | `/mcp` | `/mcp/admin` | `/mcp/<key>` (MCP Studio) |
+|---|---|---|---|
+| Who | full session | `role = 'admin'`, not a test account, not impersonating; consent needs a fresh second factor | full session, and the endpoint's audience (all · internal · admin), checked on every request |
+| Data | caller's own rows only | whole instance | caller's own rows only (the app's handlers) + Data tools from the catalog |
+| Writes | own data directly; delete/export → draft | always draft → `confirm_draft` | as `/mcp` |
+
+## Endpoints defined at runtime (`/developer/studio/mcp`)
+- Every endpoint is a row in `mcp_endpoints` (migration 0030, `app/mcp/endpoints.py`): `app` and `admin` are `builtin`;
+  the rest are made in MCP Studio with key (`^[a-z][a-z0-9-]{1,31}$`, not in `RESERVED`), name, description,
+  instructions (sent on initialize), audience and enabled. `/mcp/{key}` is one Starlette route (`main.py`) served by
+  `transport.DynamicEndpoints`: the row is read on every request, so a change takes effect at once; the session
+  manager per key starts on first use inside the task group `mcp_sessions` holds open.
+- Scope is `mcp` (`oauth.scope_for`), the resource URL is `/mcp/<key>`, metadata at
+  `/.well-known/oauth-protected-resource/mcp/<key>`. A dynamic endpoint runs the **app's** Code tool handlers
+  (`endpoints.handler_server`) — never admin tools — plus Data tools; its tool list is the endpoint map
+  (`mcp_tool_endpoints.endpoint = key`). New endpoints start with the core tools (`studio.STARTER_TOOLS`).
+- API: `/api/admin/studio` (`routes/studio.py`, admin section `/developer`, roles Data and Fuld): overview,
+  `mcp-endpoints` CRUD (step-up), `PUT …/tools`, `…/tools/{name}/invoke` (as the admin, `Caller.via = "studio"`),
+  `…/log`. Every change writes `audit()` (`mcp_endpoint.created/updated/deleted/tools`).
+- `Caller.server` is the endpoint key; `mcp_log.server` and `mcp_drafts.server` hold it, so a draft made on
+  `/mcp/salg` is confirmed there (`drafts.py` uses `caller.server`).
 
 ## Files
 | File | What |

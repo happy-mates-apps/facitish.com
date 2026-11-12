@@ -58,7 +58,9 @@ def _fill(template: str, values: dict) -> str | None:
 
 
 def link_for(server: str, tool: str, values: dict, label: str | None = None) -> dict | None:
-    """The tool's catalog link filled with `values`, or None when it cannot be filled or does not resolve."""
+    """The tool's catalog link filled with `values`, or None when it cannot be filled or does not resolve.
+    `server` is an endpoint key; dynamic endpoints use the app's catalog entries."""
+    server = "admin" if server == "admin" else "app"
     spec = next((t for t in CATALOG["tools"] if t["server"] == server and t["name"] == tool), None)
     link = spec and spec.get("link")
     if not link:

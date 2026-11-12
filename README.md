@@ -40,17 +40,17 @@ herfra ind i sin fork.
 | `/user/mail`, `/admin/mail` | logget ind (`/admin/mail`: admin, Drift) | **Mail, kalender og kontakter**: personlig postkasse i Stalwart, fælles postkasser, kalendere og adressebøger med deling, udgående mail via Lettermint, mail slettes efter højst 30 dage. `/user/mail` til brugeren, `/admin/mail` til drift. |
 | `/beskeder`, `/samtaler`, `/admin/messages` | logget ind (`/admin/messages`: admin, Support, Privatliv og Drift) | **Beskeder** fra administrationen: udsendelse i to trin med overslag, indbakke på `/beskeder`, SMS kun med brugerens eget ja, e-mail, svar som privat tråd med administrationen. `/admin/messages` til afsendelse, svar, levering og regler. **Samtaler**: Fællessamtalen og direkte beskeder med anmeld, bloker og ordfilter; moderering i `/admin/messages/moderation`. |
 | `/forbind`, `/go` | logget ind | **MCP-samtykke** (`/forbind`: en klient beder om adgang; `mcp:admin` kræver frisk anden faktor) og **deep links** (`/go?path=…&focus=…`, også `/admin/go`), der åbner en side og fokuserer et `data-deeplink`-anker. |
-| `/develop` | logget ind | **Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne. |
+| `/developer/…` | admin med rollen Data eller Fuld | **Udviklerportal**: overblik over API-kilder, datakatalog, MCP-endpoints og værktøjer, og **Studio**. API Studio registrerer et API med en kildebeskrivelse (YAML, cURL eller OpenAPI), tester kaldet og udstiller datasættene i kataloget. MCP Studio definerer MCP-endpoints på `/mcp/<nøgle>` og vælger deres værktøjer. Desuden promptkataloget og træstrukturer. |
 | `/admin/…` | admin (+ MFA) | Administration — en selvstændig app (`web/admin.html`). Kræver anden faktor efter tre logins med engangskode. Alt logges. |
 | `/m/…` | logget ind | Mobil-app (PWA) med bundmenu, AI, klip, filer og profil. |
 | `/extension/…` | i browserudvidelsen | Sidepanelet: aktuel side, klip, tags for siden og AI med siden som kontekst. |
 | `/office-addin?app=word\|excel\|powerpoint\|outlook` | Office (offentlig skal) | Router for Word, Excel, PowerPoint og Outlook → værktøjerne under `/extension/tools/…`. |
 | `/extension/tools/word\|outlook\|document` | logget ind, i Office | Office-værktøjer: indsæt/gem klip og AI med dokumentet eller mailen som kontekst. |
 | `/api/…` | pr. endpoint | JSON-API. Ændringer kræver headeren `X-Gaer: 1` (CSRF). |
-| `/mcp`, `/mcp/admin` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
+| `/mcp`, `/mcp/admin`, `/mcp/<key>` | MCP-klienter (OAuth) | MCP-servere: appen som den indloggede bruger, admin med kladder, og egne endpoints fra MCP Studio på `/mcp/<nøgle>`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`. |
 | `/health` | udrulning | Sundhedstjek (database + version), bruges af `deploy/deploy.sh`. |
 
-<details><summary>Alle ruter (105)</summary>
+<details><summary>Alle ruter (110)</summary>
 
 | Sti | Svarer | Adgang | Side |
 | --- | --- | --- | --- |
@@ -78,8 +78,12 @@ herfra ind i sin fork.
 | `/forbind` | appen | logget ind | Forbind MCP-klient |
 | `/godkend` | appen | logget ind | Godkend adgang |
 | `/go` | appen | alle | Deep link |
-| `/develop` | appen | logget ind | Udvikling |
-| `/develop/trae` | appen | logget ind | Træstrukturer |
+| `/developer` | appen | admin | Udvikler |
+| `/developer/studio` | appen | admin | Studio |
+| `/developer/studio/api` | appen | admin | API Studio |
+| `/developer/studio/mcp` | appen | admin | MCP Studio |
+| `/developer/prompts` | appen | admin | Promptkatalog |
+| `/developer/trae` | appen | admin | Træstrukturer |
 | `/admin` | admin-appen | admin | Statistik |
 | `/admin/go` | admin-appen | admin | Deep link |
 | `/admin/users` | admin-appen | admin | Brugere og roller |
@@ -157,6 +161,7 @@ herfra ind i sin fork.
 | `/api/{path}` | serveren | alle | API · kan indlejres |
 | `/mcp` | serveren | OAuth | MCP (appen) |
 | `/mcp/admin` | serveren | OAuth | MCP (admin) |
+| `/mcp/{key}` | serveren | OAuth | MCP (eget endpoint fra MCP Studio) |
 | `/.well-known/{name}` | serveren | alle | OAuth-metadata |
 | `/health` | serveren | alle | Sundhedstjek |
 

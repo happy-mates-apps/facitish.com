@@ -99,7 +99,7 @@ export default function ExtensionMeta() {
     return (
       <div className="card">
         <span className="eyebrow">Browserudvidelse</span>
-        <p className="small">Fanen Tags vises i sidepanelet i browserudvidelsen. Prøv tagging på <a href="/develop/trae">/develop/trae</a>.</p>
+        <p className="small">Fanen Tags vises i sidepanelet i browserudvidelsen. Prøv tagging på <a href="/developer/trae">/developer/trae</a>.</p>
       </div>
     );
   }

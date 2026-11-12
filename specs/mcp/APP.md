@@ -31,8 +31,8 @@ Faner på en endpoint-side er query-parametre: `?fane=vaerktoejer`, `?fane=monit
 ## Endpoints
 | Type | Eksempel | Hvad |
 | --- | --- | --- |
-| Indbygget | `/mcp/app`, `/mcp/admin` | De to servere fra `catalog.json` |
-| Fra kataloget | `/mcp/data` | Læseværktøjer pr. datasæt markeret til MCP i datakataloget; maskering følger kataloget (se `specs/admin-app/DATA.md`) |
+| Indbygget | `/mcp`, `/mcp/admin` | De to servere fra `catalog.json` |
+| Eget endpoint | `/mcp/salg` | **Bygget.** Defineres i MCP Studio (`/developer/studio/mcp`, `server/app/mcp/endpoints.py`, tabel `mcp_endpoints`): nøgle, navn, beskrivelse, instruktioner til modellen, hvem der må forbinde (alle · interne · admins) og hvilke værktøjer det tilbyder — appens kodeværktøjer og dataværktøjer fra kataloget (maskering følger kataloget, se `specs/admin-app/DATA.md`). Handler som den bruger, der logger ind (scope `mcp`); kerneværktøjerne er altid med. |
 | API-kilde | `/mcp/x/dawa` | Værktøjer ud fra en kildebeskrivelse |
 | Ekstern MCP | `/mcp/x/github` | Videresender til en ekstern MCP-server gennem Gær-login; nøgle fra en miljøvariabel |
 

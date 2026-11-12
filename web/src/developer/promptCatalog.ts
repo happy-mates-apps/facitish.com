@@ -1,4 +1,4 @@
-// The prompt catalogue on /develop: ready-made prompts for Claude that support the development process.
+// The prompt catalogue on /developer/prompts: ready-made prompts for Claude that support the development process.
 // Add a prompt by adding an entry here. Fill-in fields are written in [SQUARE BRACKETS]; the page highlights them.
 
 export type Prompt = {

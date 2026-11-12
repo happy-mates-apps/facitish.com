@@ -48,7 +48,7 @@ export default function Catalog() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
           {stat("Datasæt", fmt(data.stats.datasets), `i ${data.stats.sources} datakilder`)}
           {stat("Felter beskrevet", `${data.stats.described_pct} %`, `af ${fmt(data.stats.fields)} felter`)}
-          {stat("Markeret til MCP", fmt(data.stats.mcp), "bliver værktøjer på /mcp/data")}
+          {stat("Markeret til MCP", fmt(data.stats.mcp), "har et dataværktøj på et MCP-endpoint")}
           {stat("Afmaskeringer, 30 dage", fmt(data.stats.unmasks_30d), <Link to="/logs/audit">se audit-loggen →</Link>)}
         </div>
       )}

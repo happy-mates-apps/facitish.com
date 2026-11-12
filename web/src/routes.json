@@ -145,20 +145,20 @@
    ]
   },
   {
-   "id": "develop",
-   "docs_path": "/develop",
+   "id": "developer",
+   "docs_path": "/developer/…",
    "who": {
-    "en": "logged in",
-    "da": "logget ind"
+    "en": "admin with the role Data or Fuld",
+    "da": "admin med rollen Data eller Fuld"
    },
    "what": {
-    "en": "**Prompt catalogue** for the development process: ready-made prompts to paste into Claude (artifacts, new features, endpoints, migrations, tests, review, debugging), filtered by category and search, copied with one click. Linked from the home page. The prompts live in the code (`web/src/develop/prompts.ts`). `/develop/trae` shows **tree structures** (`web/src/tree/`: TreeView, TreeSelect) against the real `/api/meta`: four renderings and the input fields (one node, a start node, tags, a subtree filter, creating a node).",
-    "da": "**Promptkatalog** til udviklingsprocessen: færdige prompts til Claude (artifacts, nye features, endpoints, migrationer, tests, review, fejlfinding) med kategori, søgning og kopiér-knap. Linket fra forsiden. `/develop/trae` viser **træstrukturer** (TreeView, TreeSelect) mod de rigtige data: fire visninger og inputfelterne."
+    "en": "**Developer portal**: a dashboard over API sources, the data catalog, MCP endpoints and tools, and the **Studio**. `/developer/studio/api` (**API Studio**) registers an API with a source description (YAML, or imported from a cURL command or an OpenAPI document), tests the call and saves it so its datasets land in the data catalog (`/admin/data`). `/developer/studio/mcp` (**MCP Studio**) defines MCP endpoints on `/mcp/<key>` — name, audience, instructions and which tools they offer (the app's Code tools and Data tools from the catalog) — tries a tool, shows the log and what a client needs to connect. `/developer/prompts` is the **prompt catalogue** (ready-made prompts for Claude, in `developer/promptCatalog.ts`) and `/developer/trae` shows **tree structures** (`web/src/tree/`) against the real `/api/meta`. `/develop` redirects here.",
+    "da": "**Udviklerportal**: overblik over API-kilder, datakatalog, MCP-endpoints og værktøjer, og **Studio**. API Studio registrerer et API med en kildebeskrivelse (YAML, cURL eller OpenAPI), tester kaldet og udstiller datasættene i kataloget. MCP Studio definerer MCP-endpoints på `/mcp/<nøgle>` og vælger deres værktøjer. Desuden promptkataloget og træstrukturer."
    },
    "code": [
-    "pages/Develop.tsx",
-    "develop/prompts.ts",
-    "pages/Trees.tsx",
+    "developer/",
+    "server/app/routes/studio.py",
+    "server/app/mcp/endpoints.py",
     "tree/"
    ]
   },
@@ -265,18 +265,19 @@
   },
   {
    "id": "mcp",
-   "docs_path": "`/mcp`, `/mcp/admin`",
+   "docs_path": "`/mcp`, `/mcp/admin`, `/mcp/<key>`",
    "who": {
     "en": "MCP clients (OAuth bearer)",
     "da": "MCP-klienter (OAuth)"
    },
    "what": {
-    "en": "**MCP servers** (Streamable HTTP): the app as the logged-in user, and admin where every change is a draft. Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`.",
-    "da": "MCP-servere: appen som den indloggede bruger og admin med kladder. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`."
+    "en": "**MCP servers** (Streamable HTTP): the app as the logged-in user, admin where every change is a draft, and the endpoints defined in `/developer/studio/mcp` on `/mcp/<key>` (as the user, with the tools chosen there). Consent page `/forbind`; deep links `/go` and `/admin/go`; hub in `/admin/mcp`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`.",
+    "da": "MCP-servere: appen som den indloggede bruger, admin med kladder, og egne endpoints fra MCP Studio på `/mcp/<nøgle>`. OAuth: `/.well-known/oauth-*`, `/mcp/authorize`, `/mcp/token`, `/mcp/register`."
    },
    "code": [
     "server/app/mcp/",
-    "skill `gaer-mcp`"
+    "skill `gaer-mcp`",
+    "server/app/mcp/endpoints.py"
    ]
   },
   {
@@ -478,17 +479,45 @@
    "title": "Deep link"
   },
   {
-   "path": "/develop",
-   "group": "develop",
+   "path": "/developer",
+   "group": "developer",
    "app": "app",
-   "access": "user",
-   "title": "Udvikling"
+   "access": "admin",
+   "title": "Udvikler"
   },
   {
-   "path": "/develop/trae",
-   "group": "develop",
+   "path": "/developer/studio",
+   "group": "developer",
    "app": "app",
-   "access": "user",
+   "access": "admin",
+   "title": "Studio"
+  },
+  {
+   "path": "/developer/studio/api",
+   "group": "developer",
+   "app": "app",
+   "access": "admin",
+   "title": "API Studio"
+  },
+  {
+   "path": "/developer/studio/mcp",
+   "group": "developer",
+   "app": "app",
+   "access": "admin",
+   "title": "MCP Studio"
+  },
+  {
+   "path": "/developer/prompts",
+   "group": "developer",
+   "app": "app",
+   "access": "admin",
+   "title": "Promptkatalog"
+  },
+  {
+   "path": "/developer/trae",
+   "group": "developer",
+   "app": "app",
+   "access": "admin",
    "title": "Træstrukturer"
   },
   {
@@ -1069,6 +1098,13 @@
    "app": "server",
    "access": "token",
    "title": "MCP (admin)"
+  },
+  {
+   "path": "/mcp/{key}",
+   "group": "mcp",
+   "app": "server",
+   "access": "token",
+   "title": "MCP (eget endpoint fra MCP Studio)"
   },
   {
    "path": "/.well-known/{name}",

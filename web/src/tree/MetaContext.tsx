@@ -1,4 +1,4 @@
-// Objects and the context of a node, shared by /develop/trae and the browser extension's Tags tab.
+// Objects and the context of a node, shared by /developer/trae and the browser extension's Tags tab.
 // ObjectRow: one tagged object with its tags. ContextView: GET /api/meta/context — parents, children, siblings,
 // the objects at the node and related nodes (the same objects tagged elsewhere).
 import { useEffect, useState } from "react";

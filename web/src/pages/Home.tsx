@@ -216,9 +216,11 @@ export default function Home() {
                 <a href="/m" className="side-link" style={{ padding: "0 6px", margin: "0 -6px", width: "auto" }}>
                   <Icon name="phone" size={18} /><span style={{ flex: 1 }}>Mobil-app</span><span className="mono tiny muted">/m</span>
                 </a>
-                <Link to="/develop" className="side-link" style={{ padding: "0 6px", margin: "0 -6px", width: "auto" }}>
-                  <Icon name="code" size={18} /><span style={{ flex: 1 }}>Udvikling — promptkatalog</span><span className="mono tiny muted">/develop</span>
-                </Link>
+                {user.role === "admin" && user.admin_sections.includes("/developer") && (
+                  <Link to="/developer" className="side-link" style={{ padding: "0 6px", margin: "0 -6px", width: "auto" }}>
+                    <Icon name="code" size={18} /><span style={{ flex: 1 }}>Udvikler — API og MCP Studio</span><span className="mono tiny muted">/developer</span>
+                  </Link>
+                )}
                 <a href="/w/" className="side-link" style={{ padding: "0 6px", margin: "0 -6px", width: "auto" }}>
                   <Icon name="globe" size={18} /><span style={{ flex: 1 }}>Den offentlige side</span><span className="mono tiny muted">/w</span>
                 </a>
