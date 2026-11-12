@@ -421,7 +421,7 @@ async def _query_api(d: dict, fields: list[dict], body: QueryIn, sort_field: str
         result = await sources_mod.fetch(spec, ds, api_params, page=body.offset // body.limit + 1 if paged else None,
                                          size=body.limit, secrets=secrets)
     except FetchError as e:
-        raise HTTPException(502, e.message)
+        raise HTTPException(424, e.message)
     rows = [r for r in result["rows"] if all(_local_match(r.get(f.field), f.op, f.value) for f in local)]
     if sort_field:
         rows.sort(key=lambda r: (r.get(sort_field) is None, str(r.get(sort_field) or "")), reverse=desc)

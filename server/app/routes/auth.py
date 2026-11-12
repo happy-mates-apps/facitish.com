@@ -165,7 +165,7 @@ async def issue_code(conn, channel: str, contact: str, meta: RequestMeta, *, pur
         await auth_event(conn, "otp.sent", ok=False, meta=meta, contact=contact, user_id=user_id,
                          reason=f"{'mail' if channel == 'email' else 'sms'}_error", error=str(e), **detail)
         await conn.commit()
-        raise HTTPException(502, "Vi kunne ikke sende mailen. Prøv igen." if channel == "email"
+        raise HTTPException(424, "Vi kunne ikke sende mailen. Prøv igen." if channel == "email"
                             else "Vi kunne ikke sende SMS'en. Prøv igen.")
     await auth_event(conn, "otp.sent", ok=True, meta=meta, contact=contact, user_id=user_id, **detail)
     await events.emit("auth.otp_sent", ref=channel)

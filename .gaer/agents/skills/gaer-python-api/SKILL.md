@@ -23,6 +23,8 @@ Stack: FastAPI, psycopg 3 (async pool, raw SQL, dict rows), py_webauthn, boto3 f
 - Always scope user data by owner: `where id = %s and user_id = %s`. Return 404 (not 403) for others' rows.
 - Errors: `HTTPException(status, "Dansk besked til brugeren")`. If you must log a failure before raising,
   `await conn.commit()` first, or the rollback removes the log line.
+- When an external service the server called fails (mail, AI, an API source, NATS), answer **424** — never 502,
+  503 or 504: Cloudflare replaces those with its own HTML page, so the Danish message never reaches the user.
 - Write `audit()` for every change (see `gaer-audit`).
 - Personal data: add it to `build_user_export` and `erase_user` in `app/gdpr.py`.
 

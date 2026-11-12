@@ -51,7 +51,7 @@ def backend():
 
 
 def backend_error(e: MailBackendError) -> HTTPException:
-    return HTTPException(502, f"Mailserveren svarede med en fejl: {e}")
+    return HTTPException(424, f"Mailserveren svarede med en fejl: {e}")
 
 
 def clean_address(value: str) -> str:

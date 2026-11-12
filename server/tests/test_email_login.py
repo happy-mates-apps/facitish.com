@@ -63,7 +63,7 @@ async def test_phone_login_is_opt_in(client, settings):
 async def test_mail_failure_is_logged_and_reported(client, settings, owner_conn):
     settings(mail_provider="ahasend", ahasend_api_key=None, ahasend_account_id=None, mail_from=None)
     r = await client.post("/api/auth/otp/start", json={"email": "anna@example.com"})
-    assert r.status_code == 502
+    assert r.status_code == 424
     row = owner_conn.execute("select result, detail from auth_log where event = 'otp.sent'").fetchone()
     assert row[0] == "fail" and row[1]["reason"] == "mail_error" and "AHASEND_API_KEY" in row[1]["error"]
     assert owner_conn.execute("select count(*) from otp_codes").fetchone()[0] == 0

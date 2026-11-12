@@ -88,7 +88,7 @@ async def test_unhealthy_and_unreachable(client, nats_on):
     body = (await client.get("/api/admin/nats")).json()
     assert body["reachable"] is False and "svarer ikke" in body["error"]
     r = await client.get("/api/admin/nats/connz")
-    assert r.status_code == 502
+    assert r.status_code == 424
 
 
 async def test_endpoints_are_whitelisted_and_secrets_masked(client, nats_on):

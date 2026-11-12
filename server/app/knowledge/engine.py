@@ -133,9 +133,9 @@ async def _chat(messages: list[dict], user_id: int) -> str:
             r = await client.post(f"{s.ai_base_url.rstrip('/')}/chat/completions", json=payload,
                                   headers={"Authorization": f"Bearer {s.ai_api_key}"})
     except httpx.HTTPError as e:
-        raise HTTPException(502, "AI-tjenesten kunne ikke nås.") from e
+        raise HTTPException(424, "AI-tjenesten kunne ikke nås.") from e
     if r.status_code >= 300:
-        raise HTTPException(502, f"AI-tjenesten svarede {r.status_code}.")
+        raise HTTPException(424, f"AI-tjenesten svarede {r.status_code}.")
     body = r.json()
     text = ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
     usage = body.get("usage") or {}

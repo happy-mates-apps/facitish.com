@@ -380,7 +380,7 @@ async def test_backend_failure_rolls_back(make_client, mailserver, owner_conn):
     # A refused change leaves no row behind.
     mailserver.fail = "ensure_collection"
     r = await anne.post("/api/mail/users/me/calendars", json={"name": "Nej"})
-    assert r.status_code == 502
+    assert r.status_code == 424
     assert owner_conn.execute("select count(*) from mail_collections where name = 'Nej'").fetchone()[0] == 0
 
 

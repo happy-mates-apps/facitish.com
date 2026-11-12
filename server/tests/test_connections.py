@@ -76,7 +76,7 @@ async def test_connections_lists_code_and_sources(make_client, owner_conn, monke
     src = (await admin.post("/api/admin/data/sources", json={"spec_yaml": SPEC})).json()["id"]
     ds = next(d for d in (await admin.get("/api/admin/data/catalog")).json()["datasets"] if d["source_id"] == src)["id"]
     assert (await admin.post(f"/api/admin/data/datasets/{ds}/query", json={})).status_code == 200
-    assert (await admin.post(f"/api/admin/data/datasets/{ds}/query", json={})).status_code == 502
+    assert (await admin.post(f"/api/admin/data/datasets/{ds}/query", json={})).status_code == 424
 
     r = await admin.get("/api/admin/data/connections")
     assert r.status_code == 200

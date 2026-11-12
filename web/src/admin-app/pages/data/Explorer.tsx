@@ -46,6 +46,8 @@ export default function Explorer({ dataset, onUnmasked }: { dataset: Dataset; on
     setSort(null);
     setOffset(0);
     setRow(null);
+    setResult(null);
+    setError(null);
   }, [dataset.id]);
 
   const columns = result?.columns ?? [];

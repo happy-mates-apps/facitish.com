@@ -135,7 +135,7 @@ async def test_source_uses_a_secret_only_with_an_approved_grant(make_client, own
     catalog = (await four.get("/api/admin/data/catalog")).json()
     ds = next(d for d in catalog["datasets"] if d["source_id"] == src)["id"]
     r = await four.post(f"/api/admin/data/datasets/{ds}/query", json={})
-    assert r.status_code == 502 and "Brug i kilde" in r.json()["detail"]
+    assert r.status_code == 424 and "Brug i kilde" in r.json()["detail"]
 
     # Four asks for "Brug i kilde"; A, R and C approve.
     other = (await boss.post("/api/admin/secrets", json={"group_id": gid, "name": "andet", "value": VALUE})).json()["id"]
@@ -176,7 +176,7 @@ async def test_source_uses_a_secret_only_with_an_approved_grant(make_client, own
     await four.post(f"/api/admin/data/datasets/{ds}/query", json={})
     assert fake_api[-1]["headers"]["Authorization"] == "Bearer rotated-value-9999"
     assert (await two.post(f"/api/admin/secrets/{sid}/grants/{grant['id']}/revoke")).status_code == 200
-    assert (await four.post(f"/api/admin/data/datasets/{ds}/query", json={})).status_code == 502
+    assert (await four.post(f"/api/admin/data/datasets/{ds}/query", json={})).status_code == 424
     actions = [r[0] for r in owner_conn.execute(
         "select action from audit_log where table_name = 'secrets' and row_id = %s order by id", (str(sid),))]
     assert "secret.access_granted" in actions and actions[-1] == "secret.access_ended"

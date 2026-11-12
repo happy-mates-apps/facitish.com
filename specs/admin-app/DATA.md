@@ -70,13 +70,13 @@ Editor til kildebeskrivelsen, "Hent fra OpenAPI-URL", "Lad AI foreslå felter" (
 
 ## Kildebeskrivelse (format v1)
 ```yaml
-kilde: dawa
-navn: Dataforsyningen · Adresser
+kilde: energidata
+navn: Energi Data Service
 type: rest                       # rest | graphql | openapi | mcp | postgres
-base_url: https://api.dataforsyningen.dk
+base_url: https://api.energidataservice.dk
 auth:
   type: ingen                    # ingen | bearer | header | basic | oauth2
-  # hemmelighed: data-bi/dawa    # navnet i Hemmeligheder (gruppe/navn[@miljø]), aldrig selve nøglen
+  # hemmelighed: data-bi/energidata  # navnet i Hemmeligheder (gruppe/navn[@miljø]), aldrig selve nøglen
   # header: X-Api-Key            # type header
   # brugernavn: gaer             # type basic (adgangskoden er hemmeligheden)
   # token_url: https://…/token   # type oauth2: client credentials; hemmeligheden er client secret
@@ -84,26 +84,35 @@ auth:
   # scope: data.read
   # headers:                     # op til 5 ekstra headers, altid fra hemmeligheder
   #   X-Partner-Id: { hemmelighed: data-bi/partner-id }
-grænser: { kald_pr_minut: 60, timeout_s: 10, cache_min: 60 }
+grænser: { kald_pr_minut: 20, timeout_s: 10, cache_min: 60 }
 
 datasæt:
-  - id: adresser
-    navn: Adresser
-    kald: GET /adresser
+  - id: elspotpriser
+    navn: Elspotpriser
+    kald: GET /dataset/Elspotprices
     parametre:
-      q:      { type: tekst, navn: Søg }
-      postnr: { type: tal,   navn: Postnr. }
-    sider:   { type: side, parameter: side, størrelse: per_side, max: 1000 }
-    rækker:  $[*]                # JSONPath til listen i svaret
-    nøgle:   id
+      start: { type: dato, navn: Fra }
+      end:   { type: dato, navn: Til }
+    # type: side sender sidenummeret i parameter; type: offset sender antal rækker, der springes over
+    sider:   { type: offset, parameter: offset, størrelse: limit, max: 100 }
+    rækker:  $.records[*]        # JSONPath til listen i svaret
     felter:
-      id:      { type: uuid }
-      vej:     { sti: adgangsadresse.vejstykke.navn, navn: Vej }
-      postnr:  { sti: adgangsadresse.postnummer.nr,  navn: Postnr. }
-      by:      { sti: adgangsadresse.postnummer.navn, navn: By }
+      HourDK:       { type: dato, navn: Time }
+      PriceArea:    { navn: Prisområde }
+      SpotPriceDKK: { type: tal, navn: Spotpris DKK/MWh }
     relationer:
-      - fra: postnr
-        til: postnumre.nr
+      - fra: PriceArea
+        til: co2.PriceArea
+
+  - id: co2
+    navn: CO2-udledning
+    kald: GET /dataset/CO2Emis
+    sider:   { type: offset, parameter: offset, størrelse: limit, max: 100 }
+    rækker:  $.records[*]
+    felter:
+      Minutes5DK:  { type: dato, navn: Tidspunkt }
+      PriceArea:   { navn: Prisområde }
+      CO2Emission: { type: tal, navn: g CO2/kWh }
 ```
 
 ## Regler

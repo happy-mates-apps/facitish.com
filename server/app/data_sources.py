@@ -255,12 +255,13 @@ def _parse_dataset(d, i: int, default_class: str, seen: set) -> dict:
     paging = None
     if d.get("sider"):
         s = d["sider"]
-        if not isinstance(s, dict) or s.get("type") != "side":
-            raise SpecError(f"{where}: sider understøtter kun type: side")
+        if not isinstance(s, dict) or s.get("type") not in ("side", "offset"):
+            raise SpecError(f"{where}: sider understøtter kun type: side eller type: offset")
         page_param, size_param = _str(s.get("parameter"), f"{where}: sider.parameter"), _str(s.get("størrelse"), f"{where}: sider.størrelse")
         if not FIELD_RE.match(page_param) or not FIELD_RE.match(size_param):
             raise SpecError(f"{where}: sider.parameter og sider.størrelse skal være parameternavne")
-        paging = {"param": page_param, "size_param": size_param, "max": max(1, min(int(s.get("max", 100)), MAX_ROWS))}
+        paging = {"type": s["type"], "param": page_param, "size_param": size_param,
+                  "max": max(1, min(int(s.get("max", 100)), MAX_ROWS))}
 
     rows = _str(d.get("rækker", d.get("raekker", "$[*]")), f"{where}: rækker")
     if not ROWS_RE.match(rows):
@@ -471,8 +472,10 @@ async def fetch(spec: dict, ds: dict, params: dict[str, str], page: int | None =
     checked before the cache, so a source that loses its access stops answering at once."""
     query = {k: v for k, v in params.items() if k in ds["params"] and v not in (None, "")}
     if ds["paging"] and page is not None:
-        query[ds["paging"]["param"]] = str(page)
-        query[ds["paging"]["size_param"]] = str(min(size or 50, ds["paging"]["max"]))
+        page_size = min(size or 50, ds["paging"]["max"])
+        # type side sends the page number; type offset sends how many rows to skip
+        query[ds["paging"]["param"]] = str((page - 1) * page_size if ds["paging"]["type"] == "offset" else page)
+        query[ds["paging"]["size_param"]] = str(page_size)
     url = spec["base_url"] + ds["path"] + (("?" + urlencode(query)) if query else "")
     if urlsplit(url).hostname != spec["host"]:
         raise FetchError("Adressen peger uden for kildens vært")
