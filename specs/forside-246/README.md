@@ -1,7 +1,7 @@
 # Design: Facit · 246 — forside
 
 Kilde: Design-lærredet „Facit · 246“ — https://claude.ai/artifact/VVwsKiPjqvYiGDxMPCPy23
-(eksporteret 2026-11-05). Bygget med Happy Mates Design System.
+(eksporteret 2026-11-05, opdateret 2026-11-08). Bygget med Happy Mates Design System.
 
 ## Indhold
 En scroll-fortælling i fire sektioner om tandstikker-scenen i *Rain Man* (1988) og pointen
@@ -9,10 +9,10 @@ En scroll-fortælling i fire sektioner om tandstikker-scenen i *Rain Man* (1988)
 
 | Sektion | Id | Hvad |
 | --- | --- | --- |
-| Tallet | `#top` | Stort „246“; tryk afslører linje for linje. Sprogvælger DA · EN · DE · SV · NO. |
+| Tallet | `#top` | Stort „246“; tryk hvor som helst i sektionen afslører linje for linje. Sprogvælger DA · EN · DE · SV · NO. |
 | Gulvet | `#gulvet` | 246 spredte tandstikkere; „Tæl dem“ viser tre klynger á 82. |
 | Æsken | `#aesken` | 250 på æsken − 4 tilbage = 246; „Vis mellemregningen“. |
-| Facit | `#facit` | Pointen om autistiske hjerner + Happy Mates-fodnote og link til happymates.ai. |
+| Facit | `#facit` | Pointen om autistiske hjerner, „ingen to autister er ens“ + Happy Mates-fodnote og knap til happymates.ai. |
 
 En flydende knap („Videre“ / „Forfra“) springer til næste sektion. Animationer respekterer
 `prefers-reduced-motion`.
