@@ -18,6 +18,14 @@ body { font-size: 14px; line-height: normal; }
 .tg-row:hover { background: #f8fafc !important; }
 .tg-nav:hover { background: rgba(255, 255, 255, 0.06) !important; color: #ffffff !important; }
 
+/* Side menu: only the list scrolls (thin, dark scrollbar); the search field keeps the dark look when focused. */
+.tg-side-nav { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.25) transparent; }
+.tg-side-tool:hover { background: rgba(255, 255, 255, 0.1) !important; color: #ffffff !important; }
+.tg-admin .tg-side-search { appearance: none; -webkit-appearance: none; }
+.tg-admin .tg-side-search::-webkit-search-cancel-button, .tg-admin .tg-side-search::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+.tg-admin .tg-side-search::placeholder { color: rgba(255, 255, 255, 0.45); }
+.tg-admin .tg-side-search:focus { border-color: rgba(255, 255, 255, 0.4) !important; box-shadow: none; }
+
 /* Legacy /admin pages moved in unchanged: give them the old page layout inside the new shell. */
 .tg-legacy { display: flex; flex-direction: column; gap: 20px; font-size: 16px; line-height: 1.5; }
 
@@ -32,6 +40,8 @@ body { font-size: 14px; line-height: normal; }
 @media (max-width: 900px) {
   .tg-shell { flex-direction: column; }
   .tg-side { position: static !important; width: 100% !important; height: auto !important; }
+  .tg-side-nav { overflow: visible !important; }
+  .tg-side-heading { position: static !important; }
 }
 
 /* /admin/consumption tables: first and last cell line up with the card's padding. */
