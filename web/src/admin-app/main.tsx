@@ -59,6 +59,7 @@ import AdoptionRoutes from "./pages/adoption/Routes";
 import AdoptionConsole from "./pages/adoption/Console";
 import AdoptionAccess from "./pages/adoption/Access";
 import DataTools from "./pages/data/Tools";
+import DataTransfer from "./pages/data/Transfer";
 import Access from "./pages/Access";
 import LoginProviders from "./pages/loginProviders/Overview";
 import LoginProviderSetup from "./pages/loginProviders/Setup";
@@ -154,6 +155,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="data/explore" element={<DataExplore />} />
                   <Route path="data/connect" element={<DataConnect />} />
                   <Route path="data/tools" element={legacy(<DataTools />)} />
+                  <Route path="data/transfer" element={legacy(<DataTransfer />)} />
                   <Route path="data/:id" element={<DataDataset />} />
                   <Route path="gdpr" element={legacy(<Gdpr />)} />
                   <Route path="access" element={legacy(<Access />)} />

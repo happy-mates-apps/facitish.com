@@ -41,6 +41,7 @@ from app.routes import developer_mcp as developer_mcp_routes
 from app.routes import developer_api as developer_api_routes
 from app.routes import developer_flows as developer_flow_routes
 from app.routes import gaer_api
+from app.routes import admin_transfer
 from app.routes import yubikey as yubikey_routes
 from app.security import bootstrap_admin_email, bootstrap_admin_phone
 from app.sessions import optional_principal
@@ -213,7 +214,7 @@ def create_app() -> FastAPI:
               user_area.router, mail_routes.router, admin_mail.router, adoption.router, adoption.admin_router,
               knowledge.router, knowledge_admin.router, group_routes.router, group_routes.me_router, admin_secrets.router,
               meta_routes.router, admin_meta.router,
-              messages_routes.router, admin_messages.router,
+              messages_routes.router, admin_messages.router, admin_transfer.router,
               login_provider_routes.router, login_provider_routes.me_router, login_provider_routes.admin_router,
               developer_routes.router, developer_data_routes.router,
               developer_studio_routes.router, developer_mcp_routes.router,

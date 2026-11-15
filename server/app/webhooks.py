@@ -98,6 +98,9 @@ EVENTS: dict[str, str] = {
     "developer.review.required": "Et artefakt kræver review, fordi noget det bruger har fået en major (artefakt-id, årsag-id, review-id)",
     "flow.event": "Et flow i Action-studie udsendte en hændelse med handlingen »Udsend hændelse« (flow-id, kørsel-id, navn, data)",
     "flow.run.failed": "En kørsel af et flow i Action-studie fejlede (flow-id, kørsel-id)",
+    "data.exported": "En eksport fra /admin/data/transfer er klar til at blive hentet (id, områder, antal rækker)",
+    "data.imported": "En import er kørt (id, antal oprettet, antal opdateret)",
+    "data.import.undone": "En import er fortrudt (id)",
 }
 
 # Code that wants to act on every event in the same transaction as the change (flows: a trigger on an event):
