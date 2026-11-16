@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
@@ -832,6 +832,30 @@ async def settings_logo(file: UploadFile, admin: Principal = Depends(require_adm
             if old:
                 await delete_file(conn, old["id"], admin)
     return {"ok": True, "logo_url": "/api/public/logo"}
+
+
+# ── First experience ─────────────────────────────────────────────────────────
+# One bit per instance: set the first time the welcome first experience has been
+# completed, never unset. The UI reads it to decide whether to show the flow.
+
+@router.get("/first-experience")
+async def first_experience_get():
+    async with db.connection() as conn:
+        at = await settings_store.get(conn, "first_experience_at")
+    return {"done": at is not None, "at": at}
+
+
+@router.post("/first-experience/complete")
+async def first_experience_complete(admin: Principal = Depends(require_admin)):
+    async with db.connection() as conn:
+        at = await settings_store.get(conn, "first_experience_at")
+        if at is None:
+            at = datetime.now(timezone.utc).isoformat()
+            await settings_store.set_many(conn, {"first_experience_at": at})
+            await audit(conn, "update", actor_id=admin.user_id, meta=admin.meta, table="settings",
+                        row_id="first_experience", before={"first_experience_at": None},
+                        after={"first_experience_at": at})
+    return {"done": True, "at": at}
 
 
 # ── Website (/w) ────────────────────────────────────────────────────────────

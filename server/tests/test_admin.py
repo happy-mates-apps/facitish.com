@@ -130,6 +130,21 @@ async def test_public_gdpr_request(client):
     assert r.status_code == 200
 
 
+async def test_first_experience_bit(make_client, owner_conn):
+    admin, _ = await _admin_and_user(make_client)
+    assert (await admin.get("/api/admin/first-experience")).json() == {"done": False, "at": None}
+
+    r = await admin.post("/api/admin/first-experience/complete")
+    at = r.json()["at"]
+    assert r.json()["done"] is True and at
+
+    # Idempotent: a second completion keeps the first timestamp and audits only once.
+    assert (await admin.post("/api/admin/first-experience/complete")).json()["at"] == at
+    assert (await admin.get("/api/admin/first-experience")).json() == {"done": True, "at": at}
+    count = owner_conn.execute("select count(*) from audit_log where row_id = 'first_experience'").fetchone()[0]
+    assert count == 1
+
+
 async def test_settings_and_consent_texts(make_client, owner_conn):
     admin, _ = await _admin_and_user(make_client)
     r = await admin.put("/api/admin/settings", json={"app_name": "Bageriet", "sms_sender": "Bageriet",

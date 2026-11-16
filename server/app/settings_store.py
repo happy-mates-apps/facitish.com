@@ -29,6 +29,7 @@ DEFAULTS: dict = {
     "resources": {"items": {}},             # /admin/resources: per resource {max, monthly, unit_price} (app.resources)
     "kill_rules": [],                       # app.events: [{kind, threshold, window_seconds, switch, minutes, enabled}]
     "web_front": "markdown",                # /w/: "markdown" (slug ''), "facit246" (app/web_front.py) or "tas"; default: WEB_FRONT
+    "first_experience_at": None,            # set once when the welcome first experience has been completed (routes/admin.py)
     "mail_archive_export": False,           # mail: copy .eml to the archive before expiry; users may request a download
     "mail_relay_rotated_at": None,          # mail: when the Lettermint SMTP credentials were last rotated
     "mail_relay_paused": False,             # mail: outbound queue paused from /admin/mail → Drift
