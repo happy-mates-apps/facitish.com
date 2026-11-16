@@ -196,6 +196,11 @@ async def build_user_export(conn, user_id: int) -> dict:
                                                 where s.user_id = %s order by n.path""", user_id),
         "mapper_views": await rows("""select id, name, shared, spec, created_at, updated_at from mapper_views
                                       where owner_id = %s order by id""", user_id),
+        # TAS (the terminal simulator): documents they last changed and images they uploaded; both stay, unlinked, on erasure.
+        "tas_docs_changed": await rows("""select collection, id, updated_at from tas_docs where updated_by = %s
+                                          order by collection, id""", user_id),
+        "tas_images_uploaded": await rows("""select id, content_type, size, created_at from tas_assets where created_by = %s
+                                             order by created_at""", user_id),
         "bridge_consents": await rows("select domain, created_at from bridge_consents where user_id = %s order by domain",
                                       user_id),
         "gdpr_requests": await rows("""select id, kind, status, message, received_at, completed_at from gdpr_requests
@@ -324,6 +329,9 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
     whole home and folders cascade; files they put in /shared stay, with the uploader link set to null); the contact
     details on their GDPR requests, their unfinished uploads (rows cascade, objects removed), export and import
     packages that may hold personal data plus the copies an import kept for undo (/admin/data/transfer), and
+    whole home and folders cascade; files they put in /shared stay, with the uploader link set to null; so do the TAS documents and images they
+    changed); the contact
+    details on their GDPR requests, their unfinished uploads (rows cascade, objects removed), and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:
         user = await ensure_can_erase(conn, user_id)

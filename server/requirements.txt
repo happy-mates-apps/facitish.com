@@ -4,6 +4,7 @@ psycopg[binary]==3.3.6
 psycopg-pool==3.3.3
 webauthn==3.0.1
 boto3==1.43.108
+azure-storage-blob==12.31.1
 httpx==0.28.1
 nats-py==2.16.0
 python-multipart==0.0.32

@@ -14,6 +14,7 @@ from starlette.routing import Route
 from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, webhooks
 from app import license as gaer_license
 from app.canonical_host import CanonicalHostMiddleware
+from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, tas, webhooks
 from app import uploads  # noqa: F401  (registers the files.unzip, files.uploads_cleanup and storage.cors jobs)
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
@@ -24,6 +25,7 @@ from app.routes import access as access_routes
 from app.routes import (admin, admin_files, admin_ops, adoption, ai, app_store, auth, clips, consumption, data, features, files,
                         hooks, impersonation, knowledge, knowledge_admin, me, mcp_tools, nats, office, public, resources, review,
                         security, studio, user_area, web)
+                        security, tas as tas_routes, user_area, web)
 from app.routes import admin_mail
 from app.routes import admin_secrets
 from app.routes import admin_datastore
@@ -118,6 +120,9 @@ async def lifespan(app: FastAPI):
     if not (lic := gaer_license.current()).valid:
         log.warning("license: %s (%s) — /w pages say this installation is unlicensed", lic.status, lic.reason)
     await db.open_pools()
+    async with db.connection() as conn:  # TAS: a new instance gets the simulator's menus and knowledge (app/tas.py)
+        if seeded := await tas.seed_if_empty(conn):
+            log.info("TAS: seeded %d documents", seeded)
     workers = jobs.start() if retention.enabled() else None
     if workers and storage.public_origin():
         # The browser uploads straight to the bucket: make sure its CORS lets ORIGIN do that (once per start).
@@ -231,6 +236,8 @@ def create_app() -> FastAPI:
               developer_api_routes.router, gaer_api.router,
               developer_flow_routes.router, developer_flow_routes.public,
               web.router, files.memory_router):
+              knowledge.router, knowledge_admin.router, meta_routes.router, admin_meta.router,
+              tas_routes.router, web.router, files.memory_router):  # tas before web: /w/tas/… before /w/{slug}
         app.include_router(r)
 
     # MCP: exact routes, so /mcp/authorize, /mcp/token and /mcp/register above stay ordinary endpoints. The dynamic

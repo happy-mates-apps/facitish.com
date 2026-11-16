@@ -129,7 +129,9 @@ async def start(conn, body: StartIn, p: Principal, *, admin: bool) -> dict:
     upload_id = uuid.uuid4()
     key = f"uploads/{upload_id}" if body.unzip else f"{filetree.prefix(loc)}/{upload_id}"
     storage = get_storage()
-    out: dict = {"id": str(upload_id), "content_type": content_type}
+    out: dict = {"id": str(upload_id), "content_type": content_type,
+                 # Azure Blob: extra headers for the PUT, and Put Block gives no ETag to send back
+                 "headers": getattr(storage, "put_headers", {}), "part_etags": getattr(storage, "part_etags", True)}
     multipart_id = part_size = None
     if body.size > SINGLE_PUT_MAX:
         part_size = max(PART_SIZE, math.ceil(body.size / MAX_PARTS / MB) * MB)
@@ -171,7 +173,8 @@ async def complete(conn, upload_id, body: CompleteIn, p: Principal, *, admin: bo
         try:
             await storage.complete_multipart(row["storage_key"], row["multipart_id"],
                                              [{"PartNumber": x.number, "ETag": x.etag}
-                                              for x in sorted(body.parts, key=lambda x: x.number)])
+                                              for x in sorted(body.parts, key=lambda x: x.number)],
+                                             content_type=row["content_type"])
         except Exception as e:  # noqa: BLE001 — a part is missing or its ETag is wrong; the browser may try again
             log.info("multipart complete failed for %s: %s", row["id"], e)
             raise HTTPException(400, "Delene kunne ikke samles – prøv at uploade igen")

@@ -6,7 +6,7 @@ type Page = { id: number; slug: string; lang: "da" | "en"; title: string; descri
 type Draft = Omit<Page, "id" | "updated_at" | "og_image_key"> & { id?: number; og_image_key?: string | null };
 type OgSurface = { name: string; label: string; custom: boolean; url: string };
 
-type Front = "markdown" | "facit246";
+type Front = "markdown" | "facit246" | "tas";
 
 const EMPTY: Draft = { slug: "", lang: "da", title: "", description: "", body: "", nav_order: null, published: false };
 
@@ -128,9 +128,10 @@ export default function Web() {
           }}>
             <option value="markdown">Markdown-siden med tom adresse (redigeres her)</option>
             <option value="facit246">„Facit · 246“ — fast fortælling på dansk, engelsk, tysk, svensk og norsk</option>
+            <option value="tas">TAS — terminalsimulatoren med assistent (redigeres i /backoffice)</option>
           </select>
         </label>
-        <p className="muted small">Begge slutter med login-kortet. Undersiderne (/w/…) er Markdown-siderne nedenfor. <a href="/w/" target="_blank" rel="noreferrer">Se forsiden</a></p>
+        <p className="muted small">Markdown-siden og 246-fortællingen slutter med login-kortet; TAS har sin egen log ind-knap. Undersiderne (/w/…) er Markdown-siderne nedenfor. <a href="/w/" target="_blank" rel="noreferrer">Se forsiden</a></p>
       </div>
       <SharingImages onError={setError} onNotice={setNotice} />
       <Alert kind="success">{notice}</Alert>

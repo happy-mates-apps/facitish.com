@@ -205,3 +205,25 @@ async def test_unfinished_uploads_are_cleaned_up(make_client, owner_conn):
     assert (await user.post("/api/me/delete", json={"confirm_phone": "22222222"})).status_code == 200
     assert not get_storage().objects
     assert owner_conn.execute("select count(*) from file_uploads").fetchone()[0] == 0
+
+
+async def test_azure_blob_links_and_upload_origin(monkeypatch):
+    """Azure Blob: SAS links on the account's blob address, block links carry a base64 block id per part."""
+    import base64
+    from urllib.parse import parse_qs
+
+    from app import storage
+    key = base64.b64encode(b"0" * 32).decode()
+    monkeypatch.setattr(config, "settings", dataclasses.replace(
+        config.settings, storage_backend="azure", direct_upload=True, azure_storage_account=None, azure_storage_key=None,
+        azure_storage_connection_string=f"DefaultEndpointsProtocol=https;AccountName=acct;AccountKey={key}",
+        azure_storage_container="box"))
+    assert storage.public_origin() == "https://acct.blob.core.windows.net"
+    s = storage.AzureBlobStorage()
+    put = urlsplit(await s.presign_put("a/b.txt", "text/plain"))
+    assert (put.netloc, put.path) == ("acct.blob.core.windows.net", "/box/a/b.txt")
+    assert "sig" in parse_qs(put.query) and parse_qs(put.query)["sp"] == ["cw"]
+    q = parse_qs(urlsplit(await s.presign_part("a/b.txt", "up1", 7)).query)
+    assert q["comp"] == ["block"] and base64.b64decode(q["blockid"][0]) == b"up1-00007"
+    dl = parse_qs(urlsplit(await s.download_url("a/b.txt", 'r"apport.pdf')).query)
+    assert dl["sp"] == ["r"] and dl["rscd"] == ['attachment; filename="rapport.pdf"']

@@ -53,6 +53,11 @@ def main() -> int:
         for role, _ in roles.values():
             conn.execute(sql.SQL("grant connect on database {} to {}").format(sql.Identifier(db), sql.Identifier(role)))
 
+    # Azure Flexible Server gives the public schema of a new database to azure_pg_admin, not the database owner.
+    admin_db = urlunparse(urlparse(args.admin_url)._replace(path="/" + db))
+    with psycopg.connect(admin_db, autocommit=True) as conn:
+        conn.execute(sql.SQL("alter schema public owner to {}").format(sql.Identifier(owner)))
+
     with psycopg.connect(url_for(args.admin_url, owner, roles["owner"][1], db), autocommit=True) as conn:
         conn.execute("revoke create on schema public from public")
 

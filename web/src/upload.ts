@@ -25,7 +25,10 @@ export type UploadOptions = {
   onProgress?: (sent: number, total: number) => void;
 };
 
-type Start = BucketStart & { id: string };
+type Start = {
+  id: string; content_type: string; multipart: boolean; url?: string; part_size?: number; parts?: number;
+  headers?: Record<string, string>; part_etags?: boolean;
+};
 
 export const isZip = (f: File) => /\.zip$/i.test(f.name);
 export const zipStem = (name: string) => name.replace(/\.zip$/i, "").trim() || "zip";
@@ -41,11 +44,13 @@ class PutError extends Error {
   }
 }
 
-function put(url: string, body: Blob, contentType: string | null, onProgress: (sent: number) => void): Promise<string | null> {
+function put(url: string, body: Blob, contentType: string | null, onProgress: (sent: number) => void,
+  headers: Record<string, string> = {}): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
     if (contentType) xhr.setRequestHeader("Content-Type", contentType);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     if (url.startsWith("/")) xhr.setRequestHeader("X-Gaer", "1"); // the memory backend in tests answers on our origin
     xhr.upload.onprogress = (e) => onProgress(e.loaded);
     xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.getResponseHeader("ETag")) : reject(new PutError(xhr.status)));
@@ -54,10 +59,11 @@ function put(url: string, body: Blob, contentType: string | null, onProgress: (s
   });
 }
 
-async function putWithRetry(url: () => Promise<string>, body: Blob, contentType: string | null, onProgress: (sent: number) => void) {
+async function putWithRetry(url: () => Promise<string>, body: Blob, contentType: string | null, onProgress: (sent: number) => void,
+  headers?: Record<string, string>) {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await put(await url(), body, contentType, onProgress);
+      return await put(await url(), body, contentType, onProgress, headers);
     } catch (e) {
       onProgress(0);
       if (attempt >= TRIES) throw e;
@@ -125,6 +131,41 @@ async function direct(file: File, o: UploadOptions): Promise<UploadStatus> {
   try {
     const parts = await sendToBucket(file, start, `${o.base}/uploads/${start.id}/parts`, o.onProgress);
     return await api.post<UploadStatus>(`${o.base}/uploads/${start.id}/complete`, start.multipart ? { parts } : {});
+    if (!start.multipart) {
+      await putWithRetry(async () => start.url!, file, start.content_type, (sent) => progress(sent, file.size), start.headers);
+      progress(file.size, file.size);
+      return await api.post<UploadStatus>(`${o.base}/uploads/${start.id}/complete`, {});
+    }
+    const size = start.part_size!;
+    const count = start.parts!;
+    const sent = new Array<number>(count + 1).fill(0);
+    const report = () => progress(sent.reduce((a, b) => a + b, 0), file.size);
+    const urls = new Map<number, string>();
+    const urlFor = async (n: number) => {
+      if (!urls.has(n)) {
+        const numbers = Array.from({ length: Math.min(50, count - n + 1) }, (_, i) => n + i);
+        const got = await api.post<{ urls: Record<string, string> }>(`${o.base}/uploads/${start.id}/parts`, { numbers });
+        for (const [k, v] of Object.entries(got.urls)) urls.set(Number(k), v);
+      }
+      return urls.get(n)!;
+    };
+    const etags: { number: number; etag: string }[] = [];
+    let next = 1;
+    const worker = async () => {
+      while (next <= count) {
+        const n = next++;
+        const blob = file.slice((n - 1) * size, Math.min(file.size, n * size));
+        const got = await putWithRetry(() => urlFor(n), blob, null, (s) => { sent[n] = s; report(); });
+        // Azure Blob's Put Block returns no ETag; the server commits the blocks by number
+        const etag = start.part_etags === false ? got || String(n) : got;
+        if (!etag) throw new Error("Object Storage sendte ikke ETag tilbage – bucketens CORS skal vise ETag-headeren");
+        sent[n] = blob.size;
+        report();
+        etags.push({ number: n, etag });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PARALLEL, count) }, worker));
+    return await api.post<UploadStatus>(`${o.base}/uploads/${start.id}/complete`, { parts: etags });
   } catch (e) {
     api.del(`${o.base}/uploads/${start.id}`).catch(() => {});
     throw e;

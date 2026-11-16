@@ -135,6 +135,13 @@ export default function Home() {
         </div>
       </div>
       <PasskeyNudge />
+      <Link to="/backoffice" className="card backoffice-card">
+        <span className="eyebrow">TAS · Terminal Assistance Simulator</span>
+        <strong>Backoffice</strong>
+        <span className="small muted">{user.role === "admin"
+          ? "Ret menuer, viden, fejlsøgning og tilbehør i Admin Portal, se kladder og udgiv. Den udgivne version vises på /w."
+          : "Den virtuelle terminal med assistenten TAS — samme som på den offentlige side /w."}</span>
+      </Link>
       <Alert>{ov.error}</Alert>
       {!d ? <Loading /> : (
         <>
