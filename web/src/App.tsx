@@ -20,6 +20,7 @@ import UserMail, { UserMailById } from "./pages/Mail";
 import Approve from "./pages/Approve";
 import Develop from "./pages/Develop";
 import Trees from "./pages/Trees";
+import Backoffice from "./pages/Backoffice";
 import ExtensionLayout from "./extension/ExtensionLayout";
 import ExtensionPage from "./extension/ExtensionPage";
 import ExtensionAccount from "./extension/ExtensionAccount";
@@ -145,6 +146,7 @@ export default function App() {
         <Route path="/go" element={<GoPage />} />
         <Route path="/develop" element={<RequireUser><Develop /></RequireUser>} />
         <Route path="/develop/trae" element={<RequireUser><Trees /></RequireUser>} />
+        <Route path="/backoffice" element={<RequireUser><Backoffice /></RequireUser>} />
 
         <Route path="/extension/login" element={<Login home="/extension" embedded />} />
         <Route path="/extension/tools" element={<RequireUser login="/extension/login"><ToolLayout /></RequireUser>}>

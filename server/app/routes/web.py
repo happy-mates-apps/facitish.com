@@ -3,7 +3,8 @@
 Language: ?lang=da|en (remembered in the w_lang cookie), then the cookie, then Danish.
 Front page: the Markdown page with slug '' (default), or — with the setting web_front = "facit246" (/admin/web) —
 the fixed "Facit · 246" story (app/web_front.py) in da/en/de/sv/no, where the browser's language is used when
-nothing is chosen. Both end with the login card.
+nothing is chosen. Both end with the login card. With web_front = "tas" (this fork's default, WEB_FRONT) the front
+page is the Terminal Assistance Simulator (routes/tas.py); its own header has the login button.
 Anonymous visitors to / are sent here (see main.py). Page views go through the same
 self-hosted analytics as the app (static/w.js), with the same consent.
 """
@@ -146,6 +147,9 @@ async def w_page(slug: str, request: Request):
     slug = slug.strip("/")
     async with db.connection() as conn:
         values = await settings_store.get_all(conn)
+        if slug == "" and values["web_front"] == "tas":
+            from app.routes.tas import page_response
+            return page_response("public")
         story = slug == "" and values["web_front"] == "facit246"
         lang, explicit = _lang(request, web_front.LANGS, browser=True) if story else _lang(request)
         page_lang = lang if lang in LANGS else "da"  # Markdown pages and the menu exist in da/en

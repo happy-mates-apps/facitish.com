@@ -114,6 +114,11 @@ async def build_user_export(conn, user_id: int) -> dict:
                                        join meta_nodes n on n.id = a.node_id where a.created_by = %s order by a.created_at""", user_id),
         "meta_nodes_created": await rows("""select id, path, label, created_at from meta_nodes
                                             where created_by = %s and owner_id is null order by path""", user_id),
+        # TAS (the terminal simulator): documents they last changed and images they uploaded; both stay, unlinked, on erasure.
+        "tas_docs_changed": await rows("""select collection, id, updated_at from tas_docs where updated_by = %s
+                                          order by collection, id""", user_id),
+        "tas_images_uploaded": await rows("""select id, content_type, size, created_at from tas_assets where created_by = %s
+                                             order by created_at""", user_id),
         "bridge_consents": await rows("select domain, created_at from bridge_consents where user_id = %s order by domain",
                                       user_id),
         "gdpr_requests": await rows("""select id, kind, status, message, received_at, completed_at from gdpr_requests
@@ -228,7 +233,8 @@ async def erase_user(user_id: int, *, actor_id: int | None, meta: RequestMeta, r
     and from their area (/user), adoption visits, nudges and journey roles, Viden conversations and agent memberships
     cascade; their mailbox rows cascade and the mailbox itself is removed in Stalwart by the job mail.principal.delete;
     review screenshots and audio are files; feature usage is purged with the logs; their files in Object Storage (their
-    whole home and folders cascade; files they put in /shared stay, with the uploader link set to null); the contact
+    whole home and folders cascade; files they put in /shared stay, with the uploader link set to null; so do the TAS documents and images they
+    changed); the contact
     details on their GDPR requests, their unfinished uploads (rows cascade, objects removed), and
     log data about them (via the purge user). The erasure itself is logged without personal data."""
     async with db.connection() as conn:

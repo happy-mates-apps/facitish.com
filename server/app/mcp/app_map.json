@@ -266,6 +266,10 @@
       "title": "Webhooks",
       "anchors": []
     },
+    "/backoffice": {
+      "title": "Backoffice",
+      "anchors": []
+    },
     "/develop": {
       "title": "Udvikling",
       "anchors": [

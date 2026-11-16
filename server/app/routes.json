@@ -137,6 +137,24 @@
    ]
   },
   {
+   "id": "backoffice",
+   "docs_path": "/backoffice",
+   "who": {
+    "en": "logged in (editing: admin role Fuld adgang or Indhold)",
+    "da": "logget ind (redigering: admin-rollen Fuld adgang eller Indhold)"
+   },
+   "what": {
+    "en": "**TAS — Terminal Assistance Simulator** (spec in `specs/tas/`): the virtual payment terminal with its assistant, as on `/w/`, plus the **Admin Portal** where editors change menus, knowledge, troubleshooting, accessories, translations and TAS settings, preview drafts and publish. The page frames `/w/tas/backoffice`; the simulator's data lives in `tas_docs`/`tas_assets` behind `/api/tas`.",
+    "da": "**TAS – terminalsimulatoren** med assistent som på `/w/`, plus **Admin Portal**, hvor redaktører retter menuer, viden, fejlsøgning, tilbehør, oversættelser og TAS-indstillinger, ser kladder og udgiver."
+   },
+   "code": [
+    "pages/Backoffice.tsx",
+    "routes/tas.py",
+    "tas.py",
+    "web_static/tas/"
+   ]
+  },
+  {
    "id": "admin",
    "docs_path": "/admin/…",
    "who": {
@@ -432,6 +450,13 @@
    "app": "app",
    "access": "user",
    "title": "Træstrukturer"
+  },
+  {
+   "path": "/backoffice",
+   "group": "backoffice",
+   "app": "app",
+   "access": "user",
+   "title": "Backoffice"
   },
   {
    "path": "/admin",

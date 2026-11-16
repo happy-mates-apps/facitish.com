@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, webhooks
+from app import captcha, config, db, events, jobs, killswitch, mail, og, retention, settings_store, storage, tas, webhooks
 from app import uploads  # noqa: F401  (registers the files.unzip, files.uploads_cleanup and storage.cors jobs)
 from app.mailbox import tasks as mailbox_tasks  # noqa: F401  (registers the mail.* jobs and the Lettermint handler)
 from app.mcp import hub as mcp_hub
@@ -21,7 +21,7 @@ from app import route_manifest
 from app.routes import access as access_routes
 from app.routes import (admin, admin_files, admin_ops, adoption, ai, app_store, auth, clips, consumption, data, features, files,
                         hooks, impersonation, knowledge, knowledge_admin, me, mcp_tools, nats, office, public, resources, review,
-                        security, user_area, web)
+                        security, tas as tas_routes, user_area, web)
 from app.routes import admin_mail
 from app.routes import admin_meta
 from app.routes import meta as meta_routes
@@ -86,6 +86,9 @@ async def lifespan(app: FastAPI):
     if config.settings.is_production and not captcha.enabled():
         log.warning("CAPTCHA=off: account creation and login with a code have no robot check")
     await db.open_pools()
+    async with db.connection() as conn:  # TAS: a new instance gets the simulator's menus and knowledge (app/tas.py)
+        if seeded := await tas.seed_if_empty(conn):
+            log.info("TAS: seeded %d documents", seeded)
     workers = jobs.start() if retention.enabled() else None
     if workers and storage.public_origin():
         # The browser uploads straight to the bucket: make sure its CORS lets ORIGIN do that (once per start).
@@ -181,7 +184,7 @@ def create_app() -> FastAPI:
               mcp_hub.router, office.router, review.router, admin_ops.router, hooks.router, nats.router, resources.router, consumption.router,
               user_area.router, mail_routes.router, admin_mail.router, adoption.router, adoption.admin_router,
               knowledge.router, knowledge_admin.router, meta_routes.router, admin_meta.router,
-              web.router, files.memory_router):
+              tas_routes.router, web.router, files.memory_router):  # tas before web: /w/tas/… before /w/{slug}
         app.include_router(r)
 
     # MCP: exact routes, so /mcp/authorize, /mcp/token and /mcp/register above stay ordinary endpoints.

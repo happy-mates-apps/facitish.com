@@ -28,7 +28,7 @@ DEFAULTS: dict = {
     "og_images": {},                        # og:image per anonymous surface → storage key (app/og.py)
     "resources": {"items": {}},             # /admin/resources: per resource {max, monthly, unit_price} (app.resources)
     "kill_rules": [],                       # app.events: [{kind, threshold, window_seconds, switch, minutes, enabled}]
-    "web_front": "markdown",                # /w/: "markdown" (slug '') or "facit246" (app/web_front.py); default: WEB_FRONT
+    "web_front": "markdown",                # /w/: "markdown" (slug ''), "facit246" (app/web_front.py) or "tas"; default: WEB_FRONT
     "mail_archive_export": False,           # mail: copy .eml to the archive before expiry; users may request a download
     "mail_relay_rotated_at": None,          # mail: when the Lettermint SMTP credentials were last rotated
     "mail_relay_paused": False,             # mail: outbound queue paused from /admin/mail → Drift

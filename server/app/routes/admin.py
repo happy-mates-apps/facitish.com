@@ -846,7 +846,7 @@ async def web_preview(body: PreviewIn):
 
 
 class WebFrontIn(BaseModel):
-    front: str = Field(pattern="^(markdown|facit246)$")
+    front: str = Field(pattern="^(markdown|facit246|tas)$")
 
 
 @router.get("/web/front")
@@ -857,7 +857,7 @@ async def web_front_get():
 
 @router.put("/web/front")
 async def web_front_put(body: WebFrontIn, admin: Principal = Depends(require_admin)):
-    """/w/: the Markdown page with slug '' or the fixed "Facit · 246" story (app/web_front.py)."""
+    """/w/: the Markdown page with slug '', the fixed "Facit · 246" story (app/web_front.py) or the TAS simulator."""
     async with db.connection() as conn:
         before = await settings_store.get(conn, "web_front")
         if before != body.front:

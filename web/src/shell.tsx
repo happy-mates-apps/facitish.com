@@ -40,6 +40,7 @@ const ICONS: Record<string, ReactNode> = {
   logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>,
   code: <><path d="M16 18l6-6-6-6" /><path d="M8 6l-6 6 6 6" /></>,
   upload: <><path d="M12 19V7" /><path d="M7 12l5-5 5 5" /><path d="M5 3h14" /></>,
+  terminal: <><rect x="6" y="2.5" width="12" height="19" rx="2" /><rect x="8.5" y="5" width="7" height="5" rx=".5" /><path d="M9 13.5h.01M12 13.5h.01M15 13.5h.01M9 16.5h.01M12 16.5h.01M15 16.5h.01" /></>,
 };
 
 export function Icon({ name, size = 20 }: { name: keyof typeof ICONS | string; size?: number }) {
@@ -95,6 +96,7 @@ function initials(text: string): string {
 type NavItem = { to: string; label: string; icon: string; feature?: string; end?: boolean; mobile?: boolean };
 const WORK: NavItem[] = [
   { to: "/", label: "Overblik", icon: "home", end: true, mobile: true },
+  { to: "/backoffice", label: "Backoffice", icon: "terminal" },
   { to: "/klip", label: "Klip", icon: "clip", feature: "klip", mobile: true },
   { to: "/filer", label: "Filer", icon: "folder", feature: "filer", mobile: true },
   { to: "/user", label: "Mit område", icon: "users", end: true },

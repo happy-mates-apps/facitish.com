@@ -55,6 +55,7 @@ os.environ.update({
     "SMS_LOGIN": "1",  # most tests log in with a phone number; test_email_login covers the default
     "MAIL_PROVIDER": "console",
     "RUN_MAINTENANCE": "0",
+    "WEB_FRONT": "markdown",  # the fork shows TAS on /w/; the generic /w/ tests expect the Markdown front page
     "CAPTCHA": "off",  # test_captcha switches it on; the other tests log in without it
     "WEBHOOK_ALLOW_PRIVATE": "1",
     "RP_ID": "localhost",

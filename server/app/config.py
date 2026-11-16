@@ -123,7 +123,7 @@ class Settings:
 
     # Static frontend (built Vite output)
     # /w/ until an admin chooses in /admin/web: "markdown" (the page with slug '') or "facit246" (the 246 story).
-    web_front: str = field(default_factory=lambda: _env("WEB_FRONT", "markdown"))
+    web_front: str = field(default_factory=lambda: _env("WEB_FRONT", "tas"))  # this fork: TAS on /w/
     static_dir: str = field(default_factory=lambda: _env("STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "web", "dist")))
 
     # Optional AI chat. OpenAI-compatible endpoint; default OVHcloud AI Endpoints (processed in Europe).
