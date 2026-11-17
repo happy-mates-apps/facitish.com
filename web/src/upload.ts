@@ -25,10 +25,7 @@ export type UploadOptions = {
   onProgress?: (sent: number, total: number) => void;
 };
 
-type Start = {
-  id: string; content_type: string; multipart: boolean; url?: string; part_size?: number; parts?: number;
-  headers?: Record<string, string>; part_etags?: boolean;
-};
+type Start = BucketStart & { id: string };
 
 export const isZip = (f: File) => /\.zip$/i.test(f.name);
 export const zipStem = (name: string) => name.replace(/\.zip$/i, "").trim() || "zip";
@@ -75,7 +72,8 @@ async function putWithRetry(url: () => Promise<string>, body: Blob, contentType:
 /** A started direct upload: one presigned PUT link, or multipart (part_size, parts) with links asked for as it goes. */
 export type BucketStart = {
   id: string | number; content_type: string; multipart: boolean; url?: string; part_size?: number; parts?: number;
-  headers?: Record<string, string>; part_etags?: boolean;
+  headers?: Record<string, string>;  // extra headers for the PUT (Azure Blob)
+  part_etags?: boolean;              // false: the bucket gives no ETag per part (Azure Put Block); parts go by number
 };
 
 /**
@@ -108,7 +106,7 @@ export async function sendToBucket(file: File, start: BucketStart, partsUrl: str
     while (next <= count) {
       const n = next++;
       const blob = file.slice((n - 1) * size, Math.min(file.size, n * size));
-      const got = await putWithRetry(() => urlFor(n), blob, null, (s) => { sent[n] = s; report(); });
+      const got = await putWithRetry(() => urlFor(n), blob, null, (s) => { sent[n] = s; report(); }, start.headers);
       // Azure Blob's Put Block returns no ETag; the server commits the blocks by number
       const etag = start.part_etags === false ? got || String(n) : got;
       if (!etag) throw new Error("Object Storage sendte ikke ETag tilbage – bucketens CORS skal vise ETag-headeren");
